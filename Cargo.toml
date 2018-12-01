@@ -1,0 +1,16 @@
+[package]
+name = "attractor"
+version = "0.1.0"
+authors = ["Harry <hlbarber93@gmail.com>"]
+
+[dependencies]
+futures = "0.1"
+tokio = "0.1"
+rocksdb = "0.10"
+libc = "0.2"
+bytes = "0.4"
+dirs = "1.0"
+memcache = "*"
+
+[dev-dependencies]
+rand = "*"
