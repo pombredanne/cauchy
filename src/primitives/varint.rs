@@ -21,18 +21,17 @@ impl VarInt {
         return n_ret;
     }
 
-    pub fn parse(raw: &Bytes) -> VarInt {
-        // TODO: Catch errors etc
+    // TODO: Change to result
+    pub fn parse(raw: &[u8]) -> VarInt {
         let mut n: u64 = 0;
         let mut buf = raw.into_buf();
-        let mut i: usize = 0;
         loop {
-            let k = buf.get_u8() as u64;
-            n = (n >> 7) | (k & 0x7f);
-            if k < 0xff {
+            let k = buf.get_u8();
+            n = (n << 7) | ((k & 0x7f) as u64);
+            if 0x00 != (k & 0x80) {
                 n += 1;
             } else {
-                return VarInt(n);
+                return VarInt::new(n);
             }
         }
     }
@@ -55,6 +54,3 @@ impl From<u64> for VarInt {fn from(item: u64) -> Self {VarInt(item)}}
 impl From<VarInt> for u64 {fn from(item: VarInt) -> Self {item.0 as u64}}
 
 impl Clone for VarInt {fn clone(&self) -> VarInt { VarInt(self.0) }}
-
-
-// TODO: Automatic casting etc

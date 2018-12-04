@@ -1,24 +1,14 @@
-use primitives::{script::Script, varint::VarInt, transaction::Transaction};
+use primitives::{script::*, varint::VarInt, transaction::Transaction};
 use bytes::{Bytes, BytesMut, Buf, BufMut, IntoBuf};
+use std::io::Cursor;
 
-pub trait SerialisableType<T> {
-    fn serialise(T) -> Bytes;
-    fn deserialise(raw: Bytes) -> Result<T, String>;
-}
+pub trait TryFrom<T>: Sized {
+    type Err;
+    fn try_from(_: T) -> Result<Self, Self::Err>;
+} // Isn't this stable now??
 
-impl SerialisableType<Script> for Script {
-    fn serialise(script: Script) -> Bytes {
-        Bytes::from(script)
-    }
-
-    fn deserialise(raw: Bytes) -> Result<Script, String> {
-        // TODO: Is this right? Should we assume that the varint is in the raw too?
-        Ok(Script::from(raw.clone()))
-    }
-}
-
-impl SerialisableType<VarInt> for VarInt {
-    fn serialise(varint: VarInt) -> Bytes {
+impl From<VarInt> for Bytes {
+    fn from(varint: VarInt) -> Bytes {
         let mut n = u64::from(varint);
         let mut tmp = vec![];
         let mut len = 0;
@@ -31,8 +21,13 @@ impl SerialisableType<VarInt> for VarInt {
         tmp.reverse();
         Bytes::from(tmp)
         }
+}
 
-    fn deserialise(raw: Bytes) -> Result<VarInt, String> {
+// TODO: Catch errors properly
+impl TryFrom<Bytes> for VarInt {
+    type Err = String;
+    // TODO: Catch errors properly
+    fn try_from(raw: Bytes) -> Result<VarInt, Self::Err> {
         let mut n: u64 = 0;
         let mut buf = raw.into_buf();
         loop {
@@ -47,36 +42,67 @@ impl SerialisableType<VarInt> for VarInt {
     }
 }
 
-impl SerialisableType<Transaction> for Transaction {
-    fn serialise(tx: Transaction) -> Bytes {
-        let n_instructions = usize::from(tx.n_instructions.clone());
-        let mut serial = BytesMut::with_capacity(n_instructions);
+impl From<Transaction> for Bytes {
+    fn from(tx: Transaction) -> Bytes {
+        let mut pass_by_u8: u8 = 0;
+        let mut buf = vec![];
+        let mut exp = 0;
+        let scripts = Vec::from(tx);
 
-        serial.put(VarInt::serialise(tx.n_instructions));
-        serial.put(Bytes::from(tx.instructions));
-        serial.put(tx.memory);
-
-        serial.freeze()
-    }
-
-    fn deserialise(raw: Bytes) -> Result<Transaction, String> {
-        let n_instructions = VarInt::parse(&raw);
-        let n_instruc_len = n_instructions.len();
-        let n_instructions = usize::from(n_instructions);
-
-        if raw.len() < n_instruc_len + n_instructions {
-            return Err("Data too short to deserialise".to_string())
+        for script in &scripts {
+            match script.get_pass_by() {
+                PassBy::Value => pass_by_u8 += 1 << exp, // Can be done faster?
+                PassBy::Reference => ()
+            }
+            exp +=1;
         }
+        buf.put(pass_by_u8);
 
-        let instructions = match Script::deserialise(raw.slice(n_instruc_len, n_instructions + n_instruc_len)) {
-            Ok(some) => some,
-            Err(some) => return Err(some)
-        };
+        for script in scripts {
 
-        Ok(Transaction { 
-            n_instructions: VarInt::from(n_instructions), // Trade off here
-            instructions: instructions, 
-            memory: raw.slice_from(n_instructions + n_instruc_len), 
-            })
+
+            let script_raw = Bytes::from(script);
+            buf.put(&Bytes::from(VarInt::from(script_raw.len())));
+            buf.put(&script_raw);
+        }
+        Bytes::from(buf)
+    }
+}
+
+impl TryFrom<Bytes> for Transaction {
+    type Err = String;
+    fn try_from(raw: Bytes) -> Result<Transaction, Self::Err> {
+        // TODO: Catch exceptions here and look for optimization
+        let mut scripts = Vec::new();
+        let mut buf = raw.into_buf();
+
+        let pass_profile = VarInt::parse(buf.bytes());
+        println!("Pass profile length: {}", pass_profile.len());
+        buf.advance(pass_profile.len());
+        let pass_profile = u64::from(pass_profile); //This limits number of scripts to 64
+        println!("Pass profile length: {}", pass_profile);
+        let mut exp = 0;
+        loop {
+            let vi = VarInt::parse(buf.bytes());
+            buf.advance(vi.len());
+            let len = usize::from(vi);
+
+            let mut dst = vec![0; len];
+            buf.copy_to_slice(&mut dst);
+
+            let script = Script::new(   
+                if (pass_profile >> exp) % 2 == 1 { 
+                    PassBy::Value 
+                } else { 
+                    PassBy::Reference
+                }, 
+                Bytes::from(dst) 
+            );
+            scripts.push(script);
+
+            if !buf.has_remaining() { break }
+            exp += 1;
+        }
+        Ok(Transaction::new(scripts))
     }
 }

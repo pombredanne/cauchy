@@ -1,19 +1,44 @@
-use primitives::{varint::VarInt, script::Script};
-use bytes::Bytes;
+use primitives::script::Script;
+
+/* 
+             v Length of next script
+VarInt || VarInt || Script || VarInt || Script || ... || VarInt || Script
+  ^ Encoded PassBy's             ^ Length of next script
+
+-First script is executed and must return true, the others are added to the "library".
+-Number of scripts should be bounded at 512 (as VarInt size is bounded at 64 bytes)
+*/
 
 // Structure of Transaction
-pub struct Transaction {
-    pub n_instructions: VarInt,
-    pub instructions: Script,
-    pub memory: Bytes,
-}
+#[derive(Debug)]
+pub struct Transaction(Vec<Script>);
 
 impl Transaction {
-    pub fn slice(tx: Transaction, start: usize, end: usize, inst_flag: bool) -> Result<Bytes, String> {
-        if inst_flag {
-            Ok(Bytes::from(tx.instructions).slice(start, end))
+    pub fn new(scripts: Vec<Script>) -> Self {
+        Transaction(scripts)
+    }
+
+    pub fn get_script(&self, i: usize) -> Result<&Script, String> {
+        if self.0.len() < i {
+            Err("Script out of range".to_string())
         } else {
-            Ok(tx.memory.slice(start, end))
+            Ok(&self.0[i])
         }
-    } 
+    }
+
+    pub fn get_len(&self) -> usize {
+        self.0.len()
+    }
+}
+
+impl From<Transaction> for Vec<Script> {
+    fn from(tx: Transaction) -> Vec<Script> {
+        tx.0
+    }
+}
+
+impl PartialEq for Transaction {
+    fn eq (&self, other: &Transaction) -> bool {
+        self.0 == other.0
+    }
 }
