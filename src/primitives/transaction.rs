@@ -10,7 +10,7 @@ VarInt || VarInt || Script || VarInt || Script || ... || VarInt || Script
 */
 
 // Structure of Transaction
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Transaction(Vec<Script>);
 
 impl Transaction {
@@ -34,11 +34,5 @@ impl Transaction {
 impl From<Transaction> for Vec<Script> {
     fn from(tx: Transaction) -> Vec<Script> {
         tx.0
-    }
-}
-
-impl PartialEq for Transaction {
-    fn eq (&self, other: &Transaction) -> bool {
-        self.0 == other.0
     }
 }

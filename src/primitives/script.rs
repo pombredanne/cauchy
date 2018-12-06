@@ -1,13 +1,13 @@
 use bytes::Bytes;
 use std::convert::From;
 
-#[derive(PartialEq, Debug)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum PassBy {
     Value,
     Reference,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Script(PassBy, Bytes);
 
 impl Script {
@@ -25,11 +25,5 @@ impl From<Script> for Bytes {
         match item {
             Script(_, some) => some
         }
-    }
-}
-
-impl PartialEq for Script {
-    fn eq (&self, other: &Script) -> bool {
-        (self.0 == other.0) & (self.1 == other.1)
     }
 }

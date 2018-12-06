@@ -1,6 +1,7 @@
 extern crate bytes;
 extern crate futures;
 extern crate rocksdb;
+extern crate blake2;
 
 
 #[cfg(test)]
@@ -9,13 +10,17 @@ mod tests {
     mod test_varint;
     mod test_db;
     mod test_transaction;
+    mod test_hash;
 }
 
 pub mod db;
 
-mod utils{
+mod utils {
     pub mod serialisation;
-    pub mod hash;
+}
+
+mod crypto {
+    pub mod hashes;
 }
 
 pub mod primitives;

@@ -1,7 +1,5 @@
 use primitives::{script::*, varint::VarInt, transaction::Transaction};
-use bytes::{Bytes, BytesMut, Buf, BufMut, IntoBuf};
-use std::io::Cursor;
-
+use bytes::{Bytes, Buf, BufMut, IntoBuf};
 pub trait TryFrom<T>: Sized {
     type Err;
     fn try_from(_: T) -> Result<Self, Self::Err>;
