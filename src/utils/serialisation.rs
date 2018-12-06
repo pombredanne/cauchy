@@ -57,10 +57,8 @@ impl From<Transaction> for Bytes {
         buf.put(pass_by_u8);
 
         for script in scripts {
-
-
             let script_raw = Bytes::from(script);
-            buf.put(&Bytes::from(VarInt::from(script_raw.len())));
+            buf.put(&Bytes::from(&[script_raw.len() as u8][..]));
             buf.put(&script_raw);
         }
         Bytes::from(buf)
@@ -81,11 +79,9 @@ impl TryFrom<Bytes> for Transaction {
         println!("Pass profile length: {}", pass_profile);
         let mut exp = 0;
         loop {
-            let vi = VarInt::parse(buf.bytes());
-            buf.advance(vi.len());
-            let len = usize::from(vi);
+            let len = buf.get_u8();
 
-            let mut dst = vec![0; len];
+            let mut dst = vec![0; len as usize];
             buf.copy_to_slice(&mut dst);
 
             let script = Script::new(   
