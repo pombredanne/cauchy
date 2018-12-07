@@ -11,13 +11,12 @@ mod tests {
     mod test_db;
     mod test_transaction;
     mod test_hash;
+    mod test_byte_tools;
 }
 
 pub mod db;
 
-mod utils {
-    pub mod serialisation;
-}
+pub mod utils;
 
 mod crypto {
     pub mod hashes;
