@@ -1,4 +1,4 @@
-use primitives::{script::*, varint::VarInt, transaction::Transaction};
+use primitives::{script::{PassBy, Script, MAX_SCRIPT_LEN}, varint::VarInt, transaction::Transaction};
 use bytes::{Bytes, Buf, BufMut, IntoBuf};
 pub trait TryFrom<T>: Sized {
     type Err;
@@ -58,7 +58,7 @@ impl From<Transaction> for Bytes {
 
         for script in scripts {
             let script_raw = Bytes::from(script);
-            buf.put(&Bytes::from(&[script_raw.len() as u8][..]));
+            buf.put(&Bytes::from(VarInt::from(script_raw.len()))); 
             buf.put(&script_raw);
         }
         Bytes::from(buf)
@@ -73,13 +73,17 @@ impl TryFrom<Bytes> for Transaction {
         let mut buf = raw.into_buf();
 
         let pass_profile = VarInt::parse(buf.bytes());
-        println!("Pass profile length: {}", pass_profile.len());
         buf.advance(pass_profile.len());
         let pass_profile = u64::from(pass_profile); //This limits number of scripts to 64
-        println!("Pass profile length: {}", pass_profile);
         let mut exp = 0;
         loop {
-            let len = buf.get_u8();
+            let vi = VarInt::parse(buf.bytes());
+            buf.advance(vi.len());
+            let len = usize::from(vi);
+
+            if len > MAX_SCRIPT_LEN {
+                return Err("Max script size exceeded".to_string())
+            }
 
             let mut dst = vec![0; len as usize];
             buf.copy_to_slice(&mut dst);
