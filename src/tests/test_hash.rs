@@ -12,10 +12,10 @@ use bytes::Bytes;
 
     #[test]
     fn test_blk2b_transaction(){
-        let raw = &b"\x06\x05hello\x06script\x07world!!"[..];
+        let raw = &b"\x01\x06\x05hello\x06script\x07world!!"[..];
         let script_a = Script::new(PassBy::Reference, Bytes::from(&b"hello"[..]));
         let script_b = Script::new(PassBy::Value, Bytes::from(&b"script"[..]));
         let script_c = Script::new(PassBy::Value, Bytes::from(&b"world!!"[..]));
-        let tx = Transaction::new(vec![script_a, script_b, script_c]);
+        let tx = Transaction::new(1, vec![script_a, script_b, script_c]);
         assert_eq!(tx.blake2b(), raw.blake2b())
     }

@@ -42,8 +42,12 @@ impl TryFrom<Bytes> for VarInt {
 
 impl From<Transaction> for Bytes {
     fn from(tx: Transaction) -> Bytes {
-        let mut pass_by_u8: u8 = 0;
         let mut buf = vec![];
+
+        let var_time = VarInt::from(tx.get_time());
+        buf.put(&Bytes::from(var_time));
+
+        let mut pass_by_u8: u64 = 0;
         let mut exp = 0;
         let scripts = Vec::from(tx);
 
@@ -54,7 +58,8 @@ impl From<Transaction> for Bytes {
             }
             exp +=1;
         }
-        buf.put(pass_by_u8);
+
+        buf.put(&Bytes::from(VarInt::from(pass_by_u8)));
 
         for script in scripts {
             let script_raw = Bytes::from(script);
@@ -68,9 +73,11 @@ impl From<Transaction> for Bytes {
 impl TryFrom<Bytes> for Transaction {
     type Err = String;
     fn try_from(raw: Bytes) -> Result<Transaction, Self::Err> {
-        // TODO: Catch exceptions here and look for optimization
         let mut scripts = Vec::new();
         let mut buf = raw.into_buf();
+
+        let time = VarInt::parse(buf.bytes());
+        buf.advance(time.len());
 
         let pass_profile = VarInt::parse(buf.bytes());
         buf.advance(pass_profile.len());
@@ -101,6 +108,6 @@ impl TryFrom<Bytes> for Transaction {
             if !buf.has_remaining() { break }
             exp += 1;
         }
-        Ok(Transaction::new(scripts))
+        Ok(Transaction::new(u32::from(time), scripts))
     }
 }

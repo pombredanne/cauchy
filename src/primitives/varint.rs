@@ -51,6 +51,10 @@ impl From<VarInt> for usize {fn from(item: VarInt) -> Self {item.0 as usize}}
 
 impl From<u64> for VarInt {fn from(item: u64) -> Self {VarInt(item)}}
 
+impl From<u32> for VarInt {fn from(item: u32) -> Self {VarInt(item as u64)}}
+
+impl From<VarInt> for u32 {fn from(item: VarInt) -> Self {item.0 as u32}}
+
 impl From<VarInt> for u64 {fn from(item: VarInt) -> Self {item.0 as u64}}
 
 impl Clone for VarInt {fn clone(&self) -> VarInt { VarInt(self.0) }}
