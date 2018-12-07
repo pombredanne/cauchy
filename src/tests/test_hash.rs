@@ -1,5 +1,5 @@
 extern crate hex_literal;
-use crypto::hashes::blake2b::Blk2bHashable;
+use crypto::hashes::{blake2b::Blk2bHashable, oddsketch::*};
 use primitives::{transaction::Transaction, script::*};
 use bytes::Bytes;
 
@@ -18,4 +18,39 @@ use bytes::Bytes;
         let script_c = Script::new(PassBy::Value, Bytes::from(&b"world!!"[..]));
         let tx = Transaction::new(1, vec![script_a, script_b, script_c]);
         assert_eq!(tx.blake2b(), raw.blake2b())
+    }
+
+
+    #[test]
+    fn test_sketchable_permutation(){
+        let script_a = Script::new(PassBy::Reference, Bytes::from(&b"hello"[..]));
+        let script_b = Script::new(PassBy::Value, Bytes::from(&b"script"[..]));
+        let script_c = Script::new(PassBy::Value, Bytes::from(&b"world!!"[..]));
+        let vec_a = vec![script_a.clone(), script_b.clone(), script_c.clone()];
+        let vec_b = vec![script_b, script_a, script_c];
+        assert_eq!(Bytes::from(vec_a.odd_sketch()), Bytes::from(vec_b.odd_sketch()))
+    }
+
+   #[test]
+    fn test_sketchable_size(){
+        let script_a = Script::new(PassBy::Reference, Bytes::from(&b"hello"[..]));
+        let script_b = Script::new(PassBy::Value, Bytes::from(&b"script"[..]));
+        let script_c = Script::new(PassBy::Value, Bytes::from(&b"world!!"[..]));
+        let script_d = Script::new(PassBy::Value, Bytes::from(&b"extra"[..]));
+        let vec_a = vec![script_a, script_b, script_c, script_d];
+        let sketch_a = vec_a.odd_sketch();
+        assert_eq!(sketch_a.size(), 4)
+    }
+
+    #[test]
+    fn test_sketchable_symmetric_difference(){
+        let script_a = Script::new(PassBy::Reference, Bytes::from(&b"hello"[..]));
+        let script_b = Script::new(PassBy::Value, Bytes::from(&b"script"[..]));
+        let script_c = Script::new(PassBy::Value, Bytes::from(&b"world!!"[..]));
+        let script_d = Script::new(PassBy::Value, Bytes::from(&b"extra"[..]));
+        let vec_a = vec![script_a.clone(), script_b.clone(), script_c.clone()];
+        let vec_b = vec![script_b, script_a, script_d];
+        let sketch_a = vec_a.odd_sketch();
+        let sketch_b = vec_b.odd_sketch();
+        assert_eq!(Sketch::xor(sketch_a, sketch_b).size(), 2)
     }

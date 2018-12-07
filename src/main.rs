@@ -6,7 +6,6 @@ extern crate blake2;
 
 #[cfg(test)]
 mod tests {
-    mod test_script;
     mod test_varint;
     mod test_db;
     mod test_transaction;

@@ -25,11 +25,11 @@ impl Transaction {
         }
     }
 
-    pub fn get_len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.1.len()
     }
 
-    pub fn get_time(&self) -> u32 {
+    pub fn time(&self) -> u32 {
         self.0
     }
 }

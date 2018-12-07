@@ -44,7 +44,7 @@ impl From<Transaction> for Bytes {
     fn from(tx: Transaction) -> Bytes {
         let mut buf = vec![];
 
-        let var_time = VarInt::from(tx.get_time());
+        let var_time = VarInt::from(tx.time());
         buf.put(&Bytes::from(var_time));
 
         let mut pass_by_u8: u64 = 0;

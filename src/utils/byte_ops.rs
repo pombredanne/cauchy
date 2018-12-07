@@ -4,7 +4,7 @@ use std::ops::*;
 
 
 macro_rules! bop {
-	($trait_name: ident, $fn_name: ident) => (
+	($trait_name: ident, $fn_name: ident, $bitop_name: ident) => (
 		pub trait $trait_name {
 
 			fn $fn_name(self, rhs: Bytes) -> Bytes;
@@ -21,7 +21,7 @@ macro_rules! bop {
 				for _i in 0..len {
 					let x = buf_lhs.get_u8();
 					let y = buf_rhs.get_u8();
-					result.put(u8::$fn_name(x, y));
+					result.put(u8::$bitop_name(x, y));
 				}
 				Bytes::from(result)
 			}
@@ -29,9 +29,9 @@ macro_rules! bop {
 	)
 }
 
-bop!(BitAndByte, bitand);
-bop!(BitOrByte, bitor);
-bop!(BitXorByte, bitxor);
+bop!(ByteAnd, byte_and, bitand);
+bop!(ByteOr, byte_or, bitor);
+bop!(ByteXor, byte_xor, bitxor);
 
 pub trait Hamming {
 	fn hamming_weight(&self) -> u32;
@@ -55,6 +55,6 @@ impl Hamming for Bytes {
 	}
 
 	fn hamming_distance(self, rhs: Bytes) -> u32 {
-		Bytes::bitxor(self, rhs).hamming_weight()
+		Bytes::byte_xor(self, rhs).hamming_weight()
 	}
 }

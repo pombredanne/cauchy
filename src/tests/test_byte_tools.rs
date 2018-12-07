@@ -6,7 +6,7 @@ use utils::byte_ops::*;
         let raw_a = Bytes::from(&b"\x00\x01\x00\x01"[..]);
         let raw_b = Bytes::from(&b"\x00\x00\x01\x01"[..]);
         let result = Bytes::from(&b"\x00\x00\x00\x01"[..]);
-        assert_eq!(Bytes::bitand(raw_a, raw_b), result)
+        assert_eq!(Bytes::byte_and(raw_a, raw_b), result)
     }
 
     #[test]
@@ -14,7 +14,7 @@ use utils::byte_ops::*;
         let raw_a = Bytes::from(&b"\x00\x01\x00\x01"[..]);
         let raw_b = Bytes::from(&b"\x00\x00\x01\x01"[..]);
         let result = Bytes::from(&b"\x00\x01\x01\x01"[..]);
-        assert_eq!(Bytes::bitor(raw_a, raw_b), result)
+        assert_eq!(Bytes::byte_or(raw_a, raw_b), result)
     }
 
     #[test]
@@ -22,7 +22,7 @@ use utils::byte_ops::*;
         let raw_a = Bytes::from(&b"\x00\x01\x00\x01"[..]);
         let raw_b = Bytes::from(&b"\x00\x00\x01\x01"[..]);
         let result = Bytes::from(&b"\x00\x01\x01\x00"[..]);
-        assert_eq!(Bytes::bitxor(raw_a, raw_b), result)
+        assert_eq!(Bytes::byte_xor(raw_a, raw_b), result)
     }
 
     #[test]

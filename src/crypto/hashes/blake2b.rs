@@ -7,7 +7,7 @@ pub trait Blk2bHashable: Into<Bytes> {
 
 impl<T: Into<Bytes> + Clone> Blk2bHashable for T {
 	fn blake2b(&self) -> Bytes {
-		let raw = &(*self).clone().into();
+		let raw = &(self.clone()).into();
 		Bytes::from(Blake2b::digest(raw).as_slice())
 	}
 }

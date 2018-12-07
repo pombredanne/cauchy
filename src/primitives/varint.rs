@@ -1,6 +1,5 @@
-use bytes::{Bytes, Buf, IntoBuf};
+use bytes::{Buf, IntoBuf};
 use std::ops::Add;
-use std::ops::Deref;
 
 pub struct VarInt(u64);
 
