@@ -12,7 +12,8 @@ mod tests {
     mod test_db;
     mod test_transaction;
     mod test_hash;
-    mod test_byte_tools;
+    mod test_byte_ops;
+    mod test_transaction_states;
 }
 
 pub mod db;
@@ -58,5 +59,4 @@ fn main() {
         worksite.increment();
         i += 1;
     }
-
 }

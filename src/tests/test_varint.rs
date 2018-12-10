@@ -1,6 +1,4 @@
-mod script_tests{
-    extern crate bytes;
-
+mod serialisation {
     use primitives::varint::VarInt;
     use bytes::Bytes;
     use utils::serialisation::*;
@@ -17,7 +15,6 @@ mod script_tests{
 
     #[test]
     fn test_deserialise() {
-        // TODO
         let b = Bytes::from(&b"\xFE\x7F"[..]);
         let v: VarInt = VarInt::try_from(b).unwrap();
         assert_eq!(16383, usize::from(v));
@@ -30,7 +27,7 @@ mod script_tests{
             let v2: VarInt = VarInt::try_from(Bytes::from(v1.clone())).unwrap();
             assert_eq!(u64::from(v1), u64::from(v2));
         }
-        for _ in 0..3000{
+        for _ in 0..3000 {
             serialise_deserialise(rand::random::<u64>());
         }
     }

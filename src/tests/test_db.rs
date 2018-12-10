@@ -1,4 +1,4 @@
-mod script_tests{
+mod db_tests {
     use db;
     use db::Database;
     use db::rocksdb::Rocksdb;

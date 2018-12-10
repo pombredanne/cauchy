@@ -1,3 +1,6 @@
+use bytes::Bytes;
+use utils::constants::*;
+use crypto::hashes::blake2b::Blk2bHashable;
 use primitives::script::Script;
 
 /* 
@@ -35,9 +38,9 @@ impl Transaction {
         }
     }
 
-    // pub fn len(&self) -> usize {
-    //     self.scripts.len()
-    // }
+    pub fn tx_id(&self) -> Bytes {
+        Bytes::from(&self.blake2b()[..TX_ID_LEN])
+    }
 
     pub fn time(&self) -> u32 {
         self.time

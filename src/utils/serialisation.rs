@@ -1,5 +1,9 @@
-use primitives::{script::{Script, MAX_SCRIPT_LEN}, varint::VarInt, transaction::Transaction};
+use std::collections::HashSet;
+use primitives::script::Script;
+use primitives::{varint::VarInt, transaction::Transaction, transaction_state::TransactionState};
 use bytes::{Bytes, Buf, BufMut, IntoBuf};
+use utils::constants::TX_ID_LEN;
+
 pub trait TryFrom<T>: Sized {
     type Err;
     fn try_from(_: T) -> Result<Self, Self::Err>;
@@ -71,22 +75,44 @@ impl TryFrom<Bytes> for Transaction {
         let n_spendable = VarInt::parse(buf.bytes());
         buf.advance(n_spendable.len());
 
-        loop {
+        while buf.has_remaining() {
             let vi = VarInt::parse(buf.bytes());
             buf.advance(vi.len());
             let len = usize::from(vi);
 
-            if len > MAX_SCRIPT_LEN {
-                return Err("Max script size exceeded".to_string())
-            }
+            // if len > MAX_SCRIPT_LEN {
+            //     return Err("Max script size exceeded".to_string())
+            // }
 
             let mut dst = vec![0; len as usize];
             buf.copy_to_slice(&mut dst);
 
             scripts.push(Script::new(Bytes::from(dst)));
 
-            if !buf.has_remaining() { break }
         }
         Ok(Transaction::new(u32::from(time), u32::from(n_spendable), scripts))
+    }
+}
+
+impl From<Bytes> for TransactionState {
+    fn from(raw: Bytes) -> TransactionState {
+        let mut buf = raw.into_buf();
+
+        let mut hash_set: HashSet<u32> = HashSet::new();
+        while buf.has_remaining() {
+            hash_set.insert(buf.get_u32_be());
+        }
+
+        TransactionState::new(hash_set)
+    }
+}
+
+impl From<TransactionState> for Bytes {
+    fn from(tx_state: TransactionState) -> Bytes {
+        let mut buf = vec![];
+        for val in tx_state.iter(){
+            buf.put_u32_be(*val);
+        }
+        Bytes::from(buf)
     }
 }

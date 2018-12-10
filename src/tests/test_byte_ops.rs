@@ -1,5 +1,6 @@
-use bytes::Bytes;
-use utils::byte_ops::*;
+mod binary_operations {
+    use bytes::Bytes;
+    use utils::byte_ops::*;
 
     #[test]
     fn test_and(){
@@ -24,6 +25,11 @@ use utils::byte_ops::*;
         let result = Bytes::from(&b"\x00\x01\x01\x00"[..]);
         assert_eq!(Bytes::byte_xor(raw_a, raw_b), result)
     }
+}
+
+mod metrics {
+    use bytes::Bytes;
+    use utils::byte_ops::*;
 
     #[test]
     fn test_hamming_weight(){
@@ -36,4 +42,5 @@ use utils::byte_ops::*;
         let raw_a = Bytes::from(&b"\x00\x01\x00\x01"[..]);
         let raw_b = Bytes::from(&b"\x00\x01\x01\x01"[..]);
         assert_eq!(Bytes::hamming_distance(raw_a, raw_b), 1);
-    }    
+    }
+}

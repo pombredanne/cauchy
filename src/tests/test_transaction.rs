@@ -1,4 +1,4 @@
-mod transaction_tests{
+mod serialisation {
     extern crate bytes;
 
     use primitives::script::*;

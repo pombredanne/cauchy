@@ -1,4 +1,4 @@
-use crypto::hashes::HASH_LEN;
+use utils::constants::SKETCH_LEN;
 use crypto::hashes::blake2b::Blk2bHashable;
 use bytes::Bytes;
 use utils::byte_ops::*;
@@ -22,11 +22,11 @@ pub fn sketched_size(raw: Bytes) -> u32 {
 impl<T: Blk2bHashable> Sketchable<T> for Vec<T> {
 	fn odd_sketch(&self) -> Bytes {
 		let mut pos: u8;
-		let mut sketch: [u8; HASH_LEN] = [0; HASH_LEN];
+		let mut sketch: [u8; SKETCH_LEN] = [0; SKETCH_LEN];
 		for value in self {
 			pos = value.blake2b().first().unwrap().clone();
 			let shift = &pos % 8;
-			let index = (&pos / (HASH_LEN >> 3) as u8) as usize;
+			let index = (&pos / (SKETCH_LEN >> 3) as u8) as usize;
 			sketch[index] = sketch[index] ^ (1 << shift);
 		}
 		Bytes::from(&sketch[..])
