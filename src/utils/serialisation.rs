@@ -1,4 +1,4 @@
-use primitives::{script::{PassBy, Script, MAX_SCRIPT_LEN}, varint::VarInt, transaction::Transaction};
+use primitives::{script::{Script, MAX_SCRIPT_LEN}, varint::VarInt, transaction::Transaction};
 use bytes::{Bytes, Buf, BufMut, IntoBuf};
 pub trait TryFrom<T>: Sized {
     type Err;
@@ -47,21 +47,10 @@ impl From<Transaction> for Bytes {
         let var_time = VarInt::from(tx.time());
         buf.put(&Bytes::from(var_time));
 
-        let mut pass_by_u8: u64 = 0;
-        let mut exp = 0;
-        let scripts = Vec::from(tx);
+        let n_spendable = VarInt::from(tx.n_spendable());
+        buf.put(&Bytes::from(n_spendable));
 
-        for script in &scripts {
-            match script.get_pass_by() {
-                PassBy::Value => pass_by_u8 += 1 << exp, // Can be done faster?
-                PassBy::Reference => ()
-            }
-            exp +=1;
-        }
-
-        buf.put(&Bytes::from(VarInt::from(pass_by_u8)));
-
-        for script in scripts {
+        for script in Vec::from(tx) {
             let script_raw = Bytes::from(script);
             buf.put(&Bytes::from(VarInt::from(script_raw.len()))); 
             buf.put(&script_raw);
@@ -79,10 +68,9 @@ impl TryFrom<Bytes> for Transaction {
         let time = VarInt::parse(buf.bytes());
         buf.advance(time.len());
 
-        let pass_profile = VarInt::parse(buf.bytes());
-        buf.advance(pass_profile.len());
-        let pass_profile = u64::from(pass_profile); //This limits number of scripts to 64
-        let mut exp = 0;
+        let n_spendable = VarInt::parse(buf.bytes());
+        buf.advance(n_spendable.len());
+
         loop {
             let vi = VarInt::parse(buf.bytes());
             buf.advance(vi.len());
@@ -95,19 +83,10 @@ impl TryFrom<Bytes> for Transaction {
             let mut dst = vec![0; len as usize];
             buf.copy_to_slice(&mut dst);
 
-            let script = Script::new(   
-                if (pass_profile >> exp) % 2 == 1 { 
-                    PassBy::Value 
-                } else { 
-                    PassBy::Reference
-                }, 
-                Bytes::from(dst) 
-            );
-            scripts.push(script);
+            scripts.push(Script::new(Bytes::from(dst)));
 
             if !buf.has_remaining() { break }
-            exp += 1;
         }
-        Ok(Transaction::new(u32::from(time), scripts))
+        Ok(Transaction::new(u32::from(time), u32::from(n_spendable), scripts))
     }
 }

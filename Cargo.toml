@@ -4,16 +4,11 @@ version = "0.1.0"
 authors = ["Harry <hlbarber93@gmail.com>", "Chris Novick <c.r.novick@protonmail.com>"]
 
 [dependencies]
-futures = "*"
-tokio = "*"
 rocksdb = "*"
 libc = "*"
 bytes = "*"
 dirs = "*"
-memcache = "*"
-indradb = "*"
 blake2 = "*"
-hex-literal = "*"
 
 [dev-dependencies]
 rand = "*"

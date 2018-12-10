@@ -4,6 +4,7 @@ use bytes::Bytes;
 //pub mod memcache;
 pub mod rocksdb;
 
+pub const TX_DB_PATH : &str = ".geodesic/db/";
 pub const STATE_DB_PATH : &str = ".geodesic/db/";
 
 

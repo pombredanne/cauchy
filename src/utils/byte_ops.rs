@@ -1,7 +1,12 @@
 extern crate bytes;
-use bytes::{Bytes, Buf, BufMut, IntoBuf};
+use bytes::{Bytes, BytesMut, Buf, BufMut, IntoBuf};
 use std::ops::*;
 
+macro_rules! from_bytes {
+	($val: ident) => {
+		Bytes::from(&b$val[..])
+	}
+}
 
 macro_rules! bop {
 	($trait_name: ident, $fn_name: ident, $bitop_name: ident) => (
@@ -13,14 +18,11 @@ macro_rules! bop {
 		impl $trait_name for Bytes {
 
 			fn $fn_name(self, rhs: Self) -> Bytes {
-				let len = self.len();
-				let mut result = Vec::with_capacity(self.len());
-				let mut buf_lhs = self.into_buf();
-				let mut buf_rhs = rhs.into_buf();
+				let mut result = BytesMut::with_capacity(self.len());
+				let buf_lhs = self.into_buf();
+				let buf_rhs = rhs.into_buf();
 
-				for _i in 0..len {
-					let x = buf_lhs.get_u8();
-					let y = buf_rhs.get_u8();
+				for (x, y) in buf_lhs.iter().zip(buf_rhs.iter()) {
 					result.put(u8::$bitop_name(x, y));
 				}
 				Bytes::from(result)
@@ -40,15 +42,11 @@ pub trait Hamming {
 
 impl Hamming for Bytes {
 	fn hamming_weight(&self) -> u32 {
-		let len = self.len();
-
 		let mut count = 0;
-		let mut buf = self.into_buf();
-
-		let mut current: u8;
-		for _i in 0..len {
-			current = buf.get_u8();
-			count += current.count_ones();
+		let buf = self.into_buf();
+		
+		for b in buf.iter() {
+			count += b.count_ones();
 		}
 
 		count

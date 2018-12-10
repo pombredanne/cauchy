@@ -3,29 +3,19 @@ use std::convert::From;
 
 pub const MAX_SCRIPT_LEN: usize = 1073741824; // One gigabyte
 
-#[derive(Debug, PartialEq, Clone)]
-pub enum PassBy {
-    Value,
-    Reference,
-}
-
 #[derive(Debug, Clone, PartialEq)]
-pub struct Script(PassBy, Bytes);
+pub struct Script(Bytes);
 
 impl Script {
-    pub fn new(passby: PassBy, raw: Bytes) -> Self {
-        Script(passby, raw)
-    }
-
-    pub fn get_pass_by(&self) -> &PassBy {
-        &self.0
+    pub fn new(raw: Bytes) -> Self {
+        Script(raw)
     }
 }
 
 impl From<Script> for Bytes {
     fn from(item: Script) -> Self {
         match item {
-            Script(_, some) => some
+            Script(some) => some
         }
     }
 }
