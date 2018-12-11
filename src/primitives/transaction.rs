@@ -16,13 +16,13 @@ VarInt || VarInt || VarInt || Script || VarInt || Script || ... || VarInt || Scr
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Transaction {
-    time: u32,
+    time: u64,
     n_spendable: u32,
     scripts:  Vec<Script>
 }
 
 impl Transaction {
-    pub fn new(time: u32, n_spendable: u32, scripts: Vec<Script>) -> Self {
+    pub fn new(time: u64, n_spendable: u32, scripts: Vec<Script>) -> Self {
         Transaction{
             time: time,
             n_spendable: n_spendable,
@@ -42,7 +42,7 @@ impl Transaction {
         Bytes::from(&self.blake2b()[..TX_ID_LEN])
     }
 
-    pub fn time(&self) -> u32 {
+    pub fn time(&self) -> u64 {
         self.time
     }
 

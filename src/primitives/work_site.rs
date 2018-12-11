@@ -14,8 +14,12 @@ impl WorkSite {
 		WorkSite{pubkey: pk, nonce: Cell::new(0)}
 	}
 
-	pub fn increment(&mut self) {
+	pub fn increment(&self) {
 		self.nonce.set(self.nonce.get() + 1);
+	}
+
+	pub fn set_nonce(&self, nonce: u64) {
+		self.nonce.set(nonce);
 	}
 
 	pub fn to_bytes(&self) -> Bytes {
@@ -23,6 +27,10 @@ impl WorkSite {
 		buf.put(&self.pubkey[..]);
 		buf.put_u64_be(self.nonce.get());
 		buf.freeze()
+	}
+
+	pub fn blake2b(&self) -> Bytes {
+		self.to_bytes().blake2b()
 	}
 
 	pub fn mine(&self, state_sketch: &Bytes) -> u32 {

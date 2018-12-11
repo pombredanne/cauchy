@@ -5,26 +5,24 @@ extern crate blake2;
 use crypto::hashes::oddsketch::*;
 use primitives::work_site::*;
 use bytes::Bytes;
+use std::time::SystemTime;
 
 #[cfg(test)]
-mod tests {
-    mod test_varint;
-    mod test_db;
-    mod test_transaction;
-    mod test_hash;
-    mod test_byte_ops;
-    mod test_transaction_states;
+mod test {
+    mod varint_tests;
+    mod db_tests;
+    mod transaction_tests;
+    mod hash_tests;
+    mod byte_op_tests;
+    mod transaction_state_tests;
 }
 
 pub mod db;
-
-pub mod utils;
-
-mod crypto {
-    pub mod hashes;
-}
-
+pub mod consensus;
 pub mod primitives;
+pub mod utils;
+mod crypto;
+
 
 fn main() {
     // Mining
@@ -38,22 +36,26 @@ fn main() {
 
 
     let pk = Bytes::from(&b"\x01\x01\x01\x01\x01\x01"[..]);
-    let mut worksite = WorkSite::init(pk);
+    let worksite = WorkSite::init(pk);
 
     let mut best: u32 = 512;
     let mut size: u32;
 
+    let mut now = SystemTime::now();
     let mut i = 0;
     println!("START MINING");
     loop {
         size = worksite.mine(&sketch_one);
         if size < best {
             best = size;
-            println!("\nNew state found!");
-            println!("{} tries since last!", i);
+            println!("\nNew best found!");
+            println!("{} seconds since last discovery", now.elapsed().unwrap().as_secs());
+            println!("{} hashes since last discovery", i);
             println!("Distance to state {}", size);
             println!("Distance to nearby state {}", worksite.mine(&sketch_two));
             println!("Distance to distant state {}", worksite.mine(&sketch_three));
+            i = 0;
+            now = SystemTime::now();
         }
 
         worksite.increment();

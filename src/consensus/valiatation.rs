@@ -7,3 +7,7 @@
 
 
 */
+
+// fn validate(tx: &Transaction) {
+	
+// }
