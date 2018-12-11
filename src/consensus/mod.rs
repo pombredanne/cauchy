@@ -1,2 +1,2 @@
-pub mod peer;
 pub mod arena;
+pub mod peer;

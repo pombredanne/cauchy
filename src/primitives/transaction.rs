@@ -1,15 +1,15 @@
 use bytes::Bytes;
-use utils::constants::*;
 use crypto::hashes::blake2b::Blk2bHashable;
 use primitives::script::Script;
+use utils::constants::*;
 
-/* 
+/*
                   v Length of next script
 VarInt || VarInt || VarInt || Script || VarInt || Script || ... || VarInt || Script
   ^UTC      ^ Number of spendable scripts                            ^ Length of next script
 
 -First script is executed and must return true, the others are added to the "library".
--The scripts are segmented into spendable and referencable, 
+-The scripts are segmented into spendable and referencable,
     the divider is given by the Number of spendable script field.
 -Number of scripts should be bounded at 256 (as VarInt size is bounded at 64 bytes).
 */
@@ -18,15 +18,15 @@ VarInt || VarInt || VarInt || Script || VarInt || Script || ... || VarInt || Scr
 pub struct Transaction {
     time: u64,
     n_spendable: u32,
-    scripts:  Vec<Script>
+    scripts: Vec<Script>,
 }
 
 impl Transaction {
     pub fn new(time: u64, n_spendable: u32, scripts: Vec<Script>) -> Self {
-        Transaction{
-            time: time,
-            n_spendable: n_spendable,
-            scripts: scripts,
+        Transaction {
+            time,
+            n_spendable,
+            scripts,
         }
     }
 
@@ -56,4 +56,3 @@ impl From<Transaction> for Vec<Script> {
         tx.scripts
     }
 }
-

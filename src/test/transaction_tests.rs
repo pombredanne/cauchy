@@ -1,13 +1,13 @@
 mod serialisation {
     extern crate bytes;
 
-    use primitives::script::*;
     use bytes::Bytes;
+    use primitives::script::*;
     use primitives::transaction::*;
     use utils::serialisation::*;
 
     #[test]
-    fn test_serialise(){
+    fn test_serialise() {
         let raw = &b"\x01\x06\x05hello\x06script\x07world!!"[..];
         let script_a = Script::new(Bytes::from(&b"hello"[..]));
         let script_b = Script::new(Bytes::from(&b"script"[..]));
@@ -17,7 +17,7 @@ mod serialisation {
     }
 
     #[test]
-    fn test_deserialise(){
+    fn test_deserialise() {
         let raw = Bytes::from(&b"\x01\x06\x05hello\x06script\x07world!!"[..]);
         let script_a = Script::new(Bytes::from(&b"hello"[..]));
         let script_b = Script::new(Bytes::from(&b"script"[..]));
@@ -28,7 +28,7 @@ mod serialisation {
     }
 
     #[test]
-    fn test_serialise_deserialise(){
+    fn test_serialise_deserialise() {
         let raw = Bytes::from(&b"\x01\x06\x05hello\x06script\x07world!!"[..]);
         let tx_b = Transaction::try_from(raw.clone()).unwrap();
         assert_eq!(raw, Bytes::from(tx_b))

@@ -1,7 +1,7 @@
-use std::collections::HashSet;
+use bytes::{Buf, BufMut, Bytes, IntoBuf};
 use primitives::script::Script;
-use primitives::{varint::VarInt, transaction::Transaction, transaction_state::TransactionState};
-use bytes::{Bytes, Buf, BufMut, IntoBuf};
+use primitives::{transaction::Transaction, transaction_state::TransactionState, varint::VarInt};
+use std::collections::HashSet;
 
 pub trait TryFrom<T>: Sized {
     type Err;
@@ -14,14 +14,16 @@ impl From<VarInt> for Bytes {
         let mut tmp = vec![];
         let mut len = 0;
         loop {
-            tmp.put((0x7f & n) as u8 | (if len == 0 {0x00} else {0x80}));
-            if n <= 0x7f { break; } 
+            tmp.put((0x7f & n) as u8 | (if len == 0 { 0x00 } else { 0x80 }));
+            if n <= 0x7f {
+                break;
+            }
             n = (n >> 7) - 1;
             len += 1;
         }
         tmp.reverse();
         Bytes::from(tmp)
-        }
+    }
 }
 
 impl TryFrom<Bytes> for VarInt {
@@ -31,7 +33,7 @@ impl TryFrom<Bytes> for VarInt {
         let mut buf = raw.into_buf();
         loop {
             let k = buf.get_u8();
-            n = (n << 7) | ((k & 0x7f) as u64);
+            n = (n << 7) | u64::from(k & 0x7f);
             if 0x00 != (k & 0x80) {
                 n += 1;
             } else {
@@ -53,7 +55,7 @@ impl From<Transaction> for Bytes {
 
         for script in Vec::from(tx) {
             let script_raw = Bytes::from(script);
-            buf.put(&Bytes::from(VarInt::from(script_raw.len()))); 
+            buf.put(&Bytes::from(VarInt::from(script_raw.len())));
             buf.put(&script_raw);
         }
         Bytes::from(buf)
@@ -82,9 +84,12 @@ impl TryFrom<Bytes> for Transaction {
             buf.copy_to_slice(&mut dst);
 
             scripts.push(Script::new(Bytes::from(dst)));
-
         }
-        Ok(Transaction::new(u64::from(vi_time), u32::from(n_spendable), scripts))
+        Ok(Transaction::new(
+            u64::from(vi_time),
+            u32::from(n_spendable),
+            scripts,
+        ))
     }
 }
 
@@ -104,7 +109,7 @@ impl From<Bytes> for TransactionState {
 impl From<TransactionState> for Bytes {
     fn from(tx_state: TransactionState) -> Bytes {
         let mut buf = vec![];
-        for val in tx_state.iter(){
+        for val in tx_state.iter() {
             buf.put_u32_be(*val);
         }
         Bytes::from(buf)

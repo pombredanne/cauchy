@@ -1,9 +1,8 @@
 mod db_tests {
-    use db;
-    use db::Database;
-    use db::rocksdb::Rocksdb;
     use bytes::Bytes;
-
+    use db;
+    use db::rocksdb::Rocksdb;
+    use db::Database;
 
     #[test]
     fn test_rocksdb() {

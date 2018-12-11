@@ -1,6 +1,6 @@
 mod serialisation {
-    use primitives::varint::VarInt;
     use bytes::Bytes;
+    use primitives::varint::VarInt;
     use utils::serialisation::*;
 
     #[test]
@@ -11,7 +11,6 @@ mod serialisation {
         let v: VarInt = VarInt::new(16383);
         assert_eq!(Bytes::from(&b"\xFE\x7F"[..]), Bytes::from(v));
     }
-
 
     #[test]
     fn test_deserialise() {
