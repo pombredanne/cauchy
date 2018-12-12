@@ -1,6 +1,8 @@
 extern crate blake2;
 extern crate bytes;
+extern crate rand;
 extern crate rocksdb;
+extern crate secp256k1;
 
 use bytes::Bytes;
 use crypto::hashes::oddsketch::*;
@@ -12,16 +14,18 @@ mod test {
     mod byte_op_tests;
     mod db_tests;
     mod hash_tests;
+    mod signature_tests;
     mod transaction_state_tests;
     mod transaction_tests;
     mod varint_tests;
 }
 
 pub mod consensus;
-mod crypto;
 pub mod db;
 pub mod primitives;
 pub mod utils;
+mod crypto;
+
 
 fn main() {
     // Mining

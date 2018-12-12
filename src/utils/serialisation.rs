@@ -13,6 +13,7 @@ impl From<VarInt> for Bytes {
         let mut n = u64::from(varint);
         let mut tmp = vec![];
         let mut len = 0;
+
         loop {
             tmp.put((0x7f & n) as u8 | (if len == 0 { 0x00 } else { 0x80 }));
             if n <= 0x7f {

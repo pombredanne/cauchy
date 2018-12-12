@@ -9,6 +9,9 @@ libc = "*"
 bytes = "*"
 dirs = "*"
 blake2 = "*"
-
-[dev-dependencies]
 rand = "*"
+
+[dependencies.secp256k1]
+version = "*"
+default-features = false 
+features = ["rand"]

@@ -28,7 +28,7 @@ impl Arena {
             .get_distances()
             .iter()
             .enumerate()
-            .max_by_key(|(_, &y)| y)
+            .min_by_key(|(_, &y)| y)
         {
             Some((pos, _)) => pos,
             None => return None,
