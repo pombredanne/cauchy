@@ -8,6 +8,7 @@ use bytes::Bytes;
 use crypto::hashes::oddsketch::*;
 use primitives::work_site::*;
 use std::time::SystemTime;
+use crypto::signatures::schnorr::*;
 
 #[cfg(test)]
 mod test {
@@ -21,13 +22,16 @@ mod test {
 }
 
 pub mod consensus;
+mod crypto;
 pub mod db;
 pub mod primitives;
 pub mod utils;
-mod crypto;
-
 
 fn main() {
+    // Init node
+    let (_, pk) = generate_keypair();
+    let pk_b = pubkey_to_bytes(pk);
+
     // Mining
     let state_one = vec![
         Bytes::from(&b"a"[..]),
@@ -54,8 +58,9 @@ fn main() {
     let sketch_two = state_two.odd_sketch();
     let sketch_three = state_three.odd_sketch();
 
-    let pk = Bytes::from(&b"\x01\x01\x01\x01\x01\x01"[..]);
-    let worksite = WorkSite::init(pk);
+
+    println!("Signature {}", pk_b.len());
+    let worksite = WorkSite::init(pk_b);
 
     let mut best: u32 = 512;
     let mut size: u32;

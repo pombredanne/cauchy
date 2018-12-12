@@ -1,3 +1,4 @@
+use utils::constants::*;
 use bytes::{Buf, BufMut, Bytes, BytesMut, IntoBuf};
 use crypto::hashes::blake2b::Blk2bHashable;
 use primitives::varint::VarInt;
@@ -26,7 +27,7 @@ impl WorkSite {
     }
 
     pub fn to_bytes(&self) -> Bytes {
-        let mut buf = BytesMut::with_capacity(40);
+        let mut buf = BytesMut::with_capacity(8 + PUBKEY_LEN);
         buf.put(&self.pubkey[..]);
         buf.put_u64_be(self.nonce.get());
         buf.freeze()
@@ -44,7 +45,7 @@ impl WorkSite {
 
 impl From<WorkSite> for Bytes {
     fn from(pow: WorkSite) -> Bytes {
-        let mut bytes = BytesMut::with_capacity(40);
+        let mut bytes = BytesMut::with_capacity(PUBKEY_LEN+8);
         bytes.extend_from_slice(&pow.pubkey[..]);
         let vi = VarInt::from(pow.nonce.get());
         bytes.extend_from_slice(&Bytes::from(vi));
@@ -55,10 +56,8 @@ impl From<WorkSite> for Bytes {
 impl From<Bytes> for WorkSite {
     fn from(raw: Bytes) -> WorkSite {
         let mut buf = raw.into_buf();
-        let pk = &mut [0; 32];
+        let pk = &mut [0; PUBKEY_LEN];
         buf.copy_to_slice(pk);
-        let mr = &mut [0; 32];
-        buf.copy_to_slice(mr);
         let vi = VarInt::parse(buf.bytes());
         let n = u64::from(vi);
         WorkSite {
