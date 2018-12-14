@@ -1,68 +1,54 @@
-use utils::constants::*;
-use bytes::{Buf, BufMut, Bytes, BytesMut, IntoBuf};
+use bytes::Bytes;
 use crypto::hashes::blake2b::Blk2bHashable;
-use primitives::varint::VarInt;
-use std::cell::Cell;
+use secp256k1::PublicKey;
+use std::sync::{Arc, Mutex};
 use utils::byte_ops::Hamming;
+use utils::constants::TX_ID_LEN;
 
+#[derive(Debug, Clone)]
 pub struct WorkSite {
-    pubkey: Bytes,
-    pub nonce: Cell<u64>,
+    public_key: PublicKey,
+    nonce: Arc<Mutex<u64>>,
 }
 
 impl WorkSite {
-    pub fn init(pk: Bytes) -> WorkSite {
+    pub fn init(pk: PublicKey) -> WorkSite {
         WorkSite {
-            pubkey: pk,
-            nonce: Cell::new(0),
+            public_key: pk,
+            nonce: Arc::new(Mutex::new(0)),
+        }
+    }
+
+    pub fn new(pk: PublicKey, nonce: u64) -> WorkSite {
+        WorkSite {
+            public_key: pk,
+            nonce: Arc::new(Mutex::new(nonce)),
         }
     }
 
     pub fn increment(&self) {
-        self.nonce.set(self.nonce.get() + 1);
+        let mut nonce_locked = self.nonce.lock().unwrap();
+        *nonce_locked += 1;
     }
 
     pub fn set_nonce(&self, nonce: u64) {
-        self.nonce.set(nonce);
+        let mut nonce_locked = self.nonce.lock().unwrap();
+        *nonce_locked += nonce;    }
+
+    pub fn get_public_key(&self) -> PublicKey {
+        self.public_key
     }
 
-    pub fn to_bytes(&self) -> Bytes {
-        let mut buf = BytesMut::with_capacity(8 + PUBKEY_LEN);
-        buf.put(&self.pubkey[..]);
-        buf.put_u64_be(self.nonce.get());
-        buf.freeze()
+    pub fn get_nonce(&self) -> u64 {
+        let nonce_locked = self.nonce.lock().unwrap();
+        (*nonce_locked).clone()
     }
 
-    pub fn blake2b(&self) -> Bytes {
-        self.to_bytes().blake2b()
+    pub fn get_site_hash(&self) -> Bytes {
+        Bytes::from(&self.blake2b()[..TX_ID_LEN])
     }
 
     pub fn mine(&self, state_sketch: &Bytes) -> u32 {
-        let worksite_b = self.to_bytes().blake2b();
-        state_sketch.clone().hamming_distance(worksite_b)
-    }
-}
-
-impl From<WorkSite> for Bytes {
-    fn from(pow: WorkSite) -> Bytes {
-        let mut bytes = BytesMut::with_capacity(PUBKEY_LEN+8);
-        bytes.extend_from_slice(&pow.pubkey[..]);
-        let vi = VarInt::from(pow.nonce.get());
-        bytes.extend_from_slice(&Bytes::from(vi));
-        bytes.freeze()
-    }
-}
-
-impl From<Bytes> for WorkSite {
-    fn from(raw: Bytes) -> WorkSite {
-        let mut buf = raw.into_buf();
-        let pk = &mut [0; PUBKEY_LEN];
-        buf.copy_to_slice(pk);
-        let vi = VarInt::parse(buf.bytes());
-        let n = u64::from(vi);
-        WorkSite {
-            pubkey: Bytes::from(&pk[..]),
-            nonce: Cell::new(n),
-        }
+        self.get_site_hash().hamming_distance(state_sketch.clone())
     }
 }

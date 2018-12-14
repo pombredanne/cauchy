@@ -10,8 +10,9 @@ bytes = "*"
 dirs = "*"
 blake2 = "*"
 rand = "*"
+tokio = "*"
 
 [dependencies.secp256k1]
 version = "*"
 default-features = false 
-features = ["rand"]
+features = ["rand", "serde"]

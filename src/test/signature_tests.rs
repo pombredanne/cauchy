@@ -1,5 +1,5 @@
 mod operations {
-    use crypto::signatures::schnorr::*;
+    use crypto::signatures::ecdsa::*;
 
     #[test]
     fn sign_test_pass() {
@@ -39,7 +39,7 @@ mod operations {
 }
 
 mod serialisation {
-    use crypto::signatures::schnorr::*;
+    use crypto::signatures::ecdsa::*;
     use secp256k1::Message;
 
     #[test]
@@ -52,11 +52,21 @@ mod serialisation {
     }
 
     #[test]
-    fn pubkey_bytes_convesion() {
+    fn pubkey_bytes_conversion() {
         let (_, pk_a) = generate_keypair();
-        let pk_raw = pubkey_to_bytes(pk_a.clone());
-        let pk_b = bytes_to_pubkey(pk_raw).unwrap();
+        let message = message_from_preimage(&b"hello world"[..]);
+        let pk_raw = bytes_from_pubkey(pk_a.clone());
+        let pk_b = pubkey_from_bytes(pk_raw).unwrap();
         assert_eq!(pk_a, pk_b);
     }
 
+    #[test]
+    fn signature_bytes_conversion() {
+        let (sk, _) = generate_keypair();
+        let message = message_from_preimage(&b"hello world"[..]);
+        let sig_a = sign(&message, &sk);
+        let sig_raw = bytes_from_sig(sig_a);
+        let sig_b = sig_from_bytes(sig_raw).unwrap();
+        assert_eq!(sig_a, sig_b);
+    }
 }

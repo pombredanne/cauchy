@@ -23,7 +23,7 @@ mod blk2b {
 
 mod odd_sketch {
     use bytes::Bytes;
-    use crypto::hashes::oddsketch::*;
+    use crypto::hashes::odd_sketch::*;
     use primitives::script::Script;
     use utils::byte_ops::*;
 

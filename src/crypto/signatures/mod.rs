@@ -1,1 +1,1 @@
-pub mod schnorr;
+pub mod ecdsa;

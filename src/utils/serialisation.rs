@@ -1,7 +1,10 @@
-use bytes::{Buf, BufMut, Bytes, IntoBuf};
+use bytes::{Buf, BufMut, Bytes, BytesMut, IntoBuf};
+use crypto::signatures::ecdsa::*;
 use primitives::script::Script;
+use primitives::work_site::WorkSite;
 use primitives::{transaction::Transaction, transaction_state::TransactionState, varint::VarInt};
 use std::collections::HashSet;
+use utils::constants::*;
 
 pub trait TryFrom<T>: Sized {
     type Err;
@@ -114,5 +117,30 @@ impl From<TransactionState> for Bytes {
             buf.put_u32_be(*val);
         }
         Bytes::from(buf)
+    }
+}
+
+impl From<WorkSite> for Bytes {
+    fn from(work_site: WorkSite) -> Bytes {
+        let mut bytes = BytesMut::with_capacity(PUBKEY_LEN + 8);
+        let pk = bytes_from_pubkey(work_site.get_public_key());
+        bytes.extend_from_slice(&pk[..]);
+        bytes.put_u64_be(work_site.get_nonce());
+        bytes.freeze()
+    }
+}
+
+impl TryFrom<Bytes> for WorkSite {
+    type Err = String;
+    fn try_from(raw: Bytes) -> Result<WorkSite, String> {
+        let mut buf = raw.into_buf();
+        let pk_raw = &mut [0; PUBKEY_LEN];
+        buf.copy_to_slice(pk_raw);
+        let n = buf.get_u64_be();
+        let public_key = match pubkey_from_bytes(Bytes::from(&pk_raw[..])) {
+            Ok(pk) => pk,
+            Err(error) => return Err(error),
+        };
+        Ok(WorkSite::new(public_key, n))
     }
 }

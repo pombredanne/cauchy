@@ -3,12 +3,29 @@ extern crate bytes;
 extern crate rand;
 extern crate rocksdb;
 extern crate secp256k1;
+extern crate tokio;
 
+pub mod consensus;
+mod crypto;
+pub mod daemon;
+pub mod db;
+pub mod net;
+pub mod primitives;
+pub mod utils;
+
+use rand::Rng;
 use bytes::Bytes;
-use crypto::hashes::oddsketch::*;
+use consensus::status::Status;
+use crypto::hashes::odd_sketch::*;
+use crypto::signatures::ecdsa;
+use db::rocksdb::RocksDb;
+use db::*;
 use primitives::work_site::*;
-use std::time::SystemTime;
-use crypto::signatures::schnorr::*;
+use std::sync::Arc;
+use std::thread;
+use utils::constants::TX_DB_PATH;
+use utils::mining;
+use std::time;
 
 #[cfg(test)]
 mod test {
@@ -21,19 +38,11 @@ mod test {
     mod varint_tests;
 }
 
-pub mod consensus;
-mod crypto;
-pub mod db;
-pub mod primitives;
-pub mod utils;
-
 fn main() {
-    // Init node
-    let (_, pk) = generate_keypair();
-    let pk_b = pubkey_to_bytes(pk);
 
-    // Mining
-    let state_one = vec![
+    let tx_db = Arc::new(RocksDb::open_db(TX_DB_PATH).unwrap());
+
+    let mut state = vec![
         Bytes::from(&b"a"[..]),
         Bytes::from(&b"b"[..]),
         Bytes::from(&b"c"[..]),
@@ -41,52 +50,38 @@ fn main() {
         Bytes::from(&b"e"[..]),
         Bytes::from(&b"f"[..]),
     ];
-    let state_two = vec![
-        Bytes::from(&b"a"[..]),
-        Bytes::from(&b"b"[..]),
-        Bytes::from(&b"c"[..]),
-        Bytes::from(&b"d"[..]),
-        Bytes::from(&b"e"[..]),
-    ];
-    let state_three = vec![
-        Bytes::from(&b"far"[..]),
-        Bytes::from(&b"away"[..]),
-        Bytes::from(&b"state"[..]),
-    ];
 
-    let sketch_one = state_one.odd_sketch();
-    let sketch_two = state_two.odd_sketch();
-    let sketch_three = state_three.odd_sketch();
+    let mut state_sketch = state.odd_sketch();
+    let (sk, pk) = ecdsa::generate_keypair();
+    let my_status = Arc::new(Status::new(state_sketch.clone(), &WorkSite::init(pk)));
+
+    let mining_work_site = Arc::new(WorkSite::init(pk));
+
+    let my_status_arc = Arc::clone(&my_status);
+    let my_work_site_arc = Arc::clone(&mining_work_site);
+
+    thread::spawn(move || mining::mine(my_work_site_arc.clone(), my_status_arc.clone()));
+
+    let my_status_arc = Arc::clone(&my_status);
+    let my_work_site_arc = Arc::clone(&mining_work_site);
 
 
-    println!("Signature {}", pk_b.len());
-    let worksite = WorkSite::init(pk_b);
+    thread::spawn(move || daemon::response_server(tx_db.clone(), my_status_arc, Arc::new(sk)));
 
-    let mut best: u32 = 512;
-    let mut size: u32;
+    let ten_millis = time::Duration::from_millis(10);
 
-    let mut now = SystemTime::now();
-    let mut i = 0;
-
-    println!("START MINING");
     loop {
-        size = worksite.mine(&sketch_one);
-        if size < best {
-            best = size;
-            println!("\nNew best found!");
-            println!(
-                "{} seconds since last discovery",
-                now.elapsed().unwrap().as_secs()
-            );
-            println!("{} hashes since last discovery", i);
-            println!("Distance to state {}", size);
-            println!("Distance to nearby state {}", worksite.mine(&sketch_two));
-            println!("Distance to distant state {}", worksite.mine(&sketch_three));
-            i = 0;
-            now = SystemTime::now();
-        }
-
-        worksite.increment();
-        i += 1;
+        thread::sleep(ten_millis); // TODO: Remove
+        state.push(random_tx());
+        state_sketch = state.odd_sketch();
+        my_status.update_state_sketch(state_sketch);
     }
+
+    fn random_tx() -> Bytes {
+        let mut rng = rand::thread_rng();
+        let my_array: [u8; 8] = rng.gen();
+        Bytes::from(&my_array[..])
+    }
+
+
 }

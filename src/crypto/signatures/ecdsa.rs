@@ -17,14 +17,25 @@ where
     Message::from_slice(&raw.blake2b()[..32]).expect("32 bytes")
 }
 
-pub fn pubkey_to_bytes(key: PublicKey) -> Bytes {
+pub fn bytes_from_pubkey(key: PublicKey) -> Bytes {
     Bytes::from(&key.serialize()[..])
 }
 
-pub fn bytes_to_pubkey(raw: Bytes) -> Result<PublicKey, String> {
+pub fn pubkey_from_bytes(raw: Bytes) -> Result<PublicKey, String> {
     match PublicKey::from_slice(&raw) {
         Ok(some) => Ok(some),
         Err(_) => Err("Incorrect pubkey format".to_string()),
+    }
+}
+
+pub fn bytes_from_sig(sig: Signature) -> Bytes {
+    Bytes::from(&sig.serialize_compact()[..])
+}
+
+pub fn sig_from_bytes(raw: Bytes) -> Result<Signature, String> {
+    match Signature::from_compact(&raw) {
+        Ok(sig) => Ok(sig),
+        Err(_) => Err("Invalid signature".to_string()),
     }
 }
 
