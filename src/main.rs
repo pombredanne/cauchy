@@ -63,15 +63,14 @@ fn main() {
     thread::spawn(move || mining::mine(my_work_site_arc.clone(), my_status_arc.clone()));
 
     let my_status_arc = Arc::clone(&my_status);
-    let my_work_site_arc = Arc::clone(&mining_work_site);
-
 
     thread::spawn(move || daemon::response_server(tx_db.clone(), my_status_arc, Arc::new(sk)));
 
-    let ten_millis = time::Duration::from_millis(10);
+    let new_tx_interval = time::Duration::from_millis(10000);
+
 
     loop {
-        thread::sleep(ten_millis); // TODO: Remove
+        thread::sleep(new_tx_interval); // TODO: Remove
         state.push(random_tx());
         state_sketch = state.odd_sketch();
         my_status.update_state_sketch(state_sketch);

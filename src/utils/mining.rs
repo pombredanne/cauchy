@@ -1,49 +1,34 @@
-use bytes::Bytes;
 use std::sync::Arc;
 use std::thread;
 use primitives::work_site::WorkSite;
 use consensus::status::Status;
 use std::time;
-use std::time::SystemTime;
-
 
 pub fn mine(work_site: Arc<WorkSite>, status: Arc<Status>) {
 	println!("Starting mining...");
 
-	let ten_millis = time::Duration::from_millis(10);
+	let pk = work_site.get_public_key();
 
+	let hash_interval = time::Duration::from_millis(2000);
 
-    let mut now = SystemTime::now();
-    let mut i = 0;
-
-    let mut record_distance: u32 = 512;
+    let mut record_distance: u32;
     let mut current_distance: u32;
 
-    let mut current_state_sketch: Bytes;
+    let mut current_state_sketch = status.get_state_sketch();
+    let mut best_nonce: u64;
 
     loop {
+    	record_distance = WorkSite::new(pk, work_site.get_nonce()).mine(&current_state_sketch);
     	current_state_sketch  = status.get_state_sketch();
         current_distance = work_site.mine(&current_state_sketch);
-        thread::sleep(ten_millis); // TODO: Remove
+        thread::sleep(hash_interval); // TODO: Remove
+        println!("Best: {}", record_distance);
 
         if current_distance < record_distance {
-	        record_distance = current_distance;
-
-            status.update_state_sketch(current_state_sketch);
-            status.update_nonce(work_site.get_nonce());
-
-            println!("\nNew best found!");
-            println!(
-                "{} seconds since last discovery",
-                now.elapsed().unwrap().as_secs()
-            );
-            println!("{} hashes since last discovery", i);
-            println!("Distance to state {}", record_distance);
-            i = 0;
-            now = SystemTime::now();
+	        best_nonce = work_site.get_nonce();
+            status.update_nonce(best_nonce);
         }
 
         work_site.increment();
-        i += 1;
     }
 }
