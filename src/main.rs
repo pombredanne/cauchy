@@ -66,12 +66,13 @@ fn main() {
 
     thread::spawn(move || daemon::response_server(tx_db.clone(), my_status_arc, Arc::new(sk)));
 
-    let new_tx_interval = time::Duration::from_millis(10000);
+    let new_tx_interval = time::Duration::from_millis(1000);
 
 
     loop {
         thread::sleep(new_tx_interval); // TODO: Remove
         state.push(random_tx());
+        println!("New transaction added!");
         state_sketch = state.odd_sketch();
         my_status.update_state_sketch(state_sketch);
     }

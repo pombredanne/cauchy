@@ -9,7 +9,7 @@ pub fn mine(work_site: Arc<WorkSite>, status: Arc<Status>) {
 
 	let pk = work_site.get_public_key();
 
-	let hash_interval = time::Duration::from_millis(2000);
+	let hash_interval = time::Duration::from_millis(10);
 
     let mut record_distance: u32;
     let mut current_distance: u32;
@@ -18,11 +18,12 @@ pub fn mine(work_site: Arc<WorkSite>, status: Arc<Status>) {
     let mut best_nonce: u64;
 
     loop {
-    	record_distance = WorkSite::new(pk, work_site.get_nonce()).mine(&current_state_sketch);
+    	record_distance = WorkSite::new(pk, status.get_nonce()).mine(&current_state_sketch);
     	current_state_sketch  = status.get_state_sketch();
         current_distance = work_site.mine(&current_state_sketch);
+        
         thread::sleep(hash_interval); // TODO: Remove
-        println!("Best: {}", record_distance);
+        println!("{}", record_distance);
 
         if current_distance < record_distance {
 	        best_nonce = work_site.get_nonce();
