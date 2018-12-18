@@ -11,6 +11,7 @@ dirs = "*"
 blake2 = "*"
 rand = "*"
 tokio = "*"
+bus = "*"
 
 [dependencies.secp256k1]
 version = "*"

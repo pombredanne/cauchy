@@ -115,6 +115,7 @@ impl Message {
             Message::Nonce { nonce } => {
                 buf.put_u8(7);
                 buf.put_slice(&Bytes::from(VarInt::new(nonce)));
+                println!("DONE");
             }
             Message::Error { msg } => buf.put_slice(&msg.as_bytes()[..]),
             _ => (),

@@ -6,29 +6,39 @@ use std::sync::{Arc, Mutex};
 use utils::timing::*;
 
 // TODO: Async
+#[derive(Clone)]
 pub struct Status {
+    last_site_update: Arc<Mutex<u64>>,
     public_key: PublicKey,
     nonce: Arc<Mutex<u64>>,
 
     last_state_update: Arc<Mutex<u64>>,
     state_sketch: Arc<Mutex<Bytes>>,
 
-    last_site_update: Arc<Mutex<u64>>,
-
     digested: Arc<Mutex<bool>>,
     site_hash: Arc<Mutex<Bytes>>,
 }
 
 impl Status {
-    pub fn new(state_sketch: Bytes, work_site: &WorkSite) -> Status {
+    pub fn init(state_sketch: Bytes, work_site: &WorkSite) -> Status {
         Status {
+            last_site_update: Arc::new(Mutex::new(get_current_time())),
             public_key: work_site.get_public_key(),
             nonce: Arc::new(Mutex::new(work_site.get_nonce())),
             last_state_update: Arc::new(Mutex::new(get_current_time())),
             state_sketch: Arc::new(Mutex::new(state_sketch)),
-            last_site_update: Arc::new(Mutex::new(get_current_time())),
             site_hash: Arc::new(Mutex::new(work_site.blake2b())),
             digested: Arc::new(Mutex::new(true)),
+        }
+    }
+
+    pub fn new_from(public_key: PublicKey, nonce: Arc<Mutex<u64>>, state_sketch: Arc<Mutex<Bytes>>) {
+        Status {
+            public_key,
+            nonce,
+            last_state_update: Arc::new(Mutex::new(get_current_time())),
+            state_sketch,
+            
         }
     }
 

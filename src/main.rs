@@ -1,4 +1,5 @@
 extern crate blake2;
+extern crate bus;
 extern crate bytes;
 extern crate rand;
 extern crate rocksdb;
@@ -13,19 +14,22 @@ pub mod net;
 pub mod primitives;
 pub mod utils;
 
-use rand::Rng;
+use bus::Bus;
 use bytes::Bytes;
-use consensus::status::Status;
 use crypto::hashes::odd_sketch::*;
 use crypto::signatures::ecdsa;
+
 use db::rocksdb::RocksDb;
 use db::*;
-use primitives::work_site::*;
-use std::sync::Arc;
-use std::thread;
 use utils::constants::TX_DB_PATH;
-use utils::mining;
+
+use primitives::status::Status;
+use rand::Rng;
+use std::sync::mpsc::channel;
+use std::sync::{Arc, Mutex};
+use std::thread;
 use std::time;
+use utils::mining;
 
 #[cfg(test)]
 mod test {
@@ -39,7 +43,6 @@ mod test {
 }
 
 fn main() {
-
     let tx_db = Arc::new(RocksDb::open_db(TX_DB_PATH).unwrap());
 
     let mut state = vec![
@@ -51,30 +54,44 @@ fn main() {
         Bytes::from(&b"f"[..]),
     ];
 
-    let mut state_sketch = state.odd_sketch();
+    let n_mining_threads = 1;
+
+    let mut sketch_bus = Bus::new(10);
+    let (distance_send, distance_recv) = channel();
+
     let (sk, pk) = ecdsa::generate_keypair();
-    let my_status = Arc::new(Status::new(state_sketch.clone(), &WorkSite::init(pk)));
 
-    let mining_work_site = Arc::new(WorkSite::init(pk));
+    for i in 0..n_mining_threads {
+        let distance_send_c = distance_send.clone();
+        let mut sketch_recv = sketch_bus.add_rx();
+        thread::spawn(move || {
+            mining::mine(
+                pk,
+                std::u64::MAX * i / (n_mining_threads + 1),
+                sketch_recv,
+                distance_send_c,
+            )
+        });
+    }
 
-    let my_status_arc = Arc::clone(&my_status);
-    let my_work_site_arc = Arc::clone(&mining_work_site);
+    let status = Status::new(
+        pk,
+        Arc::new(Mutex::new(0)),
+        Arc::new(Mutex::new(Bytes::with_capacity(64))),
+    );
 
-    thread::spawn(move || mining::mine(my_work_site_arc.clone(), my_status_arc.clone()));
+    let status_c = status.clone();
+    thread::spawn(move || daemon::response_server(tx_db.clone(), status_c, sk));
 
-    let my_status_arc = Arc::clone(&my_status);
+    let mut sketch_recv = sketch_bus.add_rx();
+    thread::spawn(move || status.update_local(sketch_recv, distance_recv));
 
-    thread::spawn(move || daemon::response_server(tx_db.clone(), my_status_arc, Arc::new(sk)));
-
-    let new_tx_interval = time::Duration::from_millis(1000);
-
+    let new_tx_interval = time::Duration::from_millis(100);
 
     loop {
-        thread::sleep(new_tx_interval); // TODO: Remove
         state.push(random_tx());
-        println!("New transaction added!");
-        state_sketch = state.odd_sketch();
-        my_status.update_state_sketch(state_sketch);
+        sketch_bus.broadcast(state.odd_sketch());
+        thread::sleep(new_tx_interval);
     }
 
     fn random_tx() -> Bytes {
@@ -82,6 +99,4 @@ fn main() {
         let my_array: [u8; 8] = rng.gen();
         Bytes::from(&my_array[..])
     }
-
-
 }

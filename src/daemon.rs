@@ -1,5 +1,6 @@
 use db::rocksdb::RocksDb;
 use db::*;
+use primitives::status::Status;
 use secp256k1::SecretKey;
 
 use bytes::Bytes;
@@ -12,12 +13,11 @@ use tokio::io::{lines, write_all};
 use tokio::net::TcpListener;
 use tokio::prelude::*;
 
-use consensus::status::*;
 use net::messages::*;
 use primitives::transaction::Transaction;
 use utils::serialisation::*;
 
-pub fn response_server(tx_db: Arc<RocksDb>, my_status: Arc<Status>, my_sk: Arc<SecretKey>) {
+pub fn response_server(tx_db: Arc<RocksDb>, my_status: Status, my_sk: SecretKey) {
     let addr = env::args().nth(1).unwrap_or("127.0.0.1:8080".to_string());
     let addr = addr.parse::<SocketAddr>().unwrap();
     let listener = TcpListener::bind(&addr)

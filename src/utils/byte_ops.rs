@@ -34,12 +34,12 @@ bop!(ByteOr, byte_or, bitor);
 bop!(ByteXor, byte_xor, bitxor);
 
 pub trait Hamming {
-    fn hamming_weight(&self) -> u32;
-    fn hamming_distance(self, Bytes) -> u32;
+    fn hamming_weight(&self) -> u16;
+    fn hamming_distance(self, Bytes) -> u16;
 }
 
 impl Hamming for Bytes {
-    fn hamming_weight(&self) -> u32 {
+    fn hamming_weight(&self) -> u16 {
         let mut count = 0;
         let buf = self.into_buf();
 
@@ -47,10 +47,10 @@ impl Hamming for Bytes {
             count += b.count_ones();
         }
 
-        count
+        count as u16
     }
 
-    fn hamming_distance(self, rhs: Bytes) -> u32 {
+    fn hamming_distance(self, rhs: Bytes) -> u16 {
         Bytes::byte_xor(self, rhs).hamming_weight()
     }
 }

@@ -1,35 +1,49 @@
-use std::sync::Arc;
-use std::thread;
+use bus::BusReader;
+use bytes::Bytes;
 use primitives::work_site::WorkSite;
-use consensus::status::Status;
+use secp256k1::PublicKey;
+use std::sync::mpsc::Sender;
 use std::time;
 
-pub fn mine(work_site: Arc<WorkSite>, status: Arc<Status>) {
-	println!("Starting mining...");
+pub fn mine(
+    public_key: PublicKey,
+    start_nonce: u64,
+    mut sketch_rx: BusReader<Bytes>,
+    record_sender: Sender<(u64, u16)>,
+) {
+    let work_site = WorkSite::new(public_key, start_nonce);
+    println!("Start mining...");
 
-	let pk = work_site.get_public_key();
+    let mut best_nonce: u64 = 0;
+    let mut best_distance: u16 = 512;
 
-	let hash_interval = time::Duration::from_millis(10);
+    let pk = work_site.get_public_key();
 
-    let mut record_distance: u32;
-    let mut current_distance: u32;
-
-    let mut current_state_sketch = status.get_state_sketch();
-    let mut best_nonce: u64;
+    let mut current_distance: u16;
+    let mut current_sketch: Bytes = sketch_rx.recv().unwrap();
 
     loop {
-    	record_distance = WorkSite::new(pk, status.get_nonce()).mine(&current_state_sketch);
-    	current_state_sketch  = status.get_state_sketch();
-        current_distance = work_site.mine(&current_state_sketch);
-        
-        thread::sleep(hash_interval); // TODO: Remove
-        println!("{}", record_distance);
+        {
+            match sketch_rx.try_recv() {
+                Ok(sketch) => {
+                    current_sketch = sketch;
+                    current_distance = WorkSite::new(pk, best_nonce).mine(&current_sketch);
 
-        if current_distance < record_distance {
-	        best_nonce = work_site.get_nonce();
-            status.update_nonce(best_nonce);
+                    record_sender.send((best_nonce, current_distance));
+                    best_distance = current_distance;
+                }
+                Err(_) => {
+                    current_distance = work_site.mine(&current_sketch);
+                    if current_distance < best_distance {
+                        best_nonce = work_site.get_nonce();
+                        record_sender.send((best_nonce, current_distance));
+                        best_distance = current_distance;
+                    }
+                    work_site.increment();
+                }
+            }
         }
 
-        work_site.increment();
+        //thread::sleep(hash_interval); // TODO: Remove
     }
 }
