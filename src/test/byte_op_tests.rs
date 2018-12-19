@@ -44,3 +44,29 @@ mod metrics {
         assert_eq!(Bytes::hamming_distance(raw_a, raw_b), 1);
     }
 }
+
+mod folding {
+    use bytes::Bytes;
+    use utils::byte_ops::*;
+
+    #[test]
+    fn test_fold_a() {
+        let raw_a = Bytes::from(&b"\x00\x01\x01\x01\x01\x01"[..]);
+        let raw_b = Bytes::from(&b"\x00\x01"[..]);
+        assert_eq!(raw_b, raw_a.fold(2).unwrap());
+    }
+
+    #[test]
+    fn test_fold_b() {
+        let raw_a = Bytes::from(&b"\x00\x01\x00\x01"[..]);
+        let raw_b = Bytes::from(&b"\x00\x00"[..]);
+        assert_eq!(raw_b, raw_a.fold(2).unwrap());
+    }
+
+    #[test]
+    fn test_fold_c() {
+        let raw_a = Bytes::from(&b"\x00\x01\x01\x01\x01\x01"[..]);
+        let raw_b = Bytes::from(&b"\x01\x00\x00"[..]);
+        assert_eq!(raw_b, raw_a.fold(3).unwrap());
+    }
+}

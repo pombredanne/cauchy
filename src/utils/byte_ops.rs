@@ -54,3 +54,23 @@ impl Hamming for Bytes {
         Bytes::byte_xor(self, rhs).hamming_weight()
     }
 }
+
+pub trait Foldable {
+    fn fold(&self, usize) -> Result<Bytes, String>;
+}
+
+impl Foldable for Bytes {
+    fn fold(&self, m: usize) -> Result<Bytes, String> {
+        let n = self.len();
+        if n % m == 0 {
+            let k = self.len() / m;
+            let mut result = self.slice(0, m);
+            for i in 1..k {
+                result = result.byte_xor(self.slice(i*m, (i+1)*m))
+            }
+            Ok(result)
+        } else {
+            Err("Not a divisor".to_string())
+        }
+    }
+}
