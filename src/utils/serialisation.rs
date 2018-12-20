@@ -73,15 +73,11 @@ impl TryFrom<Bytes> for Transaction {
         let mut scripts = Vec::new();
         let mut buf = raw.into_buf();
 
-        let vi_time = VarInt::parse(buf.bytes());
-        buf.advance(vi_time.len());
-
-        let n_spendable = VarInt::parse(buf.bytes());
-        buf.advance(n_spendable.len());
+        let vi_time = VarInt::parse_buf(&mut buf);
+        let n_spendable = VarInt::parse_buf(&mut buf);
 
         while buf.has_remaining() {
-            let vi = VarInt::parse(buf.bytes());
-            buf.advance(vi.len());
+            let vi = VarInt::parse_buf(&mut buf);
 
             let len = usize::from(vi);
             let mut dst = vec![0; len as usize];
@@ -127,20 +123,5 @@ impl From<WorkSite> for Bytes {
         bytes.extend_from_slice(&pk[..]);
         bytes.put_u64_be(work_site.get_nonce());
         bytes.freeze()
-    }
-}
-
-impl TryFrom<Bytes> for WorkSite {
-    type Err = String;
-    fn try_from(raw: Bytes) -> Result<WorkSite, String> {
-        let mut buf = raw.into_buf();
-        let pk_raw = &mut [0; PUBKEY_LEN];
-        buf.copy_to_slice(pk_raw);
-        let n = buf.get_u64_be();
-        let public_key = match pubkey_from_bytes(Bytes::from(&pk_raw[..])) {
-            Ok(pk) => pk,
-            Err(error) => return Err(error),
-        };
-        Ok(WorkSite::new(public_key, n))
     }
 }

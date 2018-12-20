@@ -66,7 +66,7 @@ impl Foldable for Bytes {
             let k = self.len() / m;
             let mut result = self.slice(0, m);
             for i in 1..k {
-                result = result.byte_xor(self.slice(i*m, (i+1)*m))
+                result = result.byte_xor(self.slice(i * m, (i + 1) * m))
             }
             Ok(result)
         } else {

@@ -1,4 +1,4 @@
-use bytes::{Buf, IntoBuf};
+use bytes::Buf;
 use std::ops::Add;
 
 #[derive(Clone)]
@@ -9,10 +9,23 @@ impl VarInt {
         VarInt(n)
     }
 
-    // TODO: Change to result
-    pub fn parse(raw: &[u8]) -> VarInt {
+    // // TODO: Change to result
+    // pub fn parse(raw: &[u8]) -> VarInt {
+    //     let mut n: u64 = 0;
+    //     let mut buf = raw.into_buf();
+    //     loop {
+    //         let k = buf.get_u8();
+    //         n = (n << 7) | u64::from(k & 0x7f);
+    //         if 0x00 != (k & 0x80) {
+    //             n += 1;
+    //         } else {
+    //             return VarInt::new(n);
+    //         }
+    //     }
+    // }
+
+    pub fn parse_buf<T: Buf>(buf: &mut T) -> VarInt {
         let mut n: u64 = 0;
-        let mut buf = raw.into_buf();
         loop {
             let k = buf.get_u8();
             n = (n << 7) | u64::from(k & 0x7f);

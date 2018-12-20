@@ -69,4 +69,10 @@ mod folding {
         let raw_b = Bytes::from(&b"\x01\x00\x00"[..]);
         assert_eq!(raw_b, raw_a.fold(3).unwrap());
     }
+
+    #[test]
+    fn test_fold_d() {
+        let raw_a = Bytes::from(&b"\x00\x01\x01\x01\x01\x01"[..]);
+        assert_eq!(Err("Not a divisor".to_string()), raw_a.fold(4));
+    }
 }

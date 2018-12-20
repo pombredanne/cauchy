@@ -1,12 +1,14 @@
+use bytes::Buf;
 use bytes::Bytes;
 use crypto::hashes::blake2b::Blk2bHashable;
 use primitives::script::Script;
+use primitives::varint::VarInt;
 use utils::constants::*;
 
 /*
-                  v Length of next script
-VarInt || VarInt || VarInt || Script || VarInt || Script || ... || VarInt || Script
-  ^UTC      ^ Number of spendable scripts                            ^ Length of next script
+                       v Number of referancable scripts
+VarInt || VarInt || VarInt || VarInt || Script || VarInt || Script || ... || VarInt || Script
+  ^UTC      ^ Number of spendable scripts            ^ Length of next script
 
 -First script is executed and must return true, the others are added to the "library".
 -The scripts are segmented into spendable and referencable,
@@ -48,6 +50,28 @@ impl Transaction {
 
     pub fn n_spendable(&self) -> u32 {
         self.n_spendable
+    }
+
+    pub fn parse_buf<T: Buf>(buf: &mut T, len: usize) -> Result<Transaction, String> {
+        let mut scripts = Vec::new();
+
+        let vi_time = VarInt::parse_buf(buf);
+        let n_spendable = VarInt::parse_buf(buf);
+
+        for _ in 0..len {
+            let vi = VarInt::parse_buf(buf);
+
+            let len = usize::from(vi);
+            let mut dst = vec![0; len as usize];
+            buf.copy_to_slice(&mut dst);
+
+            scripts.push(Script::new(Bytes::from(dst)));
+        }
+        Ok(Transaction::new(
+            u64::from(vi_time),
+            u32::from(n_spendable),
+            scripts,
+        ))
     }
 }
 

@@ -80,10 +80,10 @@ fn main() {
         Arc::new(Mutex::new(Bytes::with_capacity(64))),
     );
 
-    let status_c = status.clone();
-    thread::spawn(move || daemon::response_server(tx_db.clone(), status_c, sk));
+    // let status_c = status.clone();
+    // thread::spawn(move || daemon::response_server(tx_db.clone(), status_c, sk));
 
-    let mut sketch_recv = sketch_bus.add_rx();
+    let sketch_recv = sketch_bus.add_rx();
     thread::spawn(move || status.update_local(sketch_recv, distance_recv));
 
     let new_tx_interval = time::Duration::from_millis(100);
