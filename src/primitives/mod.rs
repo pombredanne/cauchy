@@ -1,3 +1,4 @@
+pub mod arena;
 pub mod script;
 pub mod status;
 pub mod transaction;

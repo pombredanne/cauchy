@@ -40,6 +40,6 @@ impl WorkSite {
     }
 
     pub fn mine(&self, state_sketch: &Bytes) -> u16 {
-        self.get_site_hash().hamming_distance(state_sketch.clone())
+        Bytes::hamming_distance(&self.get_site_hash(), state_sketch)
     }
 }

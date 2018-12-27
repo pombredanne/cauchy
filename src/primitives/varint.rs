@@ -24,15 +24,18 @@ impl VarInt {
     //     }
     // }
 
-    pub fn parse_buf<T: Buf>(buf: &mut T) -> VarInt {
+    pub fn parse_buf<T: Buf>(buf: &mut T) -> Result<VarInt, String> {
         let mut n: u64 = 0;
         loop {
+            if buf.remaining() == 0 {
+                return Err("No remaining bytes".to_string());
+            }
             let k = buf.get_u8();
             n = (n << 7) | u64::from(k & 0x7f);
             if 0x00 != (k & 0x80) {
                 n += 1;
             } else {
-                return VarInt::new(n);
+                return Ok(VarInt::new(n));
             }
         }
     }

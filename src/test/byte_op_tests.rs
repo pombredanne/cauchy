@@ -41,7 +41,7 @@ mod metrics {
     fn test_hamming_distance() {
         let raw_a = Bytes::from(&b"\x00\x01\x00\x01"[..]);
         let raw_b = Bytes::from(&b"\x00\x01\x01\x01"[..]);
-        assert_eq!(Bytes::hamming_distance(raw_a, raw_b), 1);
+        assert_eq!(Bytes::hamming_distance(&raw_a, &raw_b), 1);
     }
 }
 

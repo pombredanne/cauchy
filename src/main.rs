@@ -26,7 +26,7 @@ use utils::constants::TX_DB_PATH;
 use primitives::status::Status;
 use rand::Rng;
 use std::sync::mpsc::channel;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time;
 use utils::mining;
@@ -54,7 +54,7 @@ fn main() {
         Bytes::from(&b"f"[..]),
     ];
 
-    let n_mining_threads = 1;
+    let n_mining_threads = 0;
 
     let mut sketch_bus = Bus::new(10);
     let (distance_send, distance_recv) = channel();
@@ -74,14 +74,13 @@ fn main() {
         });
     }
 
-    let status = Status::new(
-        pk,
-        Arc::new(Mutex::new(0)),
-        Arc::new(Mutex::new(Bytes::with_capacity(64))),
-    );
+    let status = Arc::new(Status::new(
+        RwLock::new(0),
+        RwLock::new(Bytes::with_capacity(64)),
+    ));
 
-    // let status_c = status.clone();
-    // thread::spawn(move || daemon::response_server(tx_db.clone(), status_c, sk));
+    let status_c = status.clone();
+    thread::spawn(move || daemon::response_server(tx_db, status_c, pk, sk));
 
     let sketch_recv = sketch_bus.add_rx();
     thread::spawn(move || status.update_local(sketch_recv, distance_recv));

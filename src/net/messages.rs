@@ -5,14 +5,12 @@ use primitives::transaction::*;
 use primitives::varint::VarInt;
 use secp256k1::key::PublicKey;
 use secp256k1::Signature;
-use std::cell::RefCell;
 use tokio::codec::{Decoder, Encoder};
 use tokio::io::{Error, ErrorKind};
 use utils::constants::*;
-use utils::serialisation::*;
 
 pub enum Message {
-    StartHandshake { preimage: u64 },
+    StartHandshake { secret: u64 },
     EndHandshake { pubkey: PublicKey, sig: Signature },
     Nonce { nonce: u64 },
     StateSketch { sketch: Bytes },
@@ -20,55 +18,66 @@ pub enum Message {
     Transactions { txs: Vec<Transaction> },
 }
 
-pub struct MessageCodec {
-    cached: RefCell<BytesMut>,
-}
-
-impl MessageCodec {
-    fn new() -> MessageCodec {
-        MessageCodec {
-            cached: RefCell::new(BytesMut::new()),
-        }
-    }
-}
+pub struct MessageCodec;
 
 impl Encoder for MessageCodec {
     type Item = Message;
     type Error = Error;
 
     fn encode(&mut self, item: Self::Item, dst: &mut BytesMut) -> Result<(), Self::Error> {
+        // TODO: Manage capacity better
+        let mut payload = BytesMut::new();
         match item {
-            Message::StartHandshake { preimage } => {
-                dst.put_u8(0);
-                dst.put(Bytes::from(VarInt::new(preimage)));
+            Message::StartHandshake { secret } => {
+                payload.put_u8(0);
+                payload.extend(Bytes::from(VarInt::new(secret)));
+
+                dst.extend(Bytes::from(VarInt::new(payload.len() as u64)));
+                dst.extend(payload);
             }
             Message::EndHandshake { pubkey, sig } => {
-                dst.put_u8(1);
-                dst.put(bytes_from_pubkey(pubkey));
-                dst.put(bytes_from_sig(sig));
+                payload.put_u8(1);
+                payload.extend(bytes_from_pubkey(pubkey));
+                payload.extend(bytes_from_sig(sig));
+
+                dst.extend(Bytes::from(VarInt::new(payload.len() as u64)));
+                dst.extend(payload);
             }
             Message::Nonce { nonce } => {
-                dst.put_u8(2);
-                dst.put_u64_be(nonce);
+                //println!("Send nonce: {}", nonce);
+                payload.put_u8(2);
+                payload.extend(Bytes::from(VarInt::new(nonce)));
+
+                dst.extend(Bytes::from(VarInt::new(payload.len() as u64)));
+                dst.extend(payload);
             }
             Message::StateSketch { sketch } => {
-                dst.put_u8(3);
-                dst.put(sketch);
+                payload.put_u8(3);
+                payload.extend(sketch);
+
+                dst.extend(Bytes::from(VarInt::new(payload.len() as u64)));
+                dst.extend(payload);
             }
             Message::GetTransactions { ids } => {
-                dst.put_u8(4);
-                dst.put(Bytes::from(VarInt::new(ids.len() as u64)));
+                payload.put_u8(4);
+                payload.extend(Bytes::from(VarInt::new(ids.len() as u64)));
                 for id in ids {
-                    dst.put(id);
+                    payload.extend(id);
                 }
+
+                dst.extend(Bytes::from(VarInt::new(payload.len() as u64)));
+                dst.extend(payload);
             }
             Message::Transactions { txs } => {
-                dst.put_u8(5);
+                payload.put_u8(5);
                 for tx in txs {
                     let raw = Bytes::from(tx);
-                    dst.put(Bytes::from(VarInt::new(raw.len() as u64)));
-                    dst.put(raw);
+                    payload.extend(Bytes::from(VarInt::new(raw.len() as u64)));
+                    payload.extend(raw);
                 }
+
+                dst.extend(Bytes::from(VarInt::new(payload.len() as u64)));
+                dst.extend(payload);
             }
         }
         Ok(())
@@ -80,87 +89,86 @@ impl Decoder for MessageCodec {
     type Error = Error;
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         // TODO: Magic bytes
-        let mut cached = self.cached.borrow_mut();
-        cached.extend_from_slice(src);
-        src.clear();
 
-        let fallback = cached.take();
-        let mut buf = fallback.clone().into_buf();
+        let mut buf = src.clone().into_buf();
+
+        let msg_len_vi = match VarInt::parse_buf(&mut buf) {
+            Ok(some) => some,
+            Err(_) => return Ok(None),
+        };
+        let msg_len_len = msg_len_vi.len();
+        let msg_len = usize::from(msg_len_vi);
+
+        if buf.remaining() < msg_len {
+            return Ok(None);
+        }
+
+        src.advance(msg_len_len);
 
         match buf.get_u8() {
             0 => {
-                if buf.remaining() < 8 {
-                    cached.extend_from_slice(&fallback);
-                    Ok(None)
-                } else {
-                    let msg = Message::StartHandshake {
-                        preimage: u64::from(VarInt::parse_buf(&mut buf)),
-                    };
-                    cached.extend_from_slice(buf.bytes());
-                    Ok(Some(msg))
-                }
+                let preimage_vi = match VarInt::parse_buf(&mut buf) {
+                    Ok(some) => some,
+                    Err(_) => return Err(Error::new(ErrorKind::Other, "Failed to parse VarInt")),
+                };
+                let msg = Message::StartHandshake {
+                    secret: u64::from(preimage_vi),
+                };
+                src.advance(msg_len);
+                Ok(Some(msg))
             }
             1 => {
-                if buf.remaining() < PUBKEY_LEN + SIG_LEN {
-                    cached.extend_from_slice(&fallback);
-                    Ok(None)
-                } else {
-                    let mut pubkey_dst = [0; PUBKEY_LEN];
-                    buf.copy_to_slice(&mut pubkey_dst);
-                    let pubkey = match pubkey_from_bytes(Bytes::from(&pubkey_dst[..])) {
-                        Ok(some) => some,
-                        Err(_) => {
-                            // TODO: Remove malformed msgs
-                            return Err(Error::new(ErrorKind::InvalidData, "Invalid Pubkey"));
-                        }
-                    };
+                let mut pubkey_dst = [0; PUBKEY_LEN];
+                buf.copy_to_slice(&mut pubkey_dst);
+                let pubkey = match pubkey_from_bytes(Bytes::from(&pubkey_dst[..])) {
+                    Ok(some) => some,
+                    Err(_) => {
+                        // TODO: Remove malformed msgs
+                        return Err(Error::new(ErrorKind::InvalidData, "Invalid Pubkey"));
+                    }
+                };
 
-                    let mut sig_dst = [0; SIG_LEN];
-                    buf.copy_to_slice(&mut sig_dst);
-                    let sig = match sig_from_bytes(Bytes::from(&sig_dst[..])) {
-                        Ok(some) => some,
-                        Err(_) => {
-                            // TODO: Remove malformed msgs
-                            return Err(Error::new(ErrorKind::InvalidData, "Invalid Signature"));
-                        }
-                    };
-                    cached.extend_from_slice(buf.bytes());
-                    let msg = Message::EndHandshake { pubkey, sig };
-                    Ok(Some(msg))
-                }
+                let mut sig_dst = [0; SIG_LEN];
+                buf.copy_to_slice(&mut sig_dst);
+                let sig = match sig_from_bytes(Bytes::from(&sig_dst[..])) {
+                    Ok(some) => some,
+                    Err(_) => {
+                        // TODO: Remove malformed msgs
+                        return Err(Error::new(ErrorKind::InvalidData, "Invalid Signature"));
+                    }
+                };
+                let msg = Message::EndHandshake { pubkey, sig };
+                src.advance(msg_len);
+                Ok(Some(msg))
             }
             2 => {
-                if buf.remaining() < 8 {
-                    cached.extend_from_slice(&fallback);
-                    Ok(None)
-                } else {
-                    let msg = Message::Nonce {
-                        nonce: buf.get_u64_be(),
-                    };
-                    cached.extend_from_slice(buf.bytes());
-                    Ok(Some(msg))
-                }
+                let nonce_vi = match VarInt::parse_buf(&mut buf) {
+                    Ok(some) => some,
+                    Err(_) => return Err(Error::new(ErrorKind::Other, "Failed to parse VarInt")),
+                };
+                let msg = Message::Nonce {
+                    nonce: u64::from(nonce_vi),
+                };
+                src.advance(msg_len);
+                Ok(Some(msg))
             }
             3 => {
-                if buf.remaining() < SKETCH_LEN {
-                    cached.extend_from_slice(&fallback);
-                    Ok(None)
-                } else {
-                    let mut sketch_dst = [0; SKETCH_LEN];
-                    buf.copy_to_slice(&mut sketch_dst);
-                    let msg = Message::StateSketch {
-                        sketch: Bytes::from(&sketch_dst[..]),
-                    };
-                    cached.extend_from_slice(buf.bytes());
-                    Ok(Some(msg))
-                }
+                let mut sketch_dst = [0; SKETCH_LEN];
+                buf.copy_to_slice(&mut sketch_dst);
+                let msg = Message::StateSketch {
+                    sketch: Bytes::from(&sketch_dst[..]),
+                };
+                src.advance(msg_len);
+                Ok(Some(msg))
             }
             4 => {
-                let n_vi = VarInt::parse_buf(&mut buf);
+                let n_vi = match VarInt::parse_buf(&mut buf) {
+                    Ok(some) => some,
+                    Err(_) => return Err(Error::new(ErrorKind::Other, "Failed to parse VarInt")),
+                };
                 let size = usize::from(n_vi);
                 let mut ids = Vec::with_capacity(size);
                 if src.len() < TX_ID_LEN * size + 1 {
-                    cached.extend_from_slice(&fallback);
                     Ok(None)
                 } else {
                     for _i in 0..usize::from(size) {
@@ -169,25 +177,32 @@ impl Decoder for MessageCodec {
                         ids.push(Bytes::from(&id_dst[..]));
                     }
                     let msg = Message::GetTransactions { ids };
-                    cached.extend_from_slice(buf.bytes());
+                    src.advance(msg_len);
                     Ok(Some(msg))
                 }
             }
             5 => {
-                let n_vi = VarInt::parse_buf(&mut buf);
+                let n_vi = match VarInt::parse_buf(&mut buf) {
+                    Ok(some) => some,
+                    Err(_) => return Err(Error::new(ErrorKind::Other, "Failed to parse VarInt")),
+                };
                 let n_tx = u64::from(n_vi);
                 let mut txs = Vec::with_capacity(n_tx as usize);
                 for _i in 0..n_tx {
-                    let tx_len_vi = VarInt::parse_buf(&mut buf);
+                    let tx_len_vi = match VarInt::parse_buf(&mut buf) {
+                        Ok(some) => some,
+                        Err(_) => {
+                            return Err(Error::new(ErrorKind::Other, "Failed to parse VarInt"))
+                        }
+                    };
                     let tx_len = usize::from(tx_len_vi);
                     if buf.remaining() < tx_len {
-                        cached.extend_from_slice(&fallback);
                         return Ok(None);
                     } else {
                         match Transaction::parse_buf(&mut buf, tx_len) {
                             Ok(some) => txs.push(some),
                             Err(_) => {
-                                cached.extend_from_slice(&fallback);
+                                // TODO: Remove malformed msgs
                                 return Err(Error::new(
                                     ErrorKind::InvalidData,
                                     "Invalid Transaction",
@@ -197,10 +212,16 @@ impl Decoder for MessageCodec {
                     }
                 }
                 let msg = Message::Transactions { txs };
-                cached.extend_from_slice(buf.bytes());
+                src.advance(msg_len);
                 Ok(Some(msg))
             }
-            _ => return Err(Error::new(ErrorKind::InvalidData, "Invalid Message")),
+            _ => {
+                // TODO: Remove malformed msgs
+                println!("HELLO");
+                println!("{}", String::from_utf8_lossy(&src.clone().freeze()));
+                println!("{}", String::from_utf8_lossy(&buf.bytes()));
+                Err(Error::new(ErrorKind::InvalidData, "Invalid Message"))
+            }
         }
     }
 }

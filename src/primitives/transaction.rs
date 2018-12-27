@@ -55,11 +55,11 @@ impl Transaction {
     pub fn parse_buf<T: Buf>(buf: &mut T, len: usize) -> Result<Transaction, String> {
         let mut scripts = Vec::new();
 
-        let vi_time = VarInt::parse_buf(buf);
-        let n_spendable = VarInt::parse_buf(buf);
+        let vi_time = VarInt::parse_buf(buf)?;
+        let n_spendable = VarInt::parse_buf(buf)?;
 
         for _ in 0..len {
-            let vi = VarInt::parse_buf(buf);
+            let vi = VarInt::parse_buf(buf)?;
 
             let len = usize::from(vi);
             let mut dst = vec![0; len as usize];

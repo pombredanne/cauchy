@@ -35,7 +35,7 @@ bop!(ByteXor, byte_xor, bitxor);
 
 pub trait Hamming {
     fn hamming_weight(&self) -> u16;
-    fn hamming_distance(self, Bytes) -> u16;
+    fn hamming_distance(&Bytes, &Bytes) -> u16;
 }
 
 impl Hamming for Bytes {
@@ -50,8 +50,8 @@ impl Hamming for Bytes {
         count as u16
     }
 
-    fn hamming_distance(self, rhs: Bytes) -> u16 {
-        Bytes::byte_xor(self, rhs).hamming_weight()
+    fn hamming_distance(lhs: &Bytes, rhs: &Bytes) -> u16 {
+        Bytes::byte_xor(lhs.clone(), rhs.clone()).hamming_weight()
     }
 }
 

@@ -36,6 +36,9 @@ impl TryFrom<Bytes> for VarInt {
         let mut n: u64 = 0;
         let mut buf = raw.into_buf();
         loop {
+            if buf.remaining() == 0 {
+                return Err("No remaining bytes".to_string());
+            }
             let k = buf.get_u8();
             n = (n << 7) | u64::from(k & 0x7f);
             if 0x00 != (k & 0x80) {
@@ -73,11 +76,11 @@ impl TryFrom<Bytes> for Transaction {
         let mut scripts = Vec::new();
         let mut buf = raw.into_buf();
 
-        let vi_time = VarInt::parse_buf(&mut buf);
-        let n_spendable = VarInt::parse_buf(&mut buf);
+        let vi_time = VarInt::parse_buf(&mut buf)?;
+        let n_spendable = VarInt::parse_buf(&mut buf)?;
 
         while buf.has_remaining() {
-            let vi = VarInt::parse_buf(&mut buf);
+            let vi = VarInt::parse_buf(&mut buf)?;
 
             let len = usize::from(vi);
             let mut dst = vec![0; len as usize];
