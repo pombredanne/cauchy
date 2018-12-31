@@ -1,5 +1,6 @@
 use bytes::Bytes;
 use crypto::hashes::blake2b::Blk2bHashable;
+use crypto::util;
 use utils::byte_ops::*;
 use utils::constants::SKETCH_LEN;
 
@@ -14,7 +15,7 @@ pub fn add_to_bin<T>(sketch: &mut [u8], item: &T)
 where
     T: Blk2bHashable,
 {
-    let (shift, index) = get_pos(item);
+    let (shift, index) = util::get_bit_pos(item, SKETCH_LEN);
     sketch[index] ^= 1 << shift;
 }
 
@@ -33,19 +34,9 @@ impl<T: Blk2bHashable> Sketchable<T> for Vec<T> {
     fn odd_sketch(&self) -> Bytes {
         let mut sketch: [u8; SKETCH_LEN] = [0; SKETCH_LEN];
         for item in self {
-            let (shift, index) = get_pos(item);
+            let (shift, index) = util::get_bit_pos(item, SKETCH_LEN);
             sketch[index] ^= 1 << shift;
         }
         Bytes::from(&sketch[..])
     }
-}
-
-fn get_pos<T>(value: &T) -> (u8, usize)
-where
-    T: Blk2bHashable,
-{
-    let pos = *value.blake2b().first().unwrap();
-    let shift = &pos % 8; // Position within the byte
-    let index = (pos / (SKETCH_LEN >> 3) as u8) as usize; // Position of the byte
-    (shift, index)
 }

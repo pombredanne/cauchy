@@ -12,12 +12,13 @@ pub mod daemon;
 pub mod db;
 pub mod net;
 pub mod primitives;
+pub mod state;
 pub mod utils;
 
 use bus::Bus;
 use bytes::Bytes;
-use crypto::hashes::odd_sketch::*;
 use crypto::signatures::ecdsa;
+use crypto::sketches::odd_sketch::*;
 
 use db::rocksdb::RocksDb;
 use db::*;
@@ -37,6 +38,7 @@ mod test {
     mod db_tests;
     mod hash_tests;
     mod signature_tests;
+    mod sketch_tests;
     mod transaction_state_tests;
     mod transaction_tests;
     mod varint_tests;
@@ -77,6 +79,7 @@ fn main() {
     let status = Arc::new(Status::new(
         RwLock::new(0),
         RwLock::new(Bytes::with_capacity(64)),
+        RwLock::new(Bytes::with_capacity(64)),
     ));
 
     let status_c = status.clone();
@@ -88,8 +91,8 @@ fn main() {
     let new_tx_interval = time::Duration::from_millis(100);
 
     loop {
-        state.push(random_tx());
-        sketch_bus.broadcast(state.odd_sketch());
+        // state.push(random_tx());
+        // sketch_bus.broadcast(state.odd_sketch());
         thread::sleep(new_tx_interval);
     }
 

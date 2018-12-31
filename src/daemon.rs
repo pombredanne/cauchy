@@ -7,7 +7,7 @@ use bytes::Bytes;
 use crypto::signatures::ecdsa;
 use std::env;
 use std::net::SocketAddr;
-use std::sync::{Arc, RwLock, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use tokio::codec::Framed;
 use tokio::net::TcpListener;
 use tokio::prelude::*;
@@ -62,7 +62,7 @@ pub fn response_server(
                         *socket_pk_locked = *pubkey;
                     }
                     false
-                } 
+                }
                 Message::Nonce { nonce } => {
                     // Update nonce
                     let arena_r = arena_c.read().unwrap();
@@ -70,10 +70,20 @@ pub fn response_server(
                     let peer_status = arena_r.get_peer(&*socket_pk_locked);
                     peer_status.update_nonce(*nonce);
                     true // TODO: Under conditions
-                    }, 
-                Message::StateSketch { sketch } => true, // TODO: Under conditions
+                }
+                Message::StateSketch { sketch } => {
+                    // Update statesketch
+                    let arena_r = arena_c.read().unwrap();
+                    let socket_pk_locked = socket_pk.lock().unwrap();
+                    let peer_status = arena_r.get_peer(&*socket_pk_locked);
+                    peer_status.update_odd_sketch(sketch.clone());
+                    true // TODO: Under conditions
+                }
                 Message::GetTransactions { ids } => true,
-                Message::Transactions { txs } => false,
+                Message::Transactions { txs } => {
+                    // TODO: Insert into database
+                    false
+                }
             });
 
             let responses = queries.map(move |msg| match msg {
@@ -98,9 +108,9 @@ pub fn response_server(
                     nonce: self_status_c.get_nonce(),
                 },
                 Message::StateSketch { sketch: _ } => Message::StateSketch {
-                    sketch: self_status_c.get_state_sketch(),
+                    sketch: self_status_c.get_odd_sketch(),
                 },
-                _ => Message::Nonce { nonce: 133 },
+                _ => unreachable!(),
             });
 
             sink.send_all(responses)

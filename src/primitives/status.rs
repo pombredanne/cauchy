@@ -8,47 +8,60 @@ use utils::constants::SKETCH_LEN;
 
 pub struct StaticStatus {
     pub nonce: u64,
-    pub state_sketch: Bytes,
+    pub odd_sketch: Bytes,
+    pub sketch: Bytes,
 }
 
 impl StaticStatus {
     pub fn null() -> StaticStatus {
         StaticStatus {
             nonce: 0,
-            state_sketch: Bytes::from(&[0; SKETCH_LEN][..]),
+            odd_sketch: Bytes::from(&[0; SKETCH_LEN][..]),
+            sketch: Bytes::new(),
         }
     }
 }
 
 pub struct Status {
     nonce: RwLock<u64>,
-    state_sketch: RwLock<Bytes>,
+    odd_sketch: RwLock<Bytes>,
+    sketch: RwLock<Bytes>,
 }
 
 impl Status {
-    pub fn new(nonce: RwLock<u64>, state_sketch: RwLock<Bytes>) -> Status {
+    pub fn new(nonce: RwLock<u64>, odd_sketch: RwLock<Bytes>, sketch: RwLock<Bytes>) -> Status {
         Status {
             nonce,
-            state_sketch,
+            odd_sketch,
+            sketch,
         }
     }
 
     pub fn to_static(&self) -> StaticStatus {
         StaticStatus {
             nonce: self.get_nonce(),
-            state_sketch: self.get_state_sketch(),
+            odd_sketch: self.get_odd_sketch(),
+            sketch: self.get_sketch(),
         }
     }
 
     pub fn null() -> Status {
         Status {
             nonce: RwLock::new(0),
-            state_sketch: RwLock::new(Bytes::from(&[0; SKETCH_LEN][..])),
+            odd_sketch: RwLock::new(Bytes::from(&[0; SKETCH_LEN][..])),
+            sketch: RwLock::new(Bytes::new()),
         }
     }
 
-    pub fn update_state_sketch(&self, sketch: Bytes) {
-        let mut sketch_locked = self.state_sketch.write().unwrap();
+    pub fn update_odd_sketch(&self, sketch: Bytes) {
+        println!("Updated state sketch!");
+        let mut sketch_locked = self.odd_sketch.write().unwrap();
+        *sketch_locked = sketch;
+    }
+
+    pub fn update_sketch(&self, sketch: Bytes) {
+        println!("Updated sketch!");
+        let mut sketch_locked = self.sketch.write().unwrap();
         *sketch_locked = sketch;
     }
 
@@ -58,8 +71,13 @@ impl Status {
         *nonce_locked = nonce;
     }
 
-    pub fn get_state_sketch(&self) -> Bytes {
-        let sketch_locked = self.state_sketch.read().unwrap();
+    pub fn get_odd_sketch(&self) -> Bytes {
+        let sketch_locked = self.odd_sketch.read().unwrap();
+        (*sketch_locked).clone()
+    }
+
+    pub fn get_sketch(&self) -> Bytes {
+        let sketch_locked = self.sketch.read().unwrap();
         (*sketch_locked).clone()
     }
 
@@ -83,7 +101,7 @@ impl Status {
         loop {
             match sketch_receive.try_recv() {
                 Ok(sketch) => {
-                    self.update_state_sketch(sketch);
+                    self.update_odd_sketch(sketch);
                     best_distance = 512;
                 }
                 Err(_) => (),

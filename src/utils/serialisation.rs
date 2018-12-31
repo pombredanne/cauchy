@@ -1,8 +1,10 @@
 use bytes::{Buf, BufMut, Bytes, BytesMut, IntoBuf};
 use crypto::signatures::ecdsa::*;
 use primitives::script::Script;
+use primitives::transaction::Transaction;
+use primitives::varint::VarInt;
 use primitives::work_site::WorkSite;
-use primitives::{transaction::Transaction, transaction_state::TransactionState, varint::VarInt};
+use state::spend_state::*;
 use std::collections::HashSet;
 use utils::constants::*;
 
@@ -96,8 +98,8 @@ impl TryFrom<Bytes> for Transaction {
     }
 }
 
-impl From<Bytes> for TransactionState {
-    fn from(raw: Bytes) -> TransactionState {
+impl From<Bytes> for SpendState {
+    fn from(raw: Bytes) -> SpendState {
         let mut buf = raw.into_buf();
 
         let mut hash_set: HashSet<u32> = HashSet::new();
@@ -105,12 +107,12 @@ impl From<Bytes> for TransactionState {
             hash_set.insert(buf.get_u32_be());
         }
 
-        TransactionState::new(hash_set)
+        SpendState::new(hash_set)
     }
 }
 
-impl From<TransactionState> for Bytes {
-    fn from(tx_state: TransactionState) -> Bytes {
+impl From<SpendState> for Bytes {
+    fn from(tx_state: SpendState) -> Bytes {
         let mut buf = vec![];
         for val in tx_state.iter() {
             buf.put_u32_be(*val);

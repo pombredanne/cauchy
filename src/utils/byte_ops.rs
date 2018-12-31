@@ -16,14 +16,13 @@ macro_rules! bop {
 
         impl $trait_name for Bytes {
             fn $fn_name(self, rhs: Self) -> Bytes {
-                let mut result = BytesMut::with_capacity(self.len());
                 let buf_lhs = self.into_buf();
                 let buf_rhs = rhs.into_buf();
-
-                for (x, y) in buf_lhs.iter().zip(buf_rhs.iter()) {
-                    result.put(u8::$bitop_name(x, y));
-                }
-                Bytes::from(result)
+                buf_lhs
+                    .iter()
+                    .zip(buf_rhs.iter())
+                    .map(|(x, y)| u8::$bitop_name(x, y))
+                    .collect()
             }
         }
     };

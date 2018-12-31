@@ -20,9 +20,9 @@ mod binary_operations {
 
     #[test]
     fn test_xor() {
-        let raw_a = Bytes::from(&b"\x00\x01\x00\x01"[..]);
-        let raw_b = Bytes::from(&b"\x00\x00\x01\x01"[..]);
-        let result = Bytes::from(&b"\x00\x01\x01\x00"[..]);
+        let raw_a = Bytes::from(&b"\x01\x00\x04\x01"[..]);
+        let raw_b = Bytes::from(&b"\x02\x02\x01\x01"[..]);
+        let result = Bytes::from(&b"\x03\x02\x05\x00"[..]);
         assert_eq!(Bytes::byte_xor(raw_a, raw_b), result)
     }
 }

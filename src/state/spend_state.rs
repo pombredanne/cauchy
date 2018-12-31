@@ -5,16 +5,16 @@ use std::collections::HashSet;
 Wraps a set containing unspent outputs
 */
 
-pub struct TransactionState(HashSet<u32>);
+pub struct SpendState(HashSet<u32>);
 
-impl TransactionState {
-    pub fn init(n_spendable: u32) -> TransactionState {
+impl SpendState {
+    pub fn init(n_spendable: u32) -> SpendState {
         let set: HashSet<u32> = (0..n_spendable).collect();
-        TransactionState(set)
+        SpendState(set)
     }
 
-    pub fn new(set: HashSet<u32>) -> TransactionState {
-        TransactionState(set)
+    pub fn new(set: HashSet<u32>) -> SpendState {
+        SpendState(set)
     }
 
     pub fn iter(&self) -> Iter<u32> {
