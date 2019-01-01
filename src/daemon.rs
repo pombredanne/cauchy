@@ -71,13 +71,20 @@ pub fn response_server(
                     peer_status.update_nonce(*nonce);
                     true // TODO: Under conditions
                 }
-                Message::StateSketch { sketch } => {
+                Message::OddSketch { sketch } => {
                     // Update statesketch
                     let arena_r = arena_c.read().unwrap();
                     let socket_pk_locked = socket_pk.lock().unwrap();
                     let peer_status = arena_r.get_peer(&*socket_pk_locked);
                     peer_status.update_odd_sketch(sketch.clone());
                     true // TODO: Under conditions
+                }
+                Message::IBLT { iblt } => {
+                    let arena_r = arena_c.read().unwrap();
+                    let socket_pk_locked = socket_pk.lock().unwrap();
+                    let peer_status = arena_r.get_peer(&*socket_pk_locked);
+                    peer_status.update_sketch(iblt.clone());
+                    true
                 }
                 Message::GetTransactions { ids } => true,
                 Message::Transactions { txs } => {
@@ -107,8 +114,11 @@ pub fn response_server(
                 Message::Nonce { nonce: _ } => Message::Nonce {
                     nonce: self_status_c.get_nonce(),
                 },
-                Message::StateSketch { sketch: _ } => Message::StateSketch {
+                Message::OddSketch { sketch: _ } => Message::OddSketch {
                     sketch: self_status_c.get_odd_sketch(),
+                },
+                Message::IBLT { iblt: _ } => Message::IBLT {
+                    iblt: self_status_c.get_sketch(),
                 },
                 _ => unreachable!(),
             });

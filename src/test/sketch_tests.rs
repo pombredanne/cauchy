@@ -48,8 +48,8 @@ mod odd_sketch {
 mod iblt {
     use bytes::Bytes;
     use crypto::sketches::iblt::*;
-    use std::collections::HashSet;
     use crypto::sketches::odd_sketch::*;
+    use std::collections::HashSet;
 
     #[test]
     fn test_iblt_single() {
@@ -84,14 +84,22 @@ mod iblt {
         }
 
         let (res_left, res_right) = (iblt_a - iblt_b).decode().unwrap();
-        assert!(hashset_a.difference(&hashset_b).all(|x| res_left.contains(x)));
-        assert!(res_left.difference(&res_right).all(|x| hashset_a.contains(x)));
-        assert!(hashset_b.difference(&hashset_a).all(|x| res_right.contains(x)));
-        assert!(res_right.difference(&res_left).all(|x| hashset_b.contains(x)));
+        assert!(hashset_a
+            .difference(&hashset_b)
+            .all(|x| res_left.contains(x)));
+        assert!(res_left
+            .difference(&res_right)
+            .all(|x| hashset_a.contains(x)));
+        assert!(hashset_b
+            .difference(&hashset_a)
+            .all(|x| res_right.contains(x)));
+        assert!(res_right
+            .difference(&res_left)
+            .all(|x| hashset_b.contains(x)));
     }
 
     #[test]
-    fn test_iblt_odd_sketch_pair(){
+    fn test_iblt_odd_sketch_pair() {
         let mut iblt = IBLT::with_capacity(64, 4);
         let mut hashset: HashSet<Bytes> = HashSet::with_capacity(64);
 

@@ -3,12 +3,12 @@
 
 use bytes::Bytes;
 use crypto::hashes::blake2b::*;
+use crypto::sketches::odd_sketch::*;
 use crypto::util::*;
 use std::collections::HashSet;
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 use utils::byte_ops::*;
 use utils::constants::*;
-use crypto::sketches::odd_sketch::*;
 use utils::serialisation::*;
 
 #[derive(PartialEq, Clone, Debug)]

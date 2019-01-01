@@ -1,12 +1,11 @@
 use bytes::Bytes;
 use crypto::hashes::blake2b::Blk2bHashable;
 use crypto::util;
+use std::iter::IntoIterator;
 use utils::byte_ops::*;
 use utils::constants::SKETCH_LEN;
-use std::iter::IntoIterator;
 
-pub trait Sketchable
-{
+pub trait Sketchable {
     fn odd_sketch(&self) -> Bytes;
 }
 
@@ -29,9 +28,10 @@ pub fn sketched_size(raw: &Bytes) -> u32 {
 }
 
 impl<T: Blk2bHashable, U> Sketchable for U
-    where U: IntoIterator<Item = T>,
-    U: Clone
-    {
+where
+    U: IntoIterator<Item = T>,
+    U: Clone,
+{
     fn odd_sketch(&self) -> Bytes {
         let mut sketch: [u8; SKETCH_LEN] = [0; SKETCH_LEN];
         for item in self.clone().into_iter() {
