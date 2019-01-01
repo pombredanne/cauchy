@@ -8,8 +8,10 @@ use std::collections::HashSet;
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 use utils::byte_ops::*;
 use utils::constants::*;
+use crypto::sketches::odd_sketch::*;
+use utils::serialisation::*;
 
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Debug)]
 struct Row {
     count: i16,
     payload: Bytes,
@@ -97,7 +99,7 @@ impl SubAssign for Row {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct IBLT {
     n_hashes: usize,
     rows: Vec<Row>,
@@ -172,5 +174,15 @@ impl IBLT {
         } else {
             Err("Failed to decode".to_string())
         }
+    }
+}
+
+impl PartialEq<Bytes> for IBLT {
+    fn eq(&self, other: &Bytes) -> bool {
+        let (hash_set_l, _) = match self.decode() {
+            Ok(hs) => hs,
+            Err(_) => return false,
+        };
+        *other == hash_set_l.odd_sketch()
     }
 }

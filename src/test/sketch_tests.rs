@@ -1,5 +1,6 @@
 mod odd_sketch {
     use bytes::Bytes;
+    use crypto::hashes::blake2b::*;
     use crypto::sketches::odd_sketch::*;
     use primitives::script::Script;
     use utils::byte_ops::*;
@@ -48,6 +49,7 @@ mod iblt {
     use bytes::Bytes;
     use crypto::sketches::iblt::*;
     use std::collections::HashSet;
+    use crypto::sketches::odd_sketch::*;
 
     #[test]
     fn test_iblt_single() {
@@ -65,7 +67,6 @@ mod iblt {
 
     #[test]
     fn test_iblt_symmetric_difference() {
-
         let mut hashset_a: HashSet<Bytes> = HashSet::with_capacity(64);
         let mut hashset_b: HashSet<Bytes> = HashSet::with_capacity(64);
 
@@ -87,6 +88,18 @@ mod iblt {
         assert!(res_left.difference(&res_right).all(|x| hashset_a.contains(x)));
         assert!(hashset_b.difference(&hashset_a).all(|x| res_right.contains(x)));
         assert!(res_right.difference(&res_left).all(|x| hashset_b.contains(x)));
+    }
 
+    #[test]
+    fn test_iblt_odd_sketch_pair(){
+        let mut iblt = IBLT::with_capacity(64, 4);
+        let mut hashset: HashSet<Bytes> = HashSet::with_capacity(64);
+
+        for i in 0..8 {
+            iblt.insert(Bytes::from(&[i as u8][..]));
+            hashset.insert(Bytes::from(&[i as u8][..]));
+        }
+
+        assert_eq!(iblt, hashset.odd_sketch());
     }
 }
