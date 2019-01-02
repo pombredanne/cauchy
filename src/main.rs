@@ -56,7 +56,7 @@ fn main() {
         Bytes::from(&b"f"[..]),
     ];
 
-    let n_mining_threads = 0;
+    let n_mining_threads = 1;
 
     let mut sketch_bus = Bus::new(10);
     let (distance_send, distance_recv) = channel();
@@ -79,7 +79,7 @@ fn main() {
     let status = Arc::new(Status::null());
 
     let status_c = status.clone();
-    thread::spawn(move || daemon::response_server(tx_db, status_c, pk, sk));
+    thread::spawn(move || daemon::server(tx_db, status_c, pk, sk));
 
     let sketch_recv = sketch_bus.add_rx();
     thread::spawn(move || status.update_local(sketch_recv, distance_recv));
@@ -87,8 +87,8 @@ fn main() {
     let new_tx_interval = time::Duration::from_millis(100);
 
     loop {
-        // state.push(random_tx());
-        // sketch_bus.broadcast(state.odd_sketch());
+        state.push(random_tx());
+        sketch_bus.broadcast(state.odd_sketch());
         thread::sleep(new_tx_interval);
     }
 

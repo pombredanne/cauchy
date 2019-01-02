@@ -7,6 +7,7 @@ use std::sync::mpsc::Receiver;
 use std::sync::RwLock;
 use utils::constants::SKETCH_LEN;
 
+#[derive(Clone)]
 pub struct StaticStatus {
     pub nonce: u64,
     pub odd_sketch: Bytes,
@@ -55,19 +56,16 @@ impl Status {
     }
 
     pub fn update_odd_sketch(&self, sketch: Bytes) {
-        println!("Updated state sketch!");
         let mut sketch_locked = self.odd_sketch.write().unwrap();
         *sketch_locked = sketch;
     }
 
     pub fn update_sketch(&self, sketch: IBLT) {
-        println!("Updated sketch!");
         let mut sketch_locked = self.sketch.write().unwrap();
         *sketch_locked = sketch;
     }
 
     pub fn update_nonce(&self, nonce: u64) {
-        println!("Updated nonce!");
         let mut nonce_locked = self.nonce.write().unwrap();
         *nonce_locked = nonce;
     }

@@ -34,9 +34,13 @@ impl Arena {
         self.live_peers.insert(*pubkey);
     }
 
-    pub fn update_perception(&mut self, pubkey: PublicKey) {
+    pub fn get_perception(&self, pubkey: &PublicKey) -> StaticStatus {
+        (*self.perceived_status.get(pubkey).unwrap()).clone()
+    }
+
+    pub fn update_perception(&mut self, pubkey: &PublicKey) {
         self.perceived_status.insert(
-            self.self_pubkey,
+            *pubkey,
             self.peer_status.get(&self.self_pubkey).unwrap().to_static(),
         );
     }
