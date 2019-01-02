@@ -1,5 +1,6 @@
 use bytes::{Buf, BufMut, Bytes, BytesMut, IntoBuf};
 use crypto::signatures::ecdsa::*;
+use crypto::sketches::iblt::*;
 use primitives::script::Script;
 use primitives::transaction::Transaction;
 use primitives::varint::VarInt;
@@ -123,10 +124,47 @@ impl From<SpendState> for Bytes {
 
 impl From<WorkSite> for Bytes {
     fn from(work_site: WorkSite) -> Bytes {
-        let mut bytes = BytesMut::with_capacity(PUBKEY_LEN + 8);
+        let mut buf = BytesMut::with_capacity(PUBKEY_LEN + 8);
         let pk = bytes_from_pubkey(work_site.get_public_key());
-        bytes.extend_from_slice(&pk[..]);
-        bytes.put_u64_be(work_site.get_nonce());
-        bytes.freeze()
+        buf.extend_from_slice(&pk[..]);
+        buf.put_u64_be(work_site.get_nonce());
+        buf.freeze()
+    }
+}
+
+impl From<IBLT> for Bytes {
+    fn from(iblt: IBLT) -> Bytes {
+        let n_rows = iblt.get_rows().len();
+        let total_size = n_rows * (IBLT_CHECKSUM_LEN + IBLT_PAYLOAD_LEN + 8) + 8;
+        let mut buf = BytesMut::with_capacity(total_size);
+        buf.put_u32_be(n_rows as u32);
+        for row in iblt.get_rows() {
+            buf.put_i32_be(row.get_count());
+            buf.extend_from_slice(&row.get_payload()[..]);
+            buf.extend_from_slice(&row.get_checksum()[..]);
+        }
+        buf.freeze()
+    }
+}
+
+impl From<Bytes> for IBLT {
+    fn from(raw: Bytes) -> IBLT {
+        let mut buf = raw.into_buf();
+        let n_rows = buf.get_u32_be() as usize;
+        let mut rows = Vec::with_capacity(n_rows);
+        for i in 0..n_rows {
+            let count = buf.get_i32_be();
+            let mut dst_payload = vec![0; IBLT_PAYLOAD_LEN];
+            buf.copy_to_slice(&mut dst_payload);
+            let mut dst_checksum = vec![0; IBLT_CHECKSUM_LEN];
+            buf.copy_to_slice(&mut dst_checksum);
+            rows.push(Row::new(
+                count,
+                Bytes::from(&dst_payload[..]),
+                Bytes::from(&dst_checksum[..]),
+            ));
+        }
+
+        IBLT::from_rows(rows, 4)
     }
 }

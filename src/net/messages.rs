@@ -1,6 +1,7 @@
 use bytes::Bytes;
 use bytes::{Buf, BufMut, BytesMut, IntoBuf};
 use crypto::signatures::ecdsa::*;
+use crypto::sketches::iblt::*;
 use primitives::transaction::*;
 use primitives::varint::VarInt;
 use secp256k1::key::PublicKey;
@@ -14,7 +15,7 @@ pub enum Message {
     EndHandshake { pubkey: PublicKey, sig: Signature },
     Nonce { nonce: u64 },
     OddSketch { sketch: Bytes },
-    IBLT { iblt: Bytes },
+    IBLT { iblt: IBLT },
     GetTransactions { ids: Vec<Bytes> },
     Transactions { txs: Vec<Transaction> },
 }
@@ -49,8 +50,9 @@ impl Encoder for MessageCodec {
             }
             Message::IBLT { iblt } => {
                 dst.put_u8(4);
-                dst.extend(Bytes::from(VarInt::new(iblt.len() as u64)));
-                dst.extend(iblt);
+                let iblt_raw = Bytes::from(iblt);
+                dst.extend(Bytes::from(VarInt::new(iblt_raw.len() as u64)));
+                dst.extend(iblt_raw);
             }
             Message::GetTransactions { ids } => {
                 let mut payload = BytesMut::new();
@@ -169,8 +171,8 @@ impl Decoder for MessageCodec {
                 }
                 let mut iblt_dst = vec![0; total_size];
                 buf.copy_to_slice(&mut iblt_dst);
-                let msg = Message::OddSketch {
-                    sketch: Bytes::from(&iblt_dst[..]),
+                let msg = Message::IBLT {
+                    iblt: IBLT::from(Bytes::from(&iblt_dst[..])),
                 };
                 src.advance(1 + total_size);
                 Ok(Some(msg))

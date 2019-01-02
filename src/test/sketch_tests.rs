@@ -1,6 +1,5 @@
 mod odd_sketch {
     use bytes::Bytes;
-    use crypto::hashes::blake2b::*;
     use crypto::sketches::odd_sketch::*;
     use primitives::script::Script;
     use utils::byte_ops::*;
@@ -47,9 +46,11 @@ mod odd_sketch {
 
 mod iblt {
     use bytes::Bytes;
+    use crypto::hashes::blake2b::*;
     use crypto::sketches::iblt::*;
     use crypto::sketches::odd_sketch::*;
     use std::collections::HashSet;
+    use utils::serialisation::*;
 
     #[test]
     fn test_iblt_single() {
@@ -109,5 +110,16 @@ mod iblt {
         }
 
         assert_eq!(iblt, hashset.odd_sketch());
+    }
+
+    #[test]
+    fn test_iblt_serialise_deserialise() {
+        let mut iblt = IBLT::with_capacity(5, 4);
+        for i in 0..8 {
+            iblt.insert(Bytes::from(&[i as u8][..]).blake2b());
+        }
+        let raw = Bytes::from(iblt.clone());
+        let iblt_b = IBLT::from(raw);
+        assert_eq!(iblt, iblt_b);
     }
 }

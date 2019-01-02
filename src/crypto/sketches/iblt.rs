@@ -12,8 +12,8 @@ use utils::constants::*;
 use utils::serialisation::*;
 
 #[derive(PartialEq, Clone, Debug)]
-struct Row {
-    count: i16,
+pub struct Row {
+    count: i32,
     payload: Bytes,
     checksum: Bytes,
 }
@@ -27,6 +27,26 @@ impl Row {
         }
     }
 
+    pub fn new(count: i32, payload: Bytes, checksum: Bytes) -> Row {
+        Row {
+            count,
+            payload,
+            checksum,
+        }
+    }
+
+    pub fn get_count(&self) -> i32 {
+        self.count
+    }
+
+    pub fn get_payload(&self) -> Bytes {
+        self.payload.clone()
+    }
+
+    pub fn get_checksum(&self) -> Bytes {
+        self.checksum.clone()
+    }
+
     pub fn unit_row(payload: &Bytes) -> Row {
         Row {
             count: 1,
@@ -35,7 +55,7 @@ impl Row {
         }
     }
 
-    pub fn count_row(payload: &Bytes, count: i16) -> Row {
+    pub fn count_row(payload: &Bytes, count: i32) -> Row {
         Row {
             count,
             payload: payload.clone(),
@@ -99,7 +119,7 @@ impl SubAssign for Row {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct IBLT {
     n_hashes: usize,
     rows: Vec<Row>,
@@ -127,6 +147,14 @@ impl IBLT {
             n_hashes,
             rows: vec![Row::empty_row(); capacity],
         }
+    }
+
+    pub fn from_rows(rows: Vec<Row>, n_hashes: usize) -> IBLT {
+        IBLT { n_hashes, rows }
+    }
+
+    pub fn get_rows(&self) -> &Vec<Row> {
+        &self.rows
     }
 
     pub fn is_empty(&self) -> bool {

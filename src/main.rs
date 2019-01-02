@@ -76,11 +76,7 @@ fn main() {
         });
     }
 
-    let status = Arc::new(Status::new(
-        RwLock::new(0),
-        RwLock::new(Bytes::with_capacity(64)),
-        RwLock::new(Bytes::with_capacity(64)),
-    ));
+    let status = Arc::new(Status::null());
 
     let status_c = status.clone();
     thread::spawn(move || daemon::response_server(tx_db, status_c, pk, sk));

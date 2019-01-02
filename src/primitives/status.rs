@@ -1,5 +1,6 @@
 use bus::BusReader;
 use bytes::Bytes;
+use crypto::sketches::iblt::*;
 use primitives::work_site::WorkSite;
 use secp256k1::PublicKey;
 use std::sync::mpsc::Receiver;
@@ -9,7 +10,7 @@ use utils::constants::SKETCH_LEN;
 pub struct StaticStatus {
     pub nonce: u64,
     pub odd_sketch: Bytes,
-    pub sketch: Bytes,
+    pub sketch: IBLT,
 }
 
 impl StaticStatus {
@@ -17,7 +18,7 @@ impl StaticStatus {
         StaticStatus {
             nonce: 0,
             odd_sketch: Bytes::from(&[0; SKETCH_LEN][..]),
-            sketch: Bytes::new(),
+            sketch: IBLT::with_capacity(64, 4),
         }
     }
 }
@@ -25,11 +26,11 @@ impl StaticStatus {
 pub struct Status {
     nonce: RwLock<u64>,
     odd_sketch: RwLock<Bytes>,
-    sketch: RwLock<Bytes>,
+    sketch: RwLock<IBLT>,
 }
 
 impl Status {
-    pub fn new(nonce: RwLock<u64>, odd_sketch: RwLock<Bytes>, sketch: RwLock<Bytes>) -> Status {
+    pub fn new(nonce: RwLock<u64>, odd_sketch: RwLock<Bytes>, sketch: RwLock<IBLT>) -> Status {
         Status {
             nonce,
             odd_sketch,
@@ -49,7 +50,7 @@ impl Status {
         Status {
             nonce: RwLock::new(0),
             odd_sketch: RwLock::new(Bytes::from(&[0; SKETCH_LEN][..])),
-            sketch: RwLock::new(Bytes::new()),
+            sketch: RwLock::new(IBLT::with_capacity(64, 4)),
         }
     }
 
@@ -59,7 +60,7 @@ impl Status {
         *sketch_locked = sketch;
     }
 
-    pub fn update_sketch(&self, sketch: Bytes) {
+    pub fn update_sketch(&self, sketch: IBLT) {
         println!("Updated sketch!");
         let mut sketch_locked = self.sketch.write().unwrap();
         *sketch_locked = sketch;
@@ -76,7 +77,7 @@ impl Status {
         (*sketch_locked).clone()
     }
 
-    pub fn get_sketch(&self) -> Bytes {
+    pub fn get_sketch(&self) -> IBLT {
         let sketch_locked = self.sketch.read().unwrap();
         (*sketch_locked).clone()
     }
