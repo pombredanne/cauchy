@@ -1,11 +1,14 @@
-use bus::BusReader;
 use bytes::Bytes;
+use crossbeam::channel::select;
+use crossbeam::channel::Receiver;
+
 use crypto::sketches::iblt::*;
 use primitives::work_site::WorkSite;
-use secp256k1::PublicKey;
-use std::sync::mpsc::Receiver;
-use std::sync::RwLock;
 use utils::constants::SKETCH_LEN;
+
+use secp256k1::PublicKey;
+
+use std::sync::RwLock;
 
 #[derive(Clone)]
 pub struct StaticStatus {
@@ -93,26 +96,23 @@ impl Status {
 
     pub fn update_local(
         &self,
-        mut sketch_receive: BusReader<Bytes>,
+        mut sketch_receive: Receiver<Bytes>,
         distance_receive: Receiver<(u64, u16)>,
     ) {
         let mut best_distance: u16 = 512;
         loop {
-            match sketch_receive.try_recv() {
-                Ok(sketch) => {
-                    self.update_odd_sketch(sketch);
+            select! {
+                recv(sketch_receive) -> sketch => {
+                    self.update_odd_sketch(sketch.unwrap());
                     best_distance = 512;
-                }
-                Err(_) => (),
-            }
-            match distance_receive.try_recv() {
-                Ok((nonce, distance)) => {
+                },
+                recv(distance_receive) -> pair => {
+                    let (nonce, distance) = pair.unwrap();
                     if distance < best_distance {
                         self.update_nonce(nonce);
                         best_distance = distance;
                     }
                 }
-                Err(_) => (),
             }
         }
     }

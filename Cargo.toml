@@ -12,6 +12,7 @@ blake2 = "*"
 rand = "*"
 tokio = "*"
 bus = "*"
+crossbeam = "*"
 
 [dependencies.secp256k1]
 version = "*"

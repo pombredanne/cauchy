@@ -7,7 +7,7 @@ use bytes::Bytes;
 use crypto::signatures::ecdsa;
 use std::env;
 use std::net::SocketAddr;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, RwLock};
 use std::time::Duration;
 use tokio::codec::Framed;
 use tokio::io::{Error, ErrorKind};

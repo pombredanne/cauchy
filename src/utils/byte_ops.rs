@@ -1,5 +1,5 @@
 extern crate bytes;
-use bytes::{Buf, BufMut, Bytes, BytesMut, IntoBuf};
+use bytes::{Buf, Bytes, IntoBuf};
 use std::ops::*;
 
 macro_rules! from_bytes {

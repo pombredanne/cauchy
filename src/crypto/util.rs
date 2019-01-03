@@ -1,7 +1,4 @@
 use crypto::hashes::blake2b::Blk2bHashable;
-use std::iter::Map;
-use std::ops::Range;
-use std::slice::Iter;
 
 pub fn get_pos<T>(value: &T, seed: usize, modulo: usize) -> usize
 where

@@ -1,9 +1,12 @@
 use bus::BusReader;
 use bytes::Bytes;
-use primitives::work_site::WorkSite;
-use secp256k1::PublicKey;
-use std::sync::mpsc::Sender;
+use crossbeam::channel::Sender;
+
 use std::time;
+
+use secp256k1::PublicKey;
+
+use primitives::work_site::WorkSite;
 
 pub fn mine(
     public_key: PublicKey,

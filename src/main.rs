@@ -1,6 +1,7 @@
 extern crate blake2;
 extern crate bus;
 extern crate bytes;
+extern crate crossbeam;
 extern crate rand;
 extern crate rocksdb;
 extern crate secp256k1;
@@ -19,6 +20,7 @@ use bus::Bus;
 use bytes::Bytes;
 use crypto::signatures::ecdsa;
 use crypto::sketches::odd_sketch::*;
+use utils::mining;
 
 use db::rocksdb::RocksDb;
 use db::*;
@@ -26,11 +28,11 @@ use utils::constants::TX_DB_PATH;
 
 use primitives::status::Status;
 use rand::Rng;
-use std::sync::mpsc::channel;
+
+use crossbeam::crossbeam_channel;
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time;
-use utils::mining;
 
 #[cfg(test)]
 mod test {
@@ -59,13 +61,15 @@ fn main() {
     let n_mining_threads = 1;
 
     let mut sketch_bus = Bus::new(10);
-    let (distance_send, distance_recv) = channel();
+    let (distance_send, distance_recv) = crossbeam_channel::unbounded();
 
     let (sk, pk) = ecdsa::generate_keypair();
 
     for i in 0..n_mining_threads {
         let distance_send_c = distance_send.clone();
         let mut sketch_recv = sketch_bus.add_rx();
+
+        if i == 0 {}
         thread::spawn(move || {
             mining::mine(
                 pk,
@@ -78,17 +82,19 @@ fn main() {
 
     let status = Arc::new(Status::null());
 
+    // Server
     let status_c = status.clone();
     thread::spawn(move || daemon::server(tx_db, status_c, pk, sk));
 
-    let sketch_recv = sketch_bus.add_rx();
+    // Update local state
+    let (sketch_send, sketch_recv) = crossbeam_channel::unbounded();
     thread::spawn(move || status.update_local(sketch_recv, distance_recv));
 
     let new_tx_interval = time::Duration::from_millis(100);
 
     loop {
         state.push(random_tx());
-        sketch_bus.broadcast(state.odd_sketch());
+        sketch_send.send(state.odd_sketch());
         thread::sleep(new_tx_interval);
     }
 

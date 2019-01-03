@@ -152,7 +152,7 @@ impl From<Bytes> for IBLT {
         let mut buf = raw.into_buf();
         let n_rows = buf.get_u32_be() as usize;
         let mut rows = Vec::with_capacity(n_rows);
-        for i in 0..n_rows {
+        for _ in 0..n_rows {
             let count = buf.get_i32_be();
             let mut dst_payload = vec![0; IBLT_PAYLOAD_LEN];
             buf.copy_to_slice(&mut dst_payload);
