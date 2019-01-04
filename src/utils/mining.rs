@@ -10,9 +10,10 @@ use primitives::work_site::WorkSite;
 
 pub fn mine(
     public_key: PublicKey,
-    start_nonce: u64,
     mut sketch_rx: BusReader<Bytes>,
     record_sender: Sender<(u64, u16)>,
+    start_nonce: u64,
+    step: u64,
 ) {
     let work_site = WorkSite::new(public_key, start_nonce);
     println!("Start mining...");
@@ -42,7 +43,7 @@ pub fn mine(
                         record_sender.send((best_nonce, current_distance));
                         best_distance = current_distance;
                     }
-                    work_site.increment();
+                    work_site.increment(step);
                 }
             }
         }

@@ -1,8 +1,12 @@
-use bytes::Bytes;
+use bus::Bus;
+use bytes::{Bytes, BytesMut};
 use crossbeam::channel::select;
 use crossbeam::channel::Receiver;
 
+use crypto::hashes::blake2b::Blk2bHashable;
 use crypto::sketches::iblt::*;
+use crypto::sketches::odd_sketch::*;
+use primitives::transaction::Transaction;
 use primitives::work_site::WorkSite;
 use utils::constants::SKETCH_LEN;
 
@@ -29,12 +33,12 @@ impl StaticStatus {
 
 pub struct Status {
     nonce: RwLock<u64>,
-    odd_sketch: RwLock<Bytes>,
+    odd_sketch: RwLock<BytesMut>,
     sketch: RwLock<IBLT>,
 }
 
 impl Status {
-    pub fn new(nonce: RwLock<u64>, odd_sketch: RwLock<Bytes>, sketch: RwLock<IBLT>) -> Status {
+    pub fn new(nonce: RwLock<u64>, odd_sketch: RwLock<BytesMut>, sketch: RwLock<IBLT>) -> Status {
         Status {
             nonce,
             odd_sketch,
@@ -53,14 +57,19 @@ impl Status {
     pub fn null() -> Status {
         Status {
             nonce: RwLock::new(0),
-            odd_sketch: RwLock::new(Bytes::from(&[0; SKETCH_LEN][..])),
+            odd_sketch: RwLock::new(BytesMut::from(&[0; SKETCH_LEN][..])),
             sketch: RwLock::new(IBLT::with_capacity(64, 4)),
         }
     }
 
+    pub fn add_to_odd_sketch<T: Blk2bHashable>(&self, item: &T) {
+        let mut sketch_locked = self.odd_sketch.write().unwrap();
+        add_to_bin(&mut *sketch_locked, item);
+    }
+
     pub fn update_odd_sketch(&self, sketch: Bytes) {
         let mut sketch_locked = self.odd_sketch.write().unwrap();
-        *sketch_locked = sketch;
+        *sketch_locked = BytesMut::from(sketch);
     }
 
     pub fn update_sketch(&self, sketch: IBLT) {
@@ -75,7 +84,7 @@ impl Status {
 
     pub fn get_odd_sketch(&self) -> Bytes {
         let sketch_locked = self.odd_sketch.read().unwrap();
-        (*sketch_locked).clone()
+        (*sketch_locked).clone().freeze()
     }
 
     pub fn get_sketch(&self) -> IBLT {
@@ -96,21 +105,25 @@ impl Status {
 
     pub fn update_local(
         &self,
-        mut sketch_receive: Receiver<Bytes>,
+        mut odd_sketch_bus: Bus<Bytes>,
+        tx_receive: Receiver<Transaction>,
         distance_receive: Receiver<(u64, u16)>,
     ) {
         let mut best_distance: u16 = 512;
         loop {
             select! {
-                recv(sketch_receive) -> sketch => {
-                    self.update_odd_sketch(sketch.unwrap());
+                recv(tx_receive) -> tx => {
+                    self.add_to_odd_sketch(&tx.unwrap());
+                    odd_sketch_bus.broadcast(self.get_odd_sketch());
                     best_distance = 512;
+                    println!("Updated sketch");
                 },
                 recv(distance_receive) -> pair => {
                     let (nonce, distance) = pair.unwrap();
                     if distance < best_distance {
                         self.update_nonce(nonce);
                         best_distance = distance;
+                        println!("Updated nonce: {}", nonce);
                     }
                 }
             }

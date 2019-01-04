@@ -1,4 +1,4 @@
-use bytes::Bytes;
+use bytes::{Bytes, BytesMut};
 use crypto::hashes::blake2b::Blk2bHashable;
 use crypto::util;
 use std::iter::IntoIterator;
@@ -9,7 +9,7 @@ pub trait Sketchable {
     fn odd_sketch(&self) -> Bytes;
 }
 
-pub fn add_to_bin<T>(sketch: &mut [u8], item: &T)
+pub fn add_to_bin<T>(sketch: &mut BytesMut, item: &T)
 where
     T: Blk2bHashable,
 {

@@ -20,16 +20,17 @@ use bus::Bus;
 use bytes::Bytes;
 use crypto::signatures::ecdsa;
 use crypto::sketches::odd_sketch::*;
+use primitives::script::Script;
+use primitives::status::Status;
+use primitives::transaction::Transaction;
 use utils::mining;
 
 use db::rocksdb::RocksDb;
 use db::*;
 use utils::constants::TX_DB_PATH;
 
-use primitives::status::Status;
+use crossbeam::channel;
 use rand::Rng;
-
-use crossbeam::crossbeam_channel;
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time;
@@ -58,24 +59,23 @@ fn main() {
         Bytes::from(&b"f"[..]),
     ];
 
-    let n_mining_threads = 1;
-
-    let mut sketch_bus = Bus::new(10);
-    let (distance_send, distance_recv) = crossbeam_channel::unbounded();
-
     let (sk, pk) = ecdsa::generate_keypair();
 
+    let (distance_send, distance_recv) = channel::unbounded();
+    let mut odd_sketch_bus = Bus::new(10);
+    let n_mining_threads: u64 = 1;
+    
     for i in 0..n_mining_threads {
         let distance_send_c = distance_send.clone();
-        let mut sketch_recv = sketch_bus.add_rx();
+        let mut sketch_recv = odd_sketch_bus.add_rx();
 
-        if i == 0 {}
         thread::spawn(move || {
             mining::mine(
                 pk,
-                std::u64::MAX * i / (n_mining_threads + 1),
                 sketch_recv,
                 distance_send_c,
+                i,
+                n_mining_threads
             )
         });
     }
@@ -87,20 +87,20 @@ fn main() {
     thread::spawn(move || daemon::server(tx_db, status_c, pk, sk));
 
     // Update local state
-    let (sketch_send, sketch_recv) = crossbeam_channel::unbounded();
-    thread::spawn(move || status.update_local(sketch_recv, distance_recv));
+    let (sketch_send, sketch_recv) = channel::unbounded();
+    thread::spawn(move || status.update_local(odd_sketch_bus, sketch_recv, distance_recv));
 
     let new_tx_interval = time::Duration::from_millis(100);
 
     loop {
-        state.push(random_tx());
-        sketch_send.send(state.odd_sketch());
+        sketch_send.send(random_tx());
         thread::sleep(new_tx_interval);
     }
 
-    fn random_tx() -> Bytes {
+    fn random_tx() -> Transaction {
         let mut rng = rand::thread_rng();
         let my_array: [u8; 8] = rng.gen();
-        Bytes::from(&my_array[..])
+        let raw_script = Bytes::from(&my_array[..]);
+        Transaction::new(0, 0, vec![Script::new(raw_script)])
     }
 }

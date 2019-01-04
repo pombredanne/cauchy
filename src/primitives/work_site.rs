@@ -19,8 +19,8 @@ impl WorkSite {
         }
     }
 
-    pub fn increment(&self) {
-        self.nonce.set(self.nonce.get() + 1);
+    pub fn increment(&self, k: u64) {
+        self.nonce.set(self.nonce.get() + k);
     }
 
     pub fn set_nonce(&self, nonce: u64) {
