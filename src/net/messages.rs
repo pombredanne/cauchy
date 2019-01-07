@@ -1,13 +1,16 @@
 use bytes::Bytes;
 use bytes::{Buf, BufMut, BytesMut, IntoBuf};
+use std::collections::HashSet;
+use tokio::codec::{Decoder, Encoder};
+use tokio::io::{Error, ErrorKind};
+
+use secp256k1::key::PublicKey;
+use secp256k1::Signature;
+
 use crypto::signatures::ecdsa::*;
 use crypto::sketches::iblt::*;
 use primitives::transaction::*;
 use primitives::varint::VarInt;
-use secp256k1::key::PublicKey;
-use secp256k1::Signature;
-use tokio::codec::{Decoder, Encoder};
-use tokio::io::{Error, ErrorKind};
 use utils::constants::*;
 
 pub enum Message {
@@ -16,8 +19,9 @@ pub enum Message {
     Nonce { nonce: u64 },
     OddSketch { sketch: Bytes },
     IBLT { iblt: IBLT },
-    GetTransactions { ids: Vec<Bytes> },
+    GetTransactions { ids: HashSet<Bytes> },
     Transactions { txs: Vec<Transaction> },
+    Reconcile,
 }
 
 pub struct MessageCodec;
@@ -74,6 +78,7 @@ impl Encoder for MessageCodec {
                 dst.extend(Bytes::from(VarInt::new(payload.len() as u64)));
                 dst.extend(payload);
             }
+            Message::Reconcile => dst.put_u8(7),
         }
         Ok(())
     }
@@ -148,15 +153,15 @@ impl Decoder for MessageCodec {
                 //     Ok(some) => some,
                 //     Err(_) => return Ok(None),
                 // };
-                if buf.remaining() < SKETCH_LEN {
+                if buf.remaining() < SKETCH_CAPACITY {
                     return Ok(None);
                 }
-                let mut sketch_dst = [0; SKETCH_LEN];
+                let mut sketch_dst = [0; SKETCH_CAPACITY];
                 buf.copy_to_slice(&mut sketch_dst);
                 let msg = Message::OddSketch {
                     sketch: Bytes::from(&sketch_dst[..]),
                 };
-                src.advance(1 + SKETCH_LEN);
+                src.advance(1 + SKETCH_CAPACITY);
                 Ok(Some(msg))
             }
             4 => {
@@ -185,14 +190,14 @@ impl Decoder for MessageCodec {
 
                 let n_tx_ids = usize::from(n_tx_ids_vi);
                 let total_size = n_tx_ids * TX_ID_LEN;
-                let mut ids = Vec::with_capacity(n_tx_ids);
+                let mut ids = HashSet::with_capacity(n_tx_ids);
                 if buf.remaining() < total_size {
                     Ok(None)
                 } else {
                     for _i in 0..n_tx_ids {
                         let mut id_dst = [0; TX_ID_LEN];
                         buf.copy_to_slice(&mut id_dst);
-                        ids.push(Bytes::from(&id_dst[..]));
+                        ids.insert(Bytes::from(&id_dst[..]));
                     }
                     let msg = Message::GetTransactions { ids };
                     src.advance(1 + total_size);
@@ -239,6 +244,10 @@ impl Decoder for MessageCodec {
                 let msg = Message::Transactions { txs };
                 src.advance(total_size);
                 Ok(Some(msg))
+            }
+            7 => {
+                src.advance(1);
+                Ok(Some(Message::Reconcile))
             }
             _ => {
                 // TODO: Remove malformed msgs

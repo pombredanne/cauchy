@@ -8,7 +8,7 @@ use crypto::sketches::iblt::*;
 use crypto::sketches::odd_sketch::*;
 use primitives::transaction::Transaction;
 use primitives::work_site::WorkSite;
-use utils::constants::SKETCH_LEN;
+use utils::constants::*;
 
 use secp256k1::PublicKey;
 
@@ -18,15 +18,15 @@ use std::sync::RwLock;
 pub struct StaticStatus {
     pub nonce: u64,
     pub odd_sketch: Bytes,
-    pub sketch: IBLT,
+    pub mini_sketch: IBLT,
 }
 
 impl StaticStatus {
     pub fn null() -> StaticStatus {
         StaticStatus {
             nonce: 0,
-            odd_sketch: Bytes::from(&[0; SKETCH_LEN][..]),
-            sketch: IBLT::with_capacity(64, 4),
+            odd_sketch: Bytes::from(&[0; SKETCH_CAPACITY][..]),
+            mini_sketch: IBLT::with_capacity(64, 4),
         }
     }
 }
@@ -34,15 +34,19 @@ impl StaticStatus {
 pub struct Status {
     nonce: RwLock<u64>,
     odd_sketch: RwLock<BytesMut>,
-    sketch: RwLock<IBLT>,
+    mini_sketch: RwLock<IBLT>,
 }
 
 impl Status {
-    pub fn new(nonce: RwLock<u64>, odd_sketch: RwLock<BytesMut>, sketch: RwLock<IBLT>) -> Status {
+    pub fn new(
+        nonce: RwLock<u64>,
+        odd_sketch: RwLock<BytesMut>,
+        mini_sketch: RwLock<IBLT>,
+    ) -> Status {
         Status {
             nonce,
             odd_sketch,
-            sketch,
+            mini_sketch,
         }
     }
 
@@ -50,15 +54,15 @@ impl Status {
         StaticStatus {
             nonce: self.get_nonce(),
             odd_sketch: self.get_odd_sketch(),
-            sketch: self.get_sketch(),
+            mini_sketch: self.get_mini_sketch(),
         }
     }
 
     pub fn null() -> Status {
         Status {
             nonce: RwLock::new(0),
-            odd_sketch: RwLock::new(BytesMut::from(&[0; SKETCH_LEN][..])),
-            sketch: RwLock::new(IBLT::with_capacity(64, 4)),
+            odd_sketch: RwLock::new(BytesMut::from(&[0; SKETCH_CAPACITY][..])),
+            mini_sketch: RwLock::new(IBLT::with_capacity(SKETCH_CAPACITY, 4)),
         }
     }
 
@@ -67,14 +71,14 @@ impl Status {
         add_to_bin(&mut *sketch_locked, item);
     }
 
-    pub fn update_odd_sketch(&self, sketch: Bytes) {
+    pub fn update_odd_sketch(&self, mini_sketch: Bytes) {
         let mut sketch_locked = self.odd_sketch.write().unwrap();
-        *sketch_locked = BytesMut::from(sketch);
+        *sketch_locked = BytesMut::from(mini_sketch);
     }
 
-    pub fn update_sketch(&self, sketch: IBLT) {
-        let mut sketch_locked = self.sketch.write().unwrap();
-        *sketch_locked = sketch;
+    pub fn update_mini_sketch(&self, mini_sketch: IBLT) {
+        let mut sketch_locked = self.mini_sketch.write().unwrap();
+        *sketch_locked = mini_sketch;
     }
 
     pub fn update_nonce(&self, nonce: u64) {
@@ -87,9 +91,14 @@ impl Status {
         (*sketch_locked).clone().freeze()
     }
 
-    pub fn get_sketch(&self) -> IBLT {
-        let sketch_locked = self.sketch.read().unwrap();
+    pub fn get_mini_sketch(&self) -> IBLT {
+        let sketch_locked = self.mini_sketch.read().unwrap();
         (*sketch_locked).clone()
+    }
+
+    pub fn add_to_mini_sketch<T: Blk2bHashable>(&self, item: &T) {
+        let mut sketch_locked = self.mini_sketch.write().unwrap();
+        (*sketch_locked).insert(item.blake2b());
     }
 
     pub fn get_site_hash(&self, pubkey: PublicKey) -> Bytes {
@@ -113,17 +122,18 @@ impl Status {
         loop {
             select! {
                 recv(tx_receive) -> tx => {
-                    self.add_to_odd_sketch(&tx.unwrap());
+                    self.add_to_odd_sketch(&tx.clone().unwrap());
+                    self.add_to_mini_sketch(&tx.unwrap());
                     odd_sketch_bus.broadcast(self.get_odd_sketch());
                     best_distance = 512;
-                    println!("Updated sketch");
+                    //println!("Updated mini_sketch");
                 },
                 recv(distance_receive) -> pair => {
                     let (nonce, distance) = pair.unwrap();
                     if distance < best_distance {
                         self.update_nonce(nonce);
                         best_distance = distance;
-                        println!("Updated nonce: {}", nonce);
+                        //println!("Updated nonce: {}", nonce);
                     }
                 }
             }

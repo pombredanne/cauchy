@@ -3,7 +3,7 @@ use crypto::hashes::blake2b::Blk2bHashable;
 use crypto::util;
 use std::iter::IntoIterator;
 use utils::byte_ops::*;
-use utils::constants::SKETCH_LEN;
+use utils::constants::SKETCH_CAPACITY;
 
 pub trait Sketchable {
     fn odd_sketch(&self) -> Bytes;
@@ -13,7 +13,7 @@ pub fn add_to_bin<T>(sketch: &mut BytesMut, item: &T)
 where
     T: Blk2bHashable,
 {
-    let (shift, index) = util::get_bit_pos(item, SKETCH_LEN);
+    let (shift, index) = util::get_bit_pos(item, SKETCH_CAPACITY);
     sketch[index] ^= 1 << shift;
 }
 
@@ -33,9 +33,9 @@ where
     U: Clone,
 {
     fn odd_sketch(&self) -> Bytes {
-        let mut sketch: [u8; SKETCH_LEN] = [0; SKETCH_LEN];
+        let mut sketch: [u8; SKETCH_CAPACITY] = [0; SKETCH_CAPACITY];
         for item in self.clone().into_iter() {
-            let (shift, index) = util::get_bit_pos(&item, SKETCH_LEN);
+            let (shift, index) = util::get_bit_pos(&item, SKETCH_CAPACITY);
             sketch[index] ^= 1 << shift;
         }
         Bytes::from(&sketch[..])

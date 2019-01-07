@@ -27,7 +27,7 @@ use utils::mining;
 
 use db::rocksdb::RocksDb;
 use db::*;
-use utils::constants::TX_DB_PATH;
+use utils::constants::*;
 
 use crossbeam::channel;
 use rand::Rng;
@@ -63,32 +63,24 @@ fn main() {
 
     let (distance_send, distance_recv) = channel::unbounded();
     let mut odd_sketch_bus = Bus::new(10);
-    let n_mining_threads: u64 = 1;
-    
+    let n_mining_threads: u64 = 0;
+
     for i in 0..n_mining_threads {
         let distance_send_c = distance_send.clone();
         let mut sketch_recv = odd_sketch_bus.add_rx();
 
-        thread::spawn(move || {
-            mining::mine(
-                pk,
-                sketch_recv,
-                distance_send_c,
-                i,
-                n_mining_threads
-            )
-        });
+        thread::spawn(move || mining::mine(pk, sketch_recv, distance_send_c, i, n_mining_threads));
     }
 
-    let status = Arc::new(Status::null());
+    let self_status = Arc::new(Status::null());
 
     // Server
-    let status_c = status.clone();
+    let status_c = self_status.clone();
     thread::spawn(move || daemon::server(tx_db, status_c, pk, sk));
 
     // Update local state
     let (sketch_send, sketch_recv) = channel::unbounded();
-    thread::spawn(move || status.update_local(odd_sketch_bus, sketch_recv, distance_recv));
+    thread::spawn(move || self_status.update_local(odd_sketch_bus, sketch_recv, distance_recv));
 
     let new_tx_interval = time::Duration::from_millis(100);
 

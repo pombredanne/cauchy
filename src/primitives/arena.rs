@@ -72,4 +72,8 @@ impl Arena {
         ordered.sort_by_key(|x| distances.get(x));
         self.order = ordered
     }
+
+    pub fn get_order(&self) -> Vec<PublicKey> {
+        self.order.clone()
+    }
 }
