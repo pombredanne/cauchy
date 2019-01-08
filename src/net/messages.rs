@@ -1,6 +1,7 @@
 use bytes::Bytes;
 use bytes::{Buf, BufMut, BytesMut, IntoBuf};
 use std::collections::HashSet;
+use std::net::{SocketAddr, ToSocketAddrs};
 use tokio::codec::{Decoder, Encoder};
 use tokio::io::{Error, ErrorKind};
 
@@ -13,15 +14,20 @@ use primitives::transaction::*;
 use primitives::varint::VarInt;
 use utils::constants::*;
 
+pub enum RPCCommand {
+}
+
 pub enum Message {
-    StartHandshake { secret: u64 },
-    EndHandshake { pubkey: PublicKey, sig: Signature },
-    Nonce { nonce: u64 },
-    OddSketch { sketch: Bytes },
-    IBLT { iblt: IBLT },
-    GetTransactions { ids: HashSet<Bytes> },
-    Transactions { txs: Vec<Transaction> },
-    Reconcile,
+    StartHandshake { secret: u64 }, // 0 || Secret VarInt
+    EndHandshake { pubkey: PublicKey, sig: Signature }, // 1 || Pk || Sig
+    Nonce { nonce: u64 }, // 2 || nonce VarInt
+    OddSketch { sketch: Bytes }, // 3 || Sketch
+    IBLT { iblt: IBLT }, // 4 || Number of Rows VarInt || IBLT
+    GetTransactions { ids: HashSet<Bytes> }, // 5 || Number of Ids VarInt || Ids
+    Transactions { txs: Vec<Transaction> }, // 6 || Number of Bytes VarInt || Tx 0 Len VarInt || Tx 0 || ...
+    Reconcile, // 7
+    // RPC Commands
+    AddPeer { addr: SocketAddr } // 8 || Signature || RPC Command
 }
 
 pub struct MessageCodec;
@@ -54,8 +60,9 @@ impl Encoder for MessageCodec {
             }
             Message::IBLT { iblt } => {
                 dst.put_u8(4);
+                let n_rows = iblt.len();
                 let iblt_raw = Bytes::from(iblt);
-                dst.extend(Bytes::from(VarInt::new(iblt_raw.len() as u64)));
+                dst.extend(Bytes::from(VarInt::new(n_rows as u64)));
                 dst.extend(iblt_raw);
             }
             Message::GetTransactions { ids } => {
@@ -79,6 +86,7 @@ impl Encoder for MessageCodec {
                 dst.extend(payload);
             }
             Message::Reconcile => dst.put_u8(7),
+            _ => unreachable!(),
         }
         Ok(())
     }
@@ -249,9 +257,18 @@ impl Decoder for MessageCodec {
                 src.advance(1);
                 Ok(Some(Message::Reconcile))
             }
+            8 => {
+                // Add Peer
+                // TODO: Catch errors
+                let mut dst_ip = [0; 4];
+                buf.copy_to_slice(&mut dst_ip);
+                let dst_port = buf.get_u16_be();
+                let addr = SocketAddr::from( (dst_ip, dst_port) );
+                src.advance(7);
+                Ok(Some(Message::AddPeer { addr }))
+            }
             _ => {
                 // TODO: Remove malformed msgs
-                println!("HELLO");
                 println!("{}", String::from_utf8_lossy(&src.clone().freeze()));
                 println!("{}", String::from_utf8_lossy(&buf.bytes()));
                 Err(Error::new(ErrorKind::InvalidData, "Invalid Message"))

@@ -149,6 +149,10 @@ impl IBLT {
         }
     }
 
+    pub fn len(&self) -> usize {
+        self.rows.len()
+    }
+
     pub fn from_rows(rows: Vec<Row>, n_hashes: usize) -> IBLT {
         IBLT { n_hashes, rows }
     }
@@ -204,6 +208,7 @@ impl IBLT {
         }
     }
 }
+
 
 impl PartialEq<Bytes> for IBLT {
     fn eq(&self, other: &Bytes) -> bool {

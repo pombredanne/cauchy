@@ -11,7 +11,7 @@ use std::sync::{Arc, RwLock};
 use std::time::Duration;
 use tokio::codec::Framed;
 use tokio::io::{Error, ErrorKind};
-use tokio::net::TcpListener;
+use tokio::net::{TcpListener, TcpStream};
 use tokio::prelude::*;
 use tokio::timer::Interval;
 
@@ -156,6 +156,15 @@ pub fn server(
                 Message::GetTransactions { .. } => true,
                 Message::Transactions { .. } => false,
                 Message::Reconcile => true,
+                Message::AddPeer { addr } => {
+                    // TODO: Catch error
+                    TcpStream::connect(&addr).and_then(|sock| {
+                        let framed_sock = Framed::new(sock, MessageCodec);
+                        framed_sock.send(Message::StartHandshake { secret: self_secret_msg });
+                        Ok(())
+                        }).poll();
+                    false
+                },
             });
 
             let arena_c = arena.clone();
