@@ -74,9 +74,20 @@ fn main() {
 
     let self_status = Arc::new(Status::null());
 
+    // Handshake secret
+    let secret: u64 = 32;
+    let secret_shared = Arc::new(RwLock::new(secret));
+
+
     // Server
     let status_c = self_status.clone();
-    thread::spawn(move || daemon::server(tx_db, status_c, pk, sk));
+    let secret_shared_c = secret_shared.clone();
+    thread::spawn(move || daemon::server(tx_db, status_c, pk, sk, secret_shared_c));
+
+    // RPC Server
+    let secret_shared_c = secret_shared.clone();
+    thread::spawn(move || daemon::rpc_server(secret_shared_c));
+
 
     // Update local state
     let (sketch_send, sketch_recv) = channel::unbounded();

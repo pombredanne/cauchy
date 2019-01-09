@@ -1,7 +1,6 @@
 use bytes::Bytes;
 use bytes::{Buf, BufMut, BytesMut, IntoBuf};
 use std::collections::HashSet;
-use std::net::{SocketAddr, ToSocketAddrs};
 use tokio::codec::{Decoder, Encoder};
 use tokio::io::{Error, ErrorKind};
 
@@ -14,20 +13,15 @@ use primitives::transaction::*;
 use primitives::varint::VarInt;
 use utils::constants::*;
 
-pub enum RPCCommand {
-}
-
 pub enum Message {
     StartHandshake { secret: u64 }, // 0 || Secret VarInt
     EndHandshake { pubkey: PublicKey, sig: Signature }, // 1 || Pk || Sig
-    Nonce { nonce: u64 }, // 2 || nonce VarInt
-    OddSketch { sketch: Bytes }, // 3 || Sketch
-    IBLT { iblt: IBLT }, // 4 || Number of Rows VarInt || IBLT
+    Nonce { nonce: u64 },           // 2 || nonce VarInt
+    OddSketch { sketch: Bytes },    // 3 || Sketch
+    IBLT { iblt: IBLT },            // 4 || Number of Rows VarInt || IBLT
     GetTransactions { ids: HashSet<Bytes> }, // 5 || Number of Ids VarInt || Ids
     Transactions { txs: Vec<Transaction> }, // 6 || Number of Bytes VarInt || Tx 0 Len VarInt || Tx 0 || ...
-    Reconcile, // 7
-    // RPC Commands
-    AddPeer { addr: SocketAddr } // 8 || Signature || RPC Command
+    Reconcile,                              // 7
 }
 
 pub struct MessageCodec;
@@ -256,16 +250,6 @@ impl Decoder for MessageCodec {
             7 => {
                 src.advance(1);
                 Ok(Some(Message::Reconcile))
-            }
-            8 => {
-                // Add Peer
-                // TODO: Catch errors
-                let mut dst_ip = [0; 4];
-                buf.copy_to_slice(&mut dst_ip);
-                let dst_port = buf.get_u16_be();
-                let addr = SocketAddr::from( (dst_ip, dst_port) );
-                src.advance(7);
-                Ok(Some(Message::AddPeer { addr }))
             }
             _ => {
                 // TODO: Remove malformed msgs

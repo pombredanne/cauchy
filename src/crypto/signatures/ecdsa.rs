@@ -1,6 +1,6 @@
 use bytes::Bytes;
 use crypto::hashes::blake2b::*;
-use secp256k1::key::{PublicKey, SecretKey};
+use secp256k1::key::{PublicKey, SecretKey, ONE_KEY};
 use secp256k1::rand::OsRng;
 use secp256k1::{Message, Secp256k1, Signature};
 
@@ -8,6 +8,11 @@ pub fn generate_keypair() -> (SecretKey, PublicKey) {
     let secp = Secp256k1::new();
     let mut rng = OsRng::new().expect("OsRng");
     secp.generate_keypair(&mut rng)
+}
+
+pub fn generate_dummy_pubkey() -> PublicKey {
+    let secp = Secp256k1::new();
+    PublicKey::from_secret_key(&secp, &ONE_KEY)
 }
 
 pub fn message_from_preimage<T>(raw: T) -> Message

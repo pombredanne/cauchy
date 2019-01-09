@@ -5,6 +5,7 @@ use primitives::status::Status;
 use secp256k1::{PublicKey, SecretKey};
 
 use net::messages::*;
+use net::rpc_messages::*;
 use std::env;
 use std::net::SocketAddr;
 use std::sync::{Arc, RwLock};
@@ -25,20 +26,55 @@ use utils::byte_ops::*;
 use utils::constants::*;
 use utils::serialisation::*;
 
+pub fn rpc_server(secret: Arc<RwLock<u64>>) {
+    let addr = env::args().nth(1).unwrap_or(format!("127.0.0.1:{}", RPC_SERVER_PORT).to_string());
+    let addr = addr.parse::<SocketAddr>().unwrap();
+
+    let listener = TcpListener::bind(&addr)
+        .map_err(|_| "failed to bind")
+        .unwrap();
+
+    let done = listener
+        .incoming()
+        .map_err(|e| println!("error accepting socket; error = {:?}", e))
+        .for_each(move |socket| {
+            let framed_sock = Framed::new(socket, RPCCodec);
+            let (_, stream) = framed_sock.split();
+            let secret_c = secret.clone();
+
+            stream.for_each(move |msg| match msg {
+                RPC::AddPeer { addr } => {
+                    // TODO: Catch error
+                    let secret_c = secret_c.clone();
+                    TcpStream::connect(&addr)
+                        .and_then(move |sock| {
+                            let framed_sock = Framed::new(sock, MessageCodec);
+                            let secret_r: u64 = *secret_c.read().unwrap();
+                            framed_sock.send(Message::StartHandshake { secret: secret_r });
+                            Ok(())
+                        })
+                }
+            }).map(|_| ()).or_else(|e| {
+                println!("error = {:?}", e);
+                Ok(())
+            })
+        });
+        tokio::run(done);
+}
+
 pub fn server(
     tx_db: Arc<RocksDb>,
     self_status: Arc<Status>,
     local_pk: PublicKey,
     local_sk: SecretKey,
+    secret: Arc<RwLock<u64>>,
 ) {
     let mut arena = Arc::new(RwLock::new(Arena::new(&local_pk, self_status.clone())));
 
-    let addr = env::args().nth(1).unwrap_or("127.0.0.1:8080".to_string());
+    let addr = env::args().nth(1).unwrap_or(format!("127.0.0.1:{}", SERVER_PORT).to_string());
     let addr = addr.parse::<SocketAddr>().unwrap();
 
-    let (_, dummy_pk) = ecdsa::generate_keypair();
-    let self_secret_msg = 32;
-    let self_secret = ecdsa::message_from_preimage(Bytes::from(VarInt::new(self_secret_msg)));
+    let dummy_pk = ecdsa::generate_dummy_pubkey();
 
     let listener = TcpListener::bind(&addr)
         .map_err(|_| "failed to bind")
@@ -90,13 +126,16 @@ pub fn server(
             .map_err(|e| Error::new(ErrorKind::Other, "Nonce heart failure"));
 
             // Heartbeat Reconcile
+            // TODO: Move out of this scope
             let socket_pk_c = socket_pk.clone();
             let arena_c = arena.clone();
             let heartbeat_reconcile = Interval::new_interval(Duration::new(
                 RECONCILE_HEARTBEAT_PERIOD_SEC,
                 RECONCILE_HEARTBEAT_PERIOD_NANO,
             ))
-            .filter(move |_| {
+            .map(move |_| *socket_pk_c.read().unwrap())
+            .filter(move |sock_pk| *sock_pk != dummy_pk)
+            .filter(move |sock_pk| {
                 // Update order
                 let mut arena_r = arena_c.write().unwrap();
                 arena_r.update_order();
@@ -104,11 +143,10 @@ pub fn server(
 
                 // Find leader
                 let arena_r = arena_c.read().unwrap();
-                let socket_pk = *socket_pk_c.read().unwrap();
                 let leader_pk = arena_r.get_order()[0];
                 println!("Leader: {}", leader_pk);
-                println!("Socket: {}", socket_pk);
-                socket_pk == leader_pk
+                println!("Socket: {}", sock_pk);
+                *sock_pk == leader_pk
             })
             .map(|_| Message::Reconcile)
             .map_err(|e| Error::new(ErrorKind::Other, e));
@@ -116,13 +154,17 @@ pub fn server(
             // Filter responses
             let socket_pk_c = socket_pk.clone();
             let arena_c = arena.clone();
+            let secret_c = secret.clone();
             let queries = stream.filter(move |msg| match msg {
                 Message::StartHandshake { .. } => true,
                 Message::EndHandshake { pubkey, sig } => {
                     // Add peer to arena
                     let new_status = Arc::new(Status::null());
                     let mut arena_m = arena_c.write().unwrap();
-                    if ecdsa::verify(&self_secret, sig, pubkey).unwrap() {
+                    let secret_r: u64 = *secret_c.read().unwrap();
+                    let secret_msg =
+                        ecdsa::message_from_preimage(Bytes::from(VarInt::new(secret_r)));
+                    if ecdsa::verify(&secret_msg, sig, pubkey).unwrap() {
                         arena_m.add_peer(&pubkey, new_status);
                         let mut socket_pk_locked = socket_pk_c.write().unwrap();
                         *socket_pk_locked = *pubkey;
@@ -156,15 +198,6 @@ pub fn server(
                 Message::GetTransactions { .. } => true,
                 Message::Transactions { .. } => false,
                 Message::Reconcile => true,
-                Message::AddPeer { addr } => {
-                    // TODO: Catch error
-                    TcpStream::connect(&addr).and_then(|sock| {
-                        let framed_sock = Framed::new(sock, MessageCodec);
-                        framed_sock.send(Message::StartHandshake { secret: self_secret_msg });
-                        Ok(())
-                        }).poll();
-                    false
-                },
             });
 
             let arena_c = arena.clone();

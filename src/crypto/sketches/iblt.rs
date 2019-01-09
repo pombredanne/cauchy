@@ -209,7 +209,6 @@ impl IBLT {
     }
 }
 
-
 impl PartialEq<Bytes> for IBLT {
     fn eq(&self, other: &Bytes) -> bool {
         let (hash_set_l, _) = match self.decode() {
