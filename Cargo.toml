@@ -13,6 +13,7 @@ rand = "*"
 tokio = "*"
 bus = "*"
 crossbeam = "*"
+futures = "*"
 
 [dependencies.secp256k1]
 version = "*"

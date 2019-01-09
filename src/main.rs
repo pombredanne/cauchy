@@ -2,6 +2,7 @@ extern crate blake2;
 extern crate bus;
 extern crate bytes;
 extern crate crossbeam;
+extern crate futures;
 extern crate rand;
 extern crate rocksdb;
 extern crate secp256k1;
@@ -30,6 +31,7 @@ use db::*;
 use utils::constants::*;
 
 use crossbeam::channel;
+use futures::future::lazy;
 use rand::Rng;
 use std::sync::{Arc, RwLock};
 use std::thread;
@@ -78,18 +80,25 @@ fn main() {
     let secret: u64 = 32;
     let secret_shared = Arc::new(RwLock::new(secret));
 
-
     // Server
     let status_c = self_status.clone();
     let secret_shared_c = secret_shared.clone();
     let server_verbose = true;
-    thread::spawn(move || daemon::server(tx_db, status_c, pk, sk, secret_shared_c, server_verbose));
+    let server = daemon::server(tx_db, status_c, pk, sk, secret_shared_c, server_verbose);
 
     // RPC Server
     let secret_shared_c = secret_shared.clone();
     let rpc_verbose = true;
-    thread::spawn(move || daemon::rpc_server(secret_shared_c, rpc_verbose));
+    let rpc_server = daemon::rpc_server(secret_shared_c, rpc_verbose);
 
+    // Spawn servers
+    thread::spawn(move || {
+        tokio::run(lazy(|| {
+            tokio::spawn(server);
+            tokio::spawn(rpc_server);
+            Ok(())
+        }))
+    });
 
     // Update local state
     let (sketch_send, sketch_recv) = channel::unbounded();

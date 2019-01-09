@@ -13,7 +13,6 @@ VarInt || VarInt || VarInt || VarInt || Script || VarInt || Script || ... || Var
 -First script is executed and must return true, the others are added to the "library".
 -The scripts are segmented into spendable and referencable,
     the divider is given by the Number of spendable script field.
--Number of scripts should be bounded at 256 (as VarInt size is bounded at 64 bytes).
 */
 
 #[derive(Debug, Clone, PartialEq)]

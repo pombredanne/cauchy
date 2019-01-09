@@ -26,47 +26,67 @@ use utils::byte_ops::*;
 use utils::constants::*;
 use utils::serialisation::*;
 
-pub fn rpc_server(secret: Arc<RwLock<u64>>, verbose: bool) {
-    let addr = env::args().nth(1).unwrap_or(format!("0.0.0.0:{}", RPC_SERVER_PORT).to_string());
+pub fn rpc_server(
+    secret: Arc<RwLock<u64>>,
+    verbose: bool,
+) -> impl Future<Item = (), Error = ()> + Send + 'static {
+    let addr = env::args()
+        .nth(1)
+        .unwrap_or(format!("0.0.0.0:{}", RPC_SERVER_PORT).to_string());
     let addr = addr.parse::<SocketAddr>().unwrap();
 
     let listener = TcpListener::bind(&addr)
         .map_err(|_| "failed to bind")
         .unwrap();
 
-    let done = listener
+    let server = listener
         .incoming()
         .map_err(|e| println!("error accepting socket; error = {:?}", e))
         .for_each(move |socket| {
             let socket_addr = socket.peer_addr().unwrap();
-            if verbose { println!("New RPC server socket to {}", socket_addr); }
+            if verbose {
+                println!("New RPC server socket to {}", socket_addr);
+            }
 
             let framed_sock = Framed::new(socket, RPCCodec);
             let (_, stream) = framed_sock.split();
             let secret_c = secret.clone();
 
-            stream.for_each(move |msg| match msg {
-                RPC::AddPeer { addr } => {
-                    // TODO: Catch errors
-                    if verbose { println!("Received addpeer {} message from {}", addr, socket_addr); }
+            let send = stream
+                .for_each(move |msg| match msg {
+                    RPC::AddPeer { addr } => {
+                        // TODO: Catch errors
+                        if verbose {
+                            println!("Received addpeer {} message from {}", addr, socket_addr);
+                        }
 
-                    let secret_c = secret_c.clone();
-                    TcpStream::connect(&addr)
-                        .and_then(move |sock| {
-                            if verbose { println!("Sent handshake initialisation to {}", addr); }
+                        let secret_c = secret_c.clone();
+                        TcpStream::connect(&addr).and_then(move |sock| {
+                            if verbose {
+                                println!("Sent handshake initialisation to {}", addr);
+                            }
 
                             let framed_sock = Framed::new(sock, MessageCodec);
+                            let (sink, _) = framed_sock.split();
+
                             let secret_r: u64 = *secret_c.read().unwrap();
-                            framed_sock.send(Message::StartHandshake { secret: secret_r }).poll();
-                            Ok(())
+                            sink.send(Message::StartHandshake { secret: secret_r })
+                                .map(|_| ())
+                                .or_else(|e| {
+                                    println!("error = {:?}", e);
+                                    Ok(())
+                                })
                         })
-                }
-            }).map(|_| ()).or_else(|e| {
-                println!("error = {:?}", e);
-                Ok(())
-            })
+                    }
+                })
+                .map(|_| ())
+                .or_else(|e| {
+                    println!("error = {:?}", e);
+                    Ok(())
+                });
+            tokio::spawn(send)
         });
-        tokio::run(done);
+    server
 }
 
 pub fn server(
@@ -76,10 +96,12 @@ pub fn server(
     local_sk: SecretKey,
     secret: Arc<RwLock<u64>>,
     verbose: bool,
-) {
+) -> impl Future<Item = (), Error = ()> + Send + 'static {
     let mut arena = Arc::new(RwLock::new(Arena::new(&local_pk, self_status.clone())));
 
-    let addr = env::args().nth(1).unwrap_or(format!("0.0.0.0:{}", SERVER_PORT).to_string());
+    let addr = env::args()
+        .nth(1)
+        .unwrap_or(format!("0.0.0.0:{}", SERVER_PORT).to_string());
     let addr = addr.parse::<SocketAddr>().unwrap();
 
     let dummy_pk = ecdsa::generate_dummy_pubkey();
@@ -88,12 +110,14 @@ pub fn server(
         .map_err(|_| "failed to bind")
         .unwrap();
 
-    let done = listener
+    let server = listener
         .incoming()
         .map_err(|e| println!("error accepting socket; error = {:?}", e))
         .for_each(move |socket| {
             let socket_addr = socket.peer_addr().unwrap();
-            if verbose { println!("New server socket to {}", socket_addr); }
+            if verbose {
+                println!("New server socket to {}", socket_addr);
+            }
 
             let socket_pk = Arc::new(RwLock::new(dummy_pk));
             let framed_sock = Framed::new(socket, MessageCodec);
@@ -109,10 +133,14 @@ pub fn server(
                 ODDSKETCH_HEARTBEAT_PERIOD_NANO,
             ))
             .map(move |_| {
-                if verbose { println!("Sending odd sketch to {}", socket_addr); }
+                if verbose {
+                    println!("Sending odd sketch to {}", socket_addr);
+                }
+
                 Message::OddSketch {
-                sketch: self_status_c.get_odd_sketch(),
-            }})
+                    sketch: self_status_c.get_odd_sketch(),
+                }
+            })
             .map_err(|e| Error::new(ErrorKind::Other, "Odd sketch heart failure"));
 
             // Heartbeat Nonce
@@ -128,7 +156,9 @@ pub fn server(
                 *current_nonce != (*arena_c_a.read().unwrap()).get_perception(sock_pk).nonce
             })
             .map(move |(current_nonce, sock_pk)| {
-                if verbose { println!("Sending nonce to {}", socket_addr); }
+                if verbose {
+                    println!("Sending nonce to {}", socket_addr);
+                }
                 let mut arena_r = arena_c_b.write().unwrap();
                 arena_r.update_perception(&sock_pk);
 
@@ -149,7 +179,9 @@ pub fn server(
             .map(move |_| *socket_pk_c.read().unwrap())
             .filter(move |sock_pk| *sock_pk != dummy_pk)
             .filter(move |sock_pk| {
-                if verbose { println!("Sending reconcile to {}", socket_addr); }
+                if verbose {
+                    println!("Sending reconcile to {}", socket_addr);
+                }
 
                 // Update order
                 let mut arena_r = arena_c.write().unwrap();
@@ -172,11 +204,15 @@ pub fn server(
             let secret_c = secret.clone();
             let queries = stream.filter(move |msg| match msg {
                 Message::StartHandshake { .. } => {
-                    if verbose { println!("Received handshake initialisation from {}", socket_addr); }
+                    if verbose {
+                        println!("Received handshake initialisation from {}", socket_addr);
+                    }
                     true
-                    },
+                }
                 Message::EndHandshake { pubkey, sig } => {
-                    if verbose { println!("Received handshake finalisation from {}", socket_addr); }
+                    if verbose {
+                        println!("Received handshake finalisation from {}", socket_addr);
+                    }
 
                     // Add peer to arena
                     let new_status = Arc::new(Status::null());
@@ -185,14 +221,24 @@ pub fn server(
                     let secret_msg =
                         ecdsa::message_from_preimage(Bytes::from(VarInt::new(secret_r)));
                     if ecdsa::verify(&secret_msg, sig, pubkey).unwrap() {
+                        if verbose {
+                            println!("Handshake completed with {}", socket_addr);
+                        }
+
                         arena_m.add_peer(&pubkey, new_status);
                         let mut socket_pk_locked = socket_pk_c.write().unwrap();
                         *socket_pk_locked = *pubkey;
+                    } else {
+                        if verbose {
+                            println!("Handshake failed with {}", socket_addr);
+                        }
                     }
                     false
                 }
                 Message::Nonce { nonce } => {
-                    if verbose { println!("Received nonce from {}", socket_addr); }
+                    if verbose {
+                        println!("Received nonce from {}", socket_addr);
+                    }
 
                     // Update nonce
                     let arena_r = arena_c.read().unwrap();
@@ -203,7 +249,9 @@ pub fn server(
                     false
                 }
                 Message::OddSketch { sketch } => {
-                    if verbose { println!("Received odd sketch from {}", socket_addr); }
+                    if verbose {
+                        println!("Received odd sketch from {}", socket_addr);
+                    }
 
                     // Update state sketch
                     let arena_r = arena_c.read().unwrap();
@@ -213,7 +261,9 @@ pub fn server(
                     false
                 }
                 Message::IBLT { iblt } => {
-                    if verbose { println!("Received IBLT from {}", socket_addr); }
+                    if verbose {
+                        println!("Received IBLT from {}", socket_addr);
+                    }
 
                     let arena_r = arena_c.read().unwrap();
                     let socket_pk_locked = *socket_pk_c.read().unwrap();
@@ -222,34 +272,47 @@ pub fn server(
                     true
                 }
                 Message::GetTransactions { .. } => {
-                    if verbose { println!("Received transaction request from {}", socket_addr); }
+                    if verbose {
+                        println!("Received transaction request from {}", socket_addr);
+                    }
 
-                    true },
+                    true
+                }
                 Message::Transactions { .. } => {
-                    if verbose { println!("Received transactions from {}", socket_addr); }
+                    if verbose {
+                        println!("Received transactions from {}", socket_addr);
+                    }
 
-                     false },
+                    false
+                }
                 Message::Reconcile => {
-                    if verbose { println!("Received reconcile from {}", socket_addr); }
+                    if verbose {
+                        println!("Received reconcile from {}", socket_addr);
+                    }
 
-                     true },
+                    true
+                }
             });
 
             let arena_c = arena.clone();
             let responses = queries.map(move |msg| match msg {
                 Message::StartHandshake { secret } => {
-                    if verbose { println!("Sending handshake finalisation to {}", socket_addr); }
+                    if verbose {
+                        println!("Sending handshake finalisation to {}", socket_addr);
+                    }
 
                     Ok(Message::EndHandshake {
-                    pubkey: local_pk,
-                    sig: ecdsa::sign(
-                        &ecdsa::message_from_preimage(Bytes::from(VarInt::new(secret))),
-                        &local_sk,
-                    ),
-                })
-                },
+                        pubkey: local_pk,
+                        sig: ecdsa::sign(
+                            &ecdsa::message_from_preimage(Bytes::from(VarInt::new(secret))),
+                            &local_sk,
+                        ),
+                    })
+                }
                 Message::GetTransactions { ids } => {
-                    if verbose { println!("Sending transactions to {}", socket_addr); }
+                    if verbose {
+                        println!("Sending transactions to {}", socket_addr);
+                    }
 
                     let mut txs = Vec::with_capacity(ids.len());
                     for id in ids {
@@ -261,7 +324,9 @@ pub fn server(
                     Ok(Message::Transactions { txs })
                 }
                 Message::IBLT { iblt } => {
-                    if verbose { println!("Sending transactions request to {}", socket_addr); }
+                    if verbose {
+                        println!("Sending transactions request to {}", socket_addr);
+                    }
 
                     let arena_r = arena_c.read().unwrap();
                     let socket_pk_locked = *socket_pk.read().unwrap();
@@ -281,7 +346,9 @@ pub fn server(
                     }
                 }
                 Message::Reconcile => {
-                    if verbose { println!("Sending IBLT to {}", socket_addr); }
+                    if verbose {
+                        println!("Sending IBLT to {}", socket_addr);
+                    }
 
                     let iblt = (*arena_c.read().unwrap())
                         .get_peer(&local_pk)
@@ -298,10 +365,11 @@ pub fn server(
                 .select(heartbeat_nonce)
                 .select(heartbeat_reconcile);
 
-            sink.send_all(out_msgs).map(|_| ()).or_else(|e| {
+            let send = sink.send_all(out_msgs).map(|_| ()).or_else(|e| {
                 println!("error = {:?}", e);
                 Ok(())
-            })
+            });
+            tokio::spawn(send)
         });
-    tokio::run(done);
+    server
 }
