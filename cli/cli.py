@@ -1,6 +1,5 @@
 import socket
 import sys
-import ipaddress
 
 server_addr = sys.argv[1]
 ip, _, port = server_addr.rpartition(':')
@@ -12,7 +11,5 @@ args = sys.argv[3]
 if cmd == "addpeer":
     ip, seperator, port = args.rpartition(':')
     ip_bytes = bytes(map(int, ip.split('.')))
-    #print(ip_bytes)
     msg = b"\x00" + ip_bytes + int(port).to_bytes(2, byteorder='big')
-    #print(msg)
     s.send(msg)

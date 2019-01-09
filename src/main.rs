@@ -82,11 +82,13 @@ fn main() {
     // Server
     let status_c = self_status.clone();
     let secret_shared_c = secret_shared.clone();
-    thread::spawn(move || daemon::server(tx_db, status_c, pk, sk, secret_shared_c));
+    let server_verbose = true;
+    thread::spawn(move || daemon::server(tx_db, status_c, pk, sk, secret_shared_c, server_verbose));
 
     // RPC Server
     let secret_shared_c = secret_shared.clone();
-    thread::spawn(move || daemon::rpc_server(secret_shared_c));
+    let rpc_verbose = true;
+    thread::spawn(move || daemon::rpc_server(secret_shared_c, rpc_verbose));
 
 
     // Update local state
