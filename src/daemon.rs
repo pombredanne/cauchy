@@ -27,7 +27,7 @@ use utils::constants::*;
 use utils::serialisation::*;
 
 pub fn rpc_server(secret: Arc<RwLock<u64>>, verbose: bool) {
-    let addr = env::args().nth(1).unwrap_or(format!("127.0.0.1:{}", RPC_SERVER_PORT).to_string());
+    let addr = env::args().nth(1).unwrap_or(format!("0.0.0.0:{}", RPC_SERVER_PORT).to_string());
     let addr = addr.parse::<SocketAddr>().unwrap();
 
     let listener = TcpListener::bind(&addr)
@@ -79,7 +79,7 @@ pub fn server(
 ) {
     let mut arena = Arc::new(RwLock::new(Arena::new(&local_pk, self_status.clone())));
 
-    let addr = env::args().nth(1).unwrap_or(format!("127.0.0.1:{}", SERVER_PORT).to_string());
+    let addr = env::args().nth(1).unwrap_or(format!("0.0.0.0:{}", SERVER_PORT).to_string());
     let addr = addr.parse::<SocketAddr>().unwrap();
 
     let dummy_pk = ecdsa::generate_dummy_pubkey();
