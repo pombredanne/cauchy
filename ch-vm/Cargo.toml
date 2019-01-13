@@ -1,0 +1,8 @@
+[package]
+name = "ch-vm"
+version = "0.1.0"
+authors = ["Harry <hlbarber93@gmail.com>", "Chris Novick <c.r.novick@protonmail.com>"]
+edition = "2018"
+
+[dependencies]
+ckb-vm = { path = "../ckb-vm"}
