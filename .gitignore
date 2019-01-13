@@ -15,3 +15,5 @@ ch-vm/target/rls/debug/
 ch-vm/target/rls/
 
 ch-vm/target/
+
+ch-vm/Cargo\.lock

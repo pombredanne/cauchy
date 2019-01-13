@@ -26,10 +26,8 @@ use ckb_vm::CoreMachine;
 // }
 
 fn main() {
-    let mut file = File::open("tests/sha256").unwrap();
-
     let mut buffer = Vec::new();
-    file.read_to_end(&mut buffer).unwrap();
+    File::open("tests/sha256").unwrap().read_to_end(&mut buffer).unwrap();
 
     let mut vm = VM::new();
     vm.init();
@@ -50,9 +48,8 @@ fn main() {
 
 #[test]
 fn test_simple() {
-    let mut file = File::open("tests/simple").unwrap();
     let mut buffer = Vec::new();
-    file.read_to_end(&mut buffer).unwrap();
+    File::open("tests/simple").unwrap().read_to_end(&mut buffer).unwrap();
 
     let mut vm = VM::new();
     vm.init();
@@ -64,10 +61,8 @@ fn test_simple() {
 
 #[test]
 fn test_vm_syscalls() {
-    let mut file = File::open("tests/syscalls").unwrap();
-
     let mut buffer = Vec::new();
-    file.read_to_end(&mut buffer).unwrap();
+    File::open("tests/syscalls").unwrap().read_to_end(&mut buffer).unwrap();
 
     let mut vm = VM::new();
     vm.init();
@@ -82,10 +77,8 @@ fn test_vm_syscalls() {
 
 #[test]
 fn test_sha256() {
-    let mut file = File::open("tests/sha256").unwrap();
-
     let mut buffer = Vec::new();
-    file.read_to_end(&mut buffer).unwrap();
+    File::open("tests/sha256").unwrap().read_to_end(&mut buffer).unwrap();
 
     let mut vm = VM::new();
     vm.init();
