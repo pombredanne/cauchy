@@ -14,31 +14,24 @@ fn main() {
 
     let mut vm = VM::new();
 
-    let result = vm.run(&buffer, &vec![b"__vm_script".to_vec()]);
-    // let result = vm.run_args(&buffer, b"abc".to_vec());
+    let result = vm.run_args(&buffer, b"abc".to_vec());
     assert!(result.is_ok());
     println!("Retbytes: {:?}", hex::encode(vm.get_retbytes()));
 
     let input_bytes = vm.get_retbytes().to_vec();
-    let len = input_bytes.len();
-    let result = vm.run(&buffer, &vec![b"__vm_script".to_vec(), input_bytes, len.to_string().as_bytes().to_vec()]);
+    let result = vm.run_args(&buffer, input_bytes);
     assert!(result.is_ok());
     println!("Retbytes: {:?}", hex::encode(vm.get_retbytes()));
-
 
     let input_bytes = b"hello".to_vec();
-    let len = input_bytes.len();
-    let result = vm.run(&buffer, &vec![b"__vm_script".to_vec(), input_bytes, len.to_string().as_bytes().to_vec()]);
+    let result = vm.run_args(&buffer, input_bytes);
     assert!(result.is_ok());
     println!("Retbytes: {:?}", hex::encode(vm.get_retbytes()));
 
     let input_bytes = vm.get_retbytes().to_vec();
-    let len = input_bytes.len();
-    let result = vm.run(&buffer, &vec![b"__vm_script".to_vec(), input_bytes, len.to_string().as_bytes().to_vec()]);
+    let result = vm.run_args(&buffer, input_bytes);
     assert!(result.is_ok());
     println!("Retbytes: {:?}", hex::encode(vm.get_retbytes()));
-
-
 }
 
 #[cfg(test)]
@@ -83,16 +76,14 @@ fn test_sha256() {
 
     // Now test a string as input
     let input_bytes = b"hello".to_vec();
-    let len = input_bytes.len();
-    let result = vm.run(&buffer, &vec![b"__vm_script".to_vec(), input_bytes, len.to_string().as_bytes().to_vec()]);
+    let result = vm.run_args(&buffer, input_bytes);
     assert!(result.is_ok());
     let bytes = vm.get_retbytes();
     assert_eq!(bytes, &hex::decode("2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824").unwrap());
 
     // Now test double sha256
     let input_bytes = vm.get_retbytes().to_vec();
-    let len = input_bytes.len();
-    let result = vm.run(&buffer, &vec![b"__vm_script".to_vec(), input_bytes, len.to_string().as_bytes().to_vec()]);
+    let result = vm.run_args(&buffer, input_bytes);
     assert!(result.is_ok());
     let bytes = vm.get_retbytes();
     assert_eq!(bytes, &hex::decode("9595c9df90075148eb06860365df33584b75bff782a510c6cd4883a419833d50").unwrap());

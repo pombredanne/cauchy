@@ -33,7 +33,6 @@ impl VM {
     pub fn run_args(&mut self, buffer: &[u8], input_bytes : Vec<u8>) -> Result<u8, Error> {
         let len = input_bytes.len();
         let args = &vec![b"__vm_script".to_vec(), input_bytes, len.to_string().as_bytes().to_vec()];
-        println!("{:?}", args);
         self.run(buffer, args)
     }
 
