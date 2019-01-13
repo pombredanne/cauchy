@@ -1,4 +1,5 @@
+#include "vm.h"
 int main()
 {
-    return 42;
+    __vm_exit(42);
 }
