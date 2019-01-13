@@ -22,8 +22,8 @@ impl VM {
     pub fn init(&mut self) {
         self.machine.add_syscall_module(Box::new(VMSyscalls { }));
     }
-    pub fn run(&mut self, buffer: &[u8]) -> Result<u8, Error> {
-        self.machine.run(buffer, &vec![b"__vm_script".to_vec()])
+    pub fn run(&mut self, buffer: &[u8], args : &[Vec<u8>]) -> Result<u8, Error> {
+        self.machine.run(buffer, args)
     }
 }
 
