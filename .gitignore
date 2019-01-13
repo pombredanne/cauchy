@@ -17,3 +17,5 @@ ch-vm/target/rls/
 ch-vm/target/
 
 ch-vm/Cargo\.lock
+
+ckb-vm/target/rls/

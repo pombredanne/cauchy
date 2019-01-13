@@ -4,26 +4,41 @@ use ckb_vm::{
     CoreMachine, Error, SparseMemory, Syscalls, A0, A1, A2, A3, A4, A5, A6, A7,
 };
 
-use ckb_vm::memory::{Memory};
+use ckb_vm::memory::{ Memory};
 use std::vec::Vec;
 
 pub struct VM {
-    pub val: u8,
-    pub machine: ckb_vm::DefaultMachine<'static, u64, SparseMemory>,
+    ret_bytes : Vec<u8>
+    // pub machine: ckb_vm::DefaultMachine<'static, u64, SparseMemory>,
 }
 
 impl VM {
     pub fn new() -> VM {
         VM {
-            val: 0,
-            machine: ckb_vm::DefaultMachine::<u64, SparseMemory>::default(),
+            // machine: ckb_vm::DefaultMachine::<u64, SparseMemory>::default(),
+            ret_bytes : vec![],
         }
     }
-    pub fn init(&mut self) {
-        self.machine.add_syscall_module(Box::new(VMSyscalls { }));
-    }
+    // pub fn init(&mut self) {
+    //     self.machine.add_syscall_module(Box::new(VMSyscalls { }));
+    // }
     pub fn run(&mut self, buffer: &[u8], args : &[Vec<u8>]) -> Result<u8, Error> {
-        self.machine.run(buffer, args)
+        // self.machine.run(buffer, args)
+        let mut machine = ckb_vm::DefaultMachine::<u64, SparseMemory>::default();
+        machine.add_syscall_module(Box::new(VMSyscalls { }));
+        let result = machine.run(buffer, args);
+        self.ret_bytes = machine.get_retbytes().to_vec();
+        result
+    }
+    pub fn run_args(&mut self, buffer: &[u8], input_bytes : Vec<u8>) -> Result<u8, Error> {
+        let len = input_bytes.len();
+        let args = &vec![b"__vm_script".to_vec(), input_bytes, len.to_string().as_bytes().to_vec()];
+        println!("{:?}", args);
+        self.run(buffer, args)
+    }
+
+    pub fn get_retbytes(&mut self) -> &Vec<u8> {
+        &self.ret_bytes
     }
 }
 
