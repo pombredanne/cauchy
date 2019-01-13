@@ -6,3 +6,4 @@ edition = "2018"
 
 [dependencies]
 ckb-vm = { path = "../ckb-vm"}
+hex = "*"
