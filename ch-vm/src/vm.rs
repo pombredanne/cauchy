@@ -76,10 +76,8 @@ impl Syscalls<u64, SparseMemory> for VMSyscalls {
                 let addr = machine.registers()[A3];
 
                 // Store out value at address addr
-                machine.memory_mut().dump_to_file("dump.memory1".to_string());
-                let mut store_bytes = hex::decode("DEADBEEF").unwrap();
+                let store_bytes = hex::decode("DEADBEEF").unwrap();
                 machine.memory_mut().store_bytes(addr as usize, &store_bytes).unwrap();
-                machine.memory_mut().dump_to_file("dump.memory2".to_string());
 
                 let mut ret_bytes = Vec::<u8>::new();
                 for idx in addr..(addr+sz){
@@ -165,5 +163,5 @@ fn test_syscall2() {
     assert_eq!(result.unwrap(), 0);
 
     let bytes = vm.get_retbytes();
-    assert_eq!(bytes, &vec![0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48]);
+    assert_eq!(bytes, &hex::decode("DEADBEEF05060708").unwrap());
 }
