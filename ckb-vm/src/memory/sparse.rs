@@ -5,6 +5,9 @@ use std::cmp::min;
 use std::ptr;
 use std::rc::Rc;
 
+use std::io::prelude::*;
+use std::fs::File;
+
 const MAX_PAGES: usize = RISCV_MAX_MEMORY / RISCV_PAGESIZE;
 const INVALID_PAGE_INDEX: u16 = 0xFFFF;
 
@@ -61,6 +64,13 @@ impl SparseMemory {
             }
         }
         Ok(value)
+    }
+
+    pub fn dump_to_file(&mut self, fname : String){
+        let mut buffer = File::create(fname).unwrap();
+        for p in self.pages.iter(){
+            buffer.write(p).unwrap();
+        }
     }
 }
 

@@ -6,8 +6,6 @@ use ckb_vm::{
 
 use ckb_vm::memory::{ Memory};
 use std::vec::Vec;
-use std::fs::File;
-use std::io::Read;
 
 pub struct VM {
     ret_bytes : Vec<u8>
@@ -73,12 +71,32 @@ impl Syscalls<u64, SparseMemory> for VMSyscalls {
 
                 Ok(true)
             }
+            0xCBFE => {
+                let sz = machine.registers()[A4];
+                let addr = machine.registers()[A3];
+
+                // Store out value at address addr
+                machine.memory_mut().dump_to_file("dump.memory1".to_string());
+                let mut store_bytes = hex::decode("DEADBEEF").unwrap();
+                machine.memory_mut().store_bytes(addr as usize, &store_bytes).unwrap();
+                machine.memory_mut().dump_to_file("dump.memory2".to_string());
+
+                let mut ret_bytes = Vec::<u8>::new();
+                for idx in addr..(addr+sz){
+                    ret_bytes.push(machine.memory_mut().load8(idx as usize).unwrap());
+                }
+                println!("{:X?}", ret_bytes);
+                Ok(true)
+            }
             _ => Ok(false)
         }
     }
 }
 
 #[cfg(test)]
+
+use std::fs::File;
+use std::io::Read;
 
 #[test]
 fn test_simple() {
@@ -134,4 +152,18 @@ fn test_sha256() {
     let bytes = vm.get_retbytes();
     println!("{:X?}", bytes);
     
+}
+
+#[test]
+fn test_syscall2() {
+    let mut buffer = Vec::new();
+    File::open("tests/syscalls2").unwrap().read_to_end(&mut buffer).unwrap();
+
+    let mut vm = VM::new();
+    let result = vm.run(&buffer, &vec![b"__vm_script".to_vec()]);
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), 0);
+
+    let bytes = vm.get_retbytes();
+    assert_eq!(bytes, &vec![0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48]);
 }
