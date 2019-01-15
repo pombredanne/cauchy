@@ -1,9 +1,9 @@
 // Implement _start()
-extern int main();
-void _start()
-{
-    main();
-}
+// extern int main();
+// void _start()
+// {
+//     main();
+// }
 
 #define __vm_retbytes(addr, size) __asm__ volatile( \
     "mv a5, %1\n\t"                               \

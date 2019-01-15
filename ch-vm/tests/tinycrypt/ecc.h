@@ -103,6 +103,7 @@ typedef uint64_t uECC_dword_t;
 
 /* Number of words of 32 bits to represent an element of the the curve p-256: */
 #define NUM_ECC_WORDS 8
+
 /* Number of bytes to represent an element of the the curve p-256: */
 #define NUM_ECC_BYTES (uECC_WORD_SIZE*NUM_ECC_WORDS)
 
@@ -193,6 +194,51 @@ static const struct uECC_Curve_t curve_secp256r1 = {
 };
 
 uECC_Curve uECC_secp256r1(void);
+
+void double_jacobian_secp256k1(uECC_word_t * X1,
+                                      uECC_word_t * Y1,
+                                      uECC_word_t * Z1,
+                                      uECC_Curve curve);
+									  
+void x_side_secp256k1(uECC_word_t *result, const uECC_word_t *x, uECC_Curve curve);
+
+static const struct uECC_Curve_t curve_secp256k1 = {
+    NUM_ECC_WORDS,
+    NUM_ECC_BYTES,
+    256, /* num_n_bits */
+    { BYTES_TO_WORDS_8(2F, FC, FF, FF, FE, FF, FF, FF),
+        BYTES_TO_WORDS_8(FF, FF, FF, FF, FF, FF, FF, FF),
+        BYTES_TO_WORDS_8(FF, FF, FF, FF, FF, FF, FF, FF),
+        BYTES_TO_WORDS_8(FF, FF, FF, FF, FF, FF, FF, FF) },
+    { BYTES_TO_WORDS_8(41, 41, 36, D0, 8C, 5E, D2, BF),
+        BYTES_TO_WORDS_8(3B, A0, 48, AF, E6, DC, AE, BA),
+        BYTES_TO_WORDS_8(FE, FF, FF, FF, FF, FF, FF, FF),
+        BYTES_TO_WORDS_8(FF, FF, FF, FF, FF, FF, FF, FF) },
+    { BYTES_TO_WORDS_8(98, 17, F8, 16, 5B, 81, F2, 59),
+        BYTES_TO_WORDS_8(D9, 28, CE, 2D, DB, FC, 9B, 02),
+        BYTES_TO_WORDS_8(07, 0B, 87, CE, 95, 62, A0, 55),
+        BYTES_TO_WORDS_8(AC, BB, DC, F9, 7E, 66, BE, 79),
+
+        BYTES_TO_WORDS_8(B8, D4, 10, FB, 8F, D0, 47, 9C),
+        BYTES_TO_WORDS_8(19, 54, 85, A6, 48, B4, 17, FD),
+        BYTES_TO_WORDS_8(A8, 08, 11, 0E, FC, FB, A4, 5D),
+        BYTES_TO_WORDS_8(65, C4, A3, 26, 77, DA, 3A, 48) },
+    { BYTES_TO_WORDS_8(07, 00, 00, 00, 00, 00, 00, 00),
+        BYTES_TO_WORDS_8(00, 00, 00, 00, 00, 00, 00, 00),
+        BYTES_TO_WORDS_8(00, 00, 00, 00, 00, 00, 00, 00),
+        BYTES_TO_WORDS_8(00, 00, 00, 00, 00, 00, 00, 00) },
+    &double_jacobian_secp256k1,
+#if uECC_SUPPORT_COMPRESSED_POINT
+    &mod_sqrt_default,
+#endif
+    &x_side_secp256k1,
+#if (uECC_OPTIMIZATION_LEVEL > 0)
+    &vli_mmod_fast_secp256k1
+#endif
+};
+
+uECC_Curve uECC_secp256k1(void);
+
 
 /*
  * @brief Generates a random integer in the range 0 < random < top.
