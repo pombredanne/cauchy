@@ -243,16 +243,16 @@ fn test_ecdsa() {
 
     let mut vm = VM::new();
     // let result = vm.run(&buffer, &vec![b"__vm_script".to_vec()]);
-    let mut pubkey = hex::decode("57cb298b4766c3992686890c3e6e034fd2cc3d6fd4ec184f2aef8687ae361ef2066271a1bef1bc7b42d506f04b0f63b427bd9d98ea030eea187fc8b431787fa5").unwrap();
-    let mut sig = hex::decode("3cbe315ecb178b618a136c6ac9f668daedee16d91c4d9acb4743e1a079ef4a4c441f94eee78fa79f6769dbd1e70862928dff11083dedcf0175870e938e015743").unwrap();
+    let mut pubkey = hex::decode("0c6f66125d08ba616184251847ab46b152e15dc1e4ba874f9a82adb0c0d0f2b1117d301a1fd00277643ed0e27454b8e181602e265294162e3083912761cc96e6").unwrap();
+    let mut sig = hex::decode("5c918dd6989c3c4f4911a03aca0b832ee0b72c59acd293f7d909a21867afc3da11a3e43a6df8756e7eca0ba565b920e9299996734bcebb7bff3589f6589e31af").unwrap();
     let mut msg = hex::decode("6d7367").unwrap();
     let mut args = vec![];
     args.append(&mut pubkey);
     args.append(&mut sig);
     args.append(&mut msg);
     let result = vm.run_args(&buffer, args.to_vec() );
-    assert!(result.is_ok());
-    assert_eq!(result.unwrap(), 0);
+    // assert!(result.is_ok());
+    assert_eq!(result.unwrap(), 1);
 
     let bytes = vm.get_retbytes();
     println!("ecsda_test returns {:X?}", bytes);
