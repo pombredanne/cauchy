@@ -1,35 +1,37 @@
 extern crate ckb_vm;
 
-use ckb_vm::{
-    CoreMachine, Error, SparseMemory, Syscalls, A0, A1, A2, A3, A4, A5, A6, A7,
-};
+use ckb_vm::{CoreMachine, Error, SparseMemory, Syscalls, A0, A1, A2, A3, A4, A5, A6, A7};
 
-use ckb_vm::memory::{ Memory};
+use ckb_vm::memory::Memory;
+use std::fs::File;
+use std::io::Read;
 use std::vec::Vec;
 
 pub struct VM {
-    ret_bytes : Vec<u8>
+    ret_bytes: Vec<u8>,
 }
 
 impl VM {
     pub fn new() -> VM {
-        VM {
-            ret_bytes : vec![],
-        }
+        VM { ret_bytes: vec![] }
     }
 
-    pub fn run(&mut self, buffer: &[u8], args : &[Vec<u8>]) -> Result<u8, Error> {
+    pub fn run(&mut self, buffer: &[u8], args: &[Vec<u8>]) -> Result<u8, Error> {
         // self.machine.run(buffer, args)
         let mut machine = ckb_vm::DefaultMachine::<u64, SparseMemory>::default();
-        machine.add_syscall_module(Box::new(VMSyscalls { }));
+        machine.add_syscall_module(Box::new(VMSyscalls {}));
         let result = machine.run(buffer, args);
         self.ret_bytes = machine.get_retbytes().to_vec();
         result
     }
 
-    pub fn run_args(&mut self, buffer: &[u8], input_bytes : Vec<u8>) -> Result<u8, Error> {
+    pub fn run_args(&mut self, buffer: &[u8], input_bytes: Vec<u8>) -> Result<u8, Error> {
         let len = input_bytes.len();
-        let args = &vec![b"__vm_script".to_vec(), input_bytes, len.to_string().as_bytes().to_vec()];
+        let args = &vec![
+            b"__vm_script".to_vec(),
+            input_bytes,
+            len.to_string().as_bytes().to_vec(),
+        ];
         self.run(buffer, args)
     }
 
@@ -38,8 +40,18 @@ impl VM {
     }
 }
 
+struct VMSyscalls {}
 
-struct VMSyscalls { }
+impl VMSyscalls {
+    fn lookup_script() -> Vec<u8> {
+        let mut buffer = Vec::new();
+        File::open("tests/sha256")
+            .unwrap()
+            .read_to_end(&mut buffer)
+            .unwrap();
+        buffer
+    }
+}
 
 impl Syscalls<u64, SparseMemory> for VMSyscalls {
     fn initialize(&mut self, _machine: &mut CoreMachine<u64, SparseMemory>) -> Result<(), Error> {
@@ -59,47 +71,82 @@ impl Syscalls<u64, SparseMemory> for VMSyscalls {
                 machine.registers_mut()[A0] = result;
                 Ok(true)
             }
+            //  __vm_retbytes(addr, size)
             0xCBFF => {
                 let sz = machine.registers()[A5];
                 let addr = machine.registers()[A6];
                 let mut ret_bytes = Vec::<u8>::new();
 
-                for idx in addr..(addr+sz){
+                for idx in addr..(addr + sz) {
                     ret_bytes.push(machine.memory_mut().load8(idx as usize).unwrap());
                 }
                 machine.store_retbytes(ret_bytes);
 
                 Ok(true)
             }
+            // __vm_call(sendbuff, sendsize, recvbuff, recvsize)
             0xCBFE => {
-                let sz = machine.registers()[A4];
-                let addr = machine.registers()[A3];
+                let recv_addr = machine.registers()[A3];
+                let recv_sz = machine.registers()[A4];
+                let send_addr = machine.registers()[A5];
+                let send_sz = machine.registers()[A6];
 
-                // Store out value at address addr
-                let store_bytes = hex::decode("DEADBEEF").unwrap();
-                machine.memory_mut().store_bytes(addr as usize, &store_bytes).unwrap();
-
-                let mut ret_bytes = Vec::<u8>::new();
-                for idx in addr..(addr+sz){
-                    ret_bytes.push(machine.memory_mut().load8(idx as usize).unwrap());
+                // Get the send bytes
+                let mut send_bytes = Vec::<u8>::new();
+                for idx in send_addr..(send_addr + send_sz) {
+                    send_bytes.push(machine.memory_mut().load8(idx as usize).unwrap());
                 }
-                println!("{:X?}", ret_bytes);
+                println!("passing: {:X?} from addr: {:X?}", send_bytes, send_addr);
+
+                // Lookup the script that's being called
+                let call_script = &VMSyscalls::lookup_script();
+
+                // Setup a new machine to run the script
+                let mut call_machine = ckb_vm::DefaultMachine::<u64, SparseMemory>::default();
+                call_machine.add_syscall_module(Box::new(VMSyscalls {}));
+
+                // Get any input bytes intended to be sent to the callable script
+                // let input_bytes = call_machine.get_retbytes().to_vec();
+                let len = send_bytes.len();
+                let args = &vec![
+                    b"__vm_script".to_vec(),
+                    send_bytes,
+                    len.to_string().as_bytes().to_vec(),
+                ];
+                let result = call_machine.run(call_script, args);
+                assert!(result.is_ok());
+                let store_bytes = call_machine.get_retbytes().to_vec();
+
+                // Store our value at address addr
+                // let store_bytes = hex::decode("DEADBEEF").unwrap();
+                machine
+                    .memory_mut()
+                    .store_bytes(recv_addr as usize, &store_bytes)
+                    .unwrap();
+
+                // let mut ret_bytes = Vec::<u8>::new();
+                // for idx in recv_addr..(recv_addr + recv_sz) {
+                //     ret_bytes.push(machine.memory_mut().load8(idx as usize).unwrap());
+                // }
+                // println!("{:X?}", ret_bytes);
                 Ok(true)
             }
-            _ => Ok(false)
+            _ => Ok(false),
         }
     }
 }
 
 #[cfg(test)]
-
-use std::fs::File;
-use std::io::Read;
+// use std::fs::File;
+// use std::io::Read;
 
 #[test]
 fn test_simple() {
     let mut buffer = Vec::new();
-    File::open("tests/simple").unwrap().read_to_end(&mut buffer).unwrap();
+    File::open("tests/simple")
+        .unwrap()
+        .read_to_end(&mut buffer)
+        .unwrap();
 
     let mut vm = VM::new();
     let result = vm.run(&buffer, &vec![b"__vm_script".to_vec()]);
@@ -111,7 +158,10 @@ fn test_simple() {
 #[test]
 fn test_vm_syscalls() {
     let mut buffer = Vec::new();
-    File::open("tests/syscalls").unwrap().read_to_end(&mut buffer).unwrap();
+    File::open("tests/syscalls")
+        .unwrap()
+        .read_to_end(&mut buffer)
+        .unwrap();
 
     let mut vm = VM::new();
     let result = vm.run(&buffer, &vec![b"__vm_script".to_vec()]);
@@ -125,43 +175,60 @@ fn test_vm_syscalls() {
 #[test]
 fn test_sha256() {
     let mut buffer = Vec::new();
-    File::open("tests/sha256").unwrap().read_to_end(&mut buffer).unwrap();
+    File::open("tests/sha256")
+        .unwrap()
+        .read_to_end(&mut buffer)
+        .unwrap();
 
     let mut vm = VM::new();
     let result = vm.run(&buffer, &vec![b"__vm_script".to_vec()]);
     assert!(result.is_ok());
     let bytes = vm.get_retbytes();
-    assert_eq!(bytes, &hex::decode("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855").unwrap());
+    assert_eq!(
+        bytes,
+        &hex::decode("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855").unwrap()
+    );
 
     // Now test a string as input
     let input_bytes = b"hello".to_vec();
     let result = vm.run_args(&buffer, input_bytes);
     assert!(result.is_ok());
     let bytes = vm.get_retbytes();
-    assert_eq!(bytes, &hex::decode("2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824").unwrap());
+    assert_eq!(
+        bytes,
+        &hex::decode("2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824").unwrap()
+    );
 
     // Now test double sha256
     let input_bytes = vm.get_retbytes().to_vec();
     let result = vm.run_args(&buffer, input_bytes);
     assert!(result.is_ok());
     let bytes = vm.get_retbytes();
-    assert_eq!(bytes, &hex::decode("9595c9df90075148eb06860365df33584b75bff782a510c6cd4883a419833d50").unwrap());
+    assert_eq!(
+        bytes,
+        &hex::decode("9595c9df90075148eb06860365df33584b75bff782a510c6cd4883a419833d50").unwrap()
+    );
 
     let bytes = vm.get_retbytes();
     println!("{:X?}", bytes);
-    
 }
 
 #[test]
 fn test_syscall2() {
     let mut buffer = Vec::new();
-    File::open("tests/syscalls2").unwrap().read_to_end(&mut buffer).unwrap();
+    File::open("tests/syscalls2")
+        .unwrap()
+        .read_to_end(&mut buffer)
+        .unwrap();
 
     let mut vm = VM::new();
-    let result = vm.run(&buffer, &vec![b"__vm_script".to_vec()]);
-    assert!(result.is_ok());
+    // let result = vm.run(&buffer, &vec![b"__vm_script".to_vec()]);
+    let result = vm.run_args(&buffer, b"hello".to_vec());
+    // assert!(result.is_ok());
     assert_eq!(result.unwrap(), 0);
 
     let bytes = vm.get_retbytes();
-    assert_eq!(bytes, &hex::decode("DEADBEEF05060708").unwrap());
+    println!("syscalls2 returns {:X?}", bytes);
+    // The return val should be the sha256 hash of "hello"
+    assert_eq!(bytes, &hex::decode("2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824").unwrap());
 }

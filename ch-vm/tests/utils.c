@@ -37,6 +37,32 @@
 
 #define MASK_TWENTY_SEVEN 0x1b
 
+void *memset(void *dst, int c, size_t n)
+{
+    if (n) {
+        char *d = dst;
+
+        do {
+            *d++ = c;
+        } while (--n);
+    }
+    return dst;
+}
+
+void *memcpy (void *dest, const void *src, size_t len)
+{
+  char *d = dest;
+  const char *s = src;
+  while (len--)
+    *d++ = *s++;
+  return dest;
+}
+
+// void __inline__ __vm_call(void *const sendbuff, const int send_size, void *const recvbuff, const int recvsize )
+// {
+
+// }
+
 unsigned int _copy(uint8_t *to, unsigned int to_len,
 		   const uint8_t *from, unsigned int from_len)
 {

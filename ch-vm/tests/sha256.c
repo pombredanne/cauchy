@@ -276,6 +276,6 @@ int main(int argc, char *argv[])
 
 	(void)tc_sha256_final(digest, &s);
 
-	__vm_retval(digest, 32);
+	__vm_retbytes(digest, 32);
 	__vm_exit(0);
 }
