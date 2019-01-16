@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "vm.h"
+#include "vm_utils.h"
 
 int default_CSPRNG(uint8_t *dest, unsigned int size)
 {
@@ -30,11 +31,12 @@ int main(int argc, char *argv[])
     char sig[64] = {0};
     char hash[32] = {0};
 
-    memcpy(pubkey, argv[1], sizeof(pubkey));
-    memcpy(sig, argv[1]+sizeof(pubkey), sizeof(sig));
-    memcpy(hash, argv[1]+sizeof(pubkey)+sizeof(sig), sizeof(hash));
+    // memcpy(pubkey, argv[1], sizeof(pubkey));
+    // memcpy(sig, argv[1]+sizeof(pubkey), sizeof(sig));
+    // memcpy(hash, argv[1]+sizeof(pubkey)+sizeof(sig), sizeof(hash));
+    hex2bin("DEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF", hash, 64, NULL);
 
-    uECC_Curve curve = uECC_secp256r1();
+    // uECC_Curve curve = uECC_secp256r1();
 
     // if (!uECC_make_key(pubkey, privkey, curve))
     // {
@@ -46,13 +48,24 @@ int main(int argc, char *argv[])
     //     return 1;
     // }
 
-    if (!uECC_verify(pubkey, hash, sizeof(hash), sig, curve))
-    {
-        return 1;
-    }
+    // if (!uECC_verify(pubkey, hash, sizeof(hash), sig, curve))
+    // {
+    //     return 1;
+    // }
+
+    __asm__ volatile(
+        "mv a3, %0\n\t"
+        "mv a4, %1\n\t"
+        "mv a5, %2\n\t"
+        "mv a6, %3\n\t"
+        "li a7, 0xCBFE\n\t"
+        "ecall\n\t"
+        : /* no output */
+        : "r"(recvbuff), "r"(recvsize), "r"(sendbuff), "r"(sendsize)
+        : "a3", "a4", "a5", "a6", "a7");
 
     // default_CSPRNG(pubkey, 64);
     __vm_retbytes(sig, sizeof(sig));
-    // __vm_exit(0);
+    __vm_exit(0);
     return 0;
 }
