@@ -29,7 +29,12 @@ impl VM {
         self.run_func(buffer, 0, input_bytes)
     }
 
-    pub fn run_func(&mut self, buffer: &[u8], func_index : u8, input_bytes: Vec<u8>) -> Result<u8, Error> {
+    pub fn run_func(
+        &mut self,
+        buffer: &[u8],
+        func_index: u8,
+        input_bytes: Vec<u8>,
+    ) -> Result<u8, Error> {
         let len = input_bytes.len();
         let args = &vec![
             vec![func_index],
@@ -90,10 +95,18 @@ impl Syscalls<u64, SparseMemory> for VMSyscalls {
             }
             // __vm_call(sendbuff, sendsize, recvbuff, recvsize)
             0xCBFE => {
+                let txid_addr = machine.registers()[A2];
                 let recv_addr = machine.registers()[A3];
                 let recv_sz = machine.registers()[A4];
                 let send_addr = machine.registers()[A5];
                 let send_sz = machine.registers()[A6];
+
+                // Get the send bytes
+                let mut txid = Vec::<u8>::new();
+                for idx in txid_addr..(txid_addr + 64) {
+                    txid.push(machine.memory_mut().load8(idx as usize).unwrap());
+                }
+                println!("txid: {:X?} from addr: {:X?}", &hex::decode(txid).unwrap(), txid_addr);
 
                 // Get the send bytes
                 let mut send_bytes = Vec::<u8>::new();
@@ -143,7 +156,6 @@ impl Syscalls<u64, SparseMemory> for VMSyscalls {
 #[cfg(test)]
 // use std::fs::File;
 // use std::io::Read;
-
 #[test]
 fn test_simple() {
     let mut buffer = Vec::new();
@@ -234,7 +246,10 @@ fn test_syscall2() {
     let bytes = vm.get_retbytes();
     println!("syscalls2 returns {:X?}", bytes);
     // The return val should be the sha256 hash of "hello"
-    assert_eq!(bytes, &hex::decode("2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824").unwrap());
+    assert_eq!(
+        bytes,
+        &hex::decode("2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824").unwrap()
+    );
 }
 
 #[test]
@@ -249,12 +264,13 @@ fn test_ecdsa() {
     // let result = vm.run(&buffer, &vec![b"__vm_script".to_vec()]);
     let mut pubkey = hex::decode("e91c69230bd93ccd2c64913e71c0f34ddabbefb4acb3a475eae387621fec89325822d4b15e2b72fd1ffd5b58ff1d726c55b74ce114317c3879547199891d3679").unwrap();
     let sig = hex::decode("166f23ef9c6a5528070dd26ad3b39aeb5f7a7724e7c7c9735c74c0e4a9b820670c6135e5cb51517a461a63cb566a67ec22cb56fda4e4706826e767b1cf37963c").unwrap();
-    let mut msg = hex::decode("0000000000000000000000000000000000000000000000000000000000000000").unwrap();
+    let mut msg =
+        hex::decode("0000000000000000000000000000000000000000000000000000000000000000").unwrap();
     let mut args = vec![];
     args.append(&mut pubkey);
     args.append(&mut sig.to_vec());
     args.append(&mut msg);
-    let result = vm.run_func(&buffer, 2, args.to_vec() );
+    let result = vm.run_func(&buffer, 2, args.to_vec());
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), 1);
 
