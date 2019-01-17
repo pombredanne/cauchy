@@ -26,46 +26,67 @@ int default_CSPRNG(uint8_t *dest, unsigned int size)
 
 int main(int argc, char *argv[])
 {
+    int retval = 0;
     char privkey[32] = {0};
     char pubkey[64] = {0};
     char sig[64] = {0};
     char hash[32] = {0};
 
-    // memcpy(pubkey, argv[1], sizeof(pubkey));
-    // memcpy(sig, argv[1]+sizeof(pubkey), sizeof(sig));
-    // memcpy(hash, argv[1]+sizeof(pubkey)+sizeof(sig), sizeof(hash));
-    hex2bin("DEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF", hash, 64, NULL);
+    memcpy(pubkey, argv[1], sizeof(pubkey));
+    memcpy(sig, argv[1] + sizeof(pubkey), sizeof(sig));
+    memcpy(hash, argv[1] + sizeof(pubkey) + sizeof(sig), sizeof(hash));
+    // hex2bin("DEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF", hash, 64, NULL);
 
-    // uECC_Curve curve = uECC_secp256r1();
+    uECC_Curve curve = uECC_secp256r1();
 
-    // if (!uECC_make_key(pubkey, privkey, curve))
-    // {
-    //     return 1;
-    // }
+    const int func = *argv[0] & 0xFF;
+    switch (func)
+    {
+    case 0:
+        if (uECC_make_key(pubkey, privkey, curve))
+        {
+            __vm_retbytes(pubkey, sizeof(pubkey));
+            retval = 1;
+        }
+        break;
 
-    // if (!uECC_sign(privkey, hash, sizeof(hash), sig, curve))
-    // {
-    //     return 1;
-    // }
+    case 1:
+        if (!uECC_make_key(pubkey, privkey, curve))
+        {
+            return 0;
+        }
 
-    // if (!uECC_verify(pubkey, hash, sizeof(hash), sig, curve))
-    // {
-    //     return 1;
-    // }
+        if (uECC_sign(privkey, hash, sizeof(hash), sig, curve))
+        {
+            __vm_retbytes(sig, sizeof(sig));
+            retval = 1;
+        }
+        break;
+    case 2:
+        if (uECC_verify(pubkey, hash, sizeof(hash), sig, curve))
+        {
+            retval = 1;
+        }
 
-    __asm__ volatile(
-        "mv a3, %0\n\t"
-        "mv a4, %1\n\t"
-        "mv a5, %2\n\t"
-        "mv a6, %3\n\t"
-        "li a7, 0xCBFE\n\t"
-        "ecall\n\t"
-        : /* no output */
-        : "r"(recvbuff), "r"(recvsize), "r"(sendbuff), "r"(sendsize)
-        : "a3", "a4", "a5", "a6", "a7");
+        break;
+    default:
+         __vm_retbytes(argv[0], 1);
+        break;
+    }
+
+    // __asm__ volatile(
+    //     "mv a3, %0\n\t"
+    //     "mv a4, %1\n\t"
+    //     "mv a5, %2\n\t"
+    //     "mv a6, %3\n\t"
+    //     "li a7, 0xCBFE\n\t"
+    //     "ecall\n\t"
+    //     : /* no output */
+    //     : "r"(recvbuff), "r"(recvsize), "r"(sendbuff), "r"(sendsize)
+    //     : "a3", "a4", "a5", "a6", "a7");
 
     // default_CSPRNG(pubkey, 64);
-    __vm_retbytes(sig, sizeof(sig));
-    __vm_exit(0);
-    return 0;
+    // __vm_retbytes(hash, sizeof(hash));
+    // __vm_exit(retval);
+    return retval;
 }
