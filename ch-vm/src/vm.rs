@@ -6,6 +6,7 @@ use ckb_vm::memory::Memory;
 use std::fs::File;
 use std::io::Read;
 use std::vec::Vec;
+use std::str;
 
 pub struct VM {
     ret_bytes: Vec<u8>,
@@ -101,19 +102,24 @@ impl Syscalls<u64, SparseMemory> for VMSyscalls {
                 let send_addr = machine.registers()[A5];
                 let send_sz = machine.registers()[A6];
 
-                // Get the send bytes
+                // Get TXID we're trying to call
                 let mut txid = Vec::<u8>::new();
                 for idx in txid_addr..(txid_addr + 64) {
                     txid.push(machine.memory_mut().load8(idx as usize).unwrap());
                 }
-                println!("txid: {:X?} from addr: {:X?}", &hex::decode(txid).unwrap(), txid_addr);
+                // println!("txid: {:X?} from addr: {:X?}", &hex::decode(txid).unwrap(), txid_addr);
+                println!(
+                    "txid: {:X?} from addr: {:X?}",
+                    hex::encode(hex::decode(txid).unwrap()),
+                    txid_addr
+                );
 
                 // Get the send bytes
                 let mut send_bytes = Vec::<u8>::new();
                 for idx in send_addr..(send_addr + send_sz) {
                     send_bytes.push(machine.memory_mut().load8(idx as usize).unwrap());
                 }
-                println!("passing: {:X?} from addr: {:X?}", send_bytes, send_addr);
+                println!("passing: {:X?} from addr: {:X?}", str::from_utf8(&send_bytes).unwrap(), send_addr);
 
                 // Lookup the script that's being called
                 let call_script = &VMSyscalls::lookup_script();
@@ -123,7 +129,6 @@ impl Syscalls<u64, SparseMemory> for VMSyscalls {
                 call_machine.add_syscall_module(Box::new(VMSyscalls {}));
 
                 // Get any input bytes intended to be sent to the callable script
-                // let input_bytes = call_machine.get_retbytes().to_vec();
                 let len = send_bytes.len();
                 let args = &vec![
                     b"__vm_script".to_vec(),
@@ -135,17 +140,11 @@ impl Syscalls<u64, SparseMemory> for VMSyscalls {
                 let store_bytes = call_machine.get_retbytes().to_vec();
 
                 // Store our value at address addr
-                // let store_bytes = hex::decode("DEADBEEF").unwrap();
                 machine
                     .memory_mut()
                     .store_bytes(recv_addr as usize, &store_bytes)
                     .unwrap();
 
-                // let mut ret_bytes = Vec::<u8>::new();
-                // for idx in recv_addr..(recv_addr + recv_sz) {
-                //     ret_bytes.push(machine.memory_mut().load8(idx as usize).unwrap());
-                // }
-                // println!("{:X?}", ret_bytes);
                 Ok(true)
             }
             _ => Ok(false),

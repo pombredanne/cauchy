@@ -22,7 +22,7 @@ int main(int argc, char *argv[])
     // __vm_retval("ABCDEFGH",8);
     char recv_buff[32];
     
-    __vm_call("DEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF", argv[1], 5, recv_buff, 32);
+    __vm_call("000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F", argv[1], 5, recv_buff, 32);
     __vm_retbytes(recv_buff, 32);
     // __vm_exit(0);
     return 0;
