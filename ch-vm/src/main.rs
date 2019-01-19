@@ -10,27 +10,29 @@ pub mod vm;
 use self::vm::VM;
 
 fn main() {
-    let (mut sk, mut pk) = gen_keypair_onchain();
-    println!("SK: {:X?}, PK: {:X?}", &hex::encode(&sk), &hex::encode(&pk));
+    let (sk, pk) = gen_keypair_onchain();
+    println!(
+        "SK:  {:X?}\nPK:  {:X?}",
+        &hex::encode(&sk),
+        &hex::encode(&pk)
+    );
 
-    let tx_data = b"This is my TX data!".to_vec();
-    let mut hash = gen_sha256(tx_data);
-    println!("Msg hash: {:X?}", &hex::encode(&hash));
+    let tx_data = b"abc".to_vec();
+    let hash = gen_sha256(&tx_data);
+    println!("hsh: {:X?}", &hex::encode(&hash));
 
-    let mut sig = gen_sig(&mut sk, &mut hash);
+    let sig = gen_sig(&sk, &hash);
     println!("Sig: {:X?}", &hex::encode(&sig));
 
-    let verified = verify_sig(&mut pk, &mut sig, &mut hash);
-    if(verified){
+    let verified = verify_sig(&pk, &sig, &hash);
+    if (verified) {
         println!("Sig verified!");
-    }
-    else
-    {
-        println!("Sig failed :-(");
+    } else {
+        println!("Sig verify failed :-(");
     }
 }
 
-fn verify_sig(mut pubkey: &mut Vec<u8>, mut sig: &mut Vec<u8>, mut hash: &mut Vec<u8>) -> bool {
+fn verify_sig(pubkey: &Vec<u8>, sig: &Vec<u8>, hash: &Vec<u8>) -> bool {
     let mut buffer = Vec::new();
     File::open("scripts/ecdsa")
         .unwrap()
@@ -39,16 +41,16 @@ fn verify_sig(mut pubkey: &mut Vec<u8>, mut sig: &mut Vec<u8>, mut hash: &mut Ve
 
     let mut vm = VM::new();
     let mut input_bytes = Vec::new();
-    input_bytes.append(&mut pubkey);
-    input_bytes.append(&mut sig);
-    input_bytes.append(&mut hash);
+    input_bytes.append(&mut pubkey.to_vec());
+    input_bytes.append(&mut sig.to_vec());
+    input_bytes.append(&mut hash.to_vec());
+
     let retval = vm.run_func(&buffer, 2, input_bytes);
     assert!(retval.is_ok());
-    println!("{:X?}", &hex::encode(vm.get_retbytes()));
-    retval.unwrap() == 1
+    retval.unwrap() == 2
 }
 
-fn gen_sig(mut privkey: &mut Vec<u8>, mut hash: &mut Vec<u8>) -> Vec<u8> {
+fn gen_sig(privkey: &Vec<u8>, hash: &Vec<u8>) -> Vec<u8> {
     let mut buffer = Vec::new();
     File::open("scripts/ecdsa")
         .unwrap()
@@ -57,14 +59,15 @@ fn gen_sig(mut privkey: &mut Vec<u8>, mut hash: &mut Vec<u8>) -> Vec<u8> {
 
     let mut vm = VM::new();
     let mut input_bytes = Vec::new();
-    input_bytes.append(&mut privkey);
-    input_bytes.append(&mut hash);
+    input_bytes.append(&mut privkey.to_vec());
+    input_bytes.append(&mut hash.to_vec());
     let retval = vm.run_func(&buffer, 1, input_bytes);
     assert!(retval.is_ok());
+    assert_eq!(retval.unwrap(), 1);
     vm.get_retbytes().to_vec()
 }
 
-fn gen_sha256(bytes: Vec<u8>) -> Vec<u8> {
+fn gen_sha256(bytes: &Vec<u8>) -> Vec<u8> {
     let mut buffer = Vec::new();
     File::open("scripts/sha256")
         .unwrap()
@@ -72,8 +75,9 @@ fn gen_sha256(bytes: Vec<u8>) -> Vec<u8> {
         .unwrap();
 
     let mut vm = VM::new();
-    let retval = vm.run_func(&buffer, 0, bytes);
+    let retval = vm.run_func(&buffer, 0, bytes.to_vec());
     assert!(retval.is_ok());
+    // println!("sha retval: {:?}", retval.unwrap());
     vm.get_retbytes().to_vec()
 }
 
@@ -87,11 +91,13 @@ fn gen_keypair_onchain() -> (Vec<u8>, Vec<u8>) {
     let mut vm = VM::new();
     let retval = vm.run_func(&buffer, 0, vec![]);
     assert!(retval.is_ok());
-    assert_eq!(retval.unwrap(), 1);
+    assert_eq!(retval.unwrap(), 0);
     let ret_bytes = vm.get_retbytes();
-    println!("genkeys: {:X?}", &ret_bytes);
-    let privkey = ret_bytes[0..32].to_vec();
+    let privkey = ret_bytes[..32].to_vec();
     let pubkey = ret_bytes[32..32 + 64].to_vec();
+
+    assert_eq!(privkey.len(), 32);
+    assert_eq!(pubkey.len(), 64);
     (privkey, pubkey)
 }
 

@@ -1,12 +1,15 @@
 extern crate ckb_vm;
+extern crate rand;
 
 use ckb_vm::{CoreMachine, Error, SparseMemory, Syscalls, A0, A1, A2, A3, A4, A5, A6, A7};
 
 use ckb_vm::memory::Memory;
 use std::fs::File;
 use std::io::Read;
-use std::vec::Vec;
 use std::str;
+use std::vec::Vec;
+use rand::rngs::OsRng;
+use crate::vm::rand::RngCore;
 
 pub struct VM {
     ret_bytes: Vec<u8>,
@@ -40,8 +43,9 @@ impl VM {
         let args = &vec![
             vec![func_index],
             input_bytes,
-            len.to_string().as_bytes().to_vec(),
+            vec![len as u8, 0, 0, 0], // len.to_string().as_bytes().to_vec(),
         ];
+        // println!("args: {:X?}", &args);
         self.run(buffer, args)
     }
 
@@ -119,7 +123,11 @@ impl Syscalls<u64, SparseMemory> for VMSyscalls {
                 for idx in send_addr..(send_addr + send_sz) {
                     send_bytes.push(machine.memory_mut().load8(idx as usize).unwrap());
                 }
-                println!("passing: {:X?} from addr: {:X?}", str::from_utf8(&send_bytes).unwrap(), send_addr);
+                println!(
+                    "passing: {:X?} from addr: {:X?}",
+                    str::from_utf8(&send_bytes).unwrap(),
+                    send_addr
+                );
 
                 // Lookup the script that's being called
                 let call_script = &VMSyscalls::lookup_script();
@@ -145,6 +153,22 @@ impl Syscalls<u64, SparseMemory> for VMSyscalls {
                     .store_bytes(recv_addr as usize, &store_bytes)
                     .unwrap();
 
+                Ok(true)
+            }
+            0xCBFD => {
+                let mut rng = match OsRng::new() {
+                    Ok(g) => g,
+                    Err(e) => panic!("Failed to obtain OS RNG: {}", e),
+                };
+                let sz = machine.registers()[A5];
+                let addr = machine.registers()[A6];
+                let mut rng_bytes = vec![0; sz as usize];
+                rng.fill_bytes(&mut rng_bytes);
+                // println!("{:X?}", rng_bytes);
+                machine
+                    .memory_mut()
+                    .store_bytes(addr as usize, &rng_bytes)
+                    .unwrap();
                 Ok(true)
             }
             _ => Ok(false),

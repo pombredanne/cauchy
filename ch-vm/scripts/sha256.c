@@ -272,7 +272,10 @@ int main(int argc, char *argv[])
 	if (argc < 3)
 		tc_sha256_update(&s, NULL, 0);
 	else
-		tc_sha256_update(&s, argv[1], atoi(argv[2]));
+		tc_sha256_update(&s, argv[1], *(int *)argv[2]);
+		// return *(int*)argv[2];
+		// __vm_retbytes((int)argv[2], 1);
+	// tc_sha256_update(&s, argv[1], atoi(argv[2]));
 
 	(void)tc_sha256_final(digest, &s);
 

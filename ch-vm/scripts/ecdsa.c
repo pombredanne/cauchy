@@ -8,19 +8,7 @@
 
 int default_CSPRNG(uint8_t *dest, unsigned int size)
 {
-    int bytes_remaining = size;
-    int shift = 0;
-    int randint = rand();
-
-    while (bytes_remaining-- > 0)
-    {
-        if (bytes_remaining % sizeof(int) == 0)
-        {
-            randint = rand();
-            shift = 0;
-        }
-        dest[bytes_remaining - 1] = randint << shift++;
-    }
+    __vm_getrand(dest, size);
     return 1;
 }
 
@@ -28,9 +16,9 @@ int main(int argc, char *argv[])
 {
     int retval = 0;
     char privkey[32] = {1};
-    char pubkey[64] = {2};
-    char sig[64] = {3};
-    char hash[32] = {4};
+    char hash[32] = {2};
+    char pubkey[64] = {3};
+    char sig[64] = {4};
     // hex2bin("DEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF", hash, 64, NULL);
 
     uECC_Curve curve = uECC_secp256r1();
@@ -47,44 +35,42 @@ int main(int argc, char *argv[])
         if (uECC_make_key(pubkey, privkey, curve))
         {
             // Copy both to buff before copying out
-            // char buff[sizeof(privkey) + sizeof(pubkey)] = {0};
             char buff[32 + 64] = {0};
-            default_CSPRNG(privkey, sizeof(privkey));
-            // memcpy(buff, privkey, sizeof(privkey));
-            // memcpy(buff+sizeof(privkey), pubkey, sizeof(pubkey));
             memcpy(buff, privkey, 32);
-            memcpy(buff+32, pubkey, 64);
-            
+            memcpy(buff + 32, pubkey, 64);
+
             // Return privkey || pubkey
             __vm_retbytes(buff, sizeof(buff));
-            retval = 1;
+            retval = 0;
         }
         break;
 
     case 1:
+    {
         memcpy(privkey, argv[1], sizeof(privkey));
         memcpy(hash, argv[1] + sizeof(privkey), sizeof(hash));
+
         if (uECC_sign(privkey, hash, sizeof(hash), sig, curve))
         {
             __vm_retbytes(sig, sizeof(sig));
             retval = 1;
         }
         break;
-
+    }
     case 2:
         memcpy(pubkey, argv[1], sizeof(pubkey));
         memcpy(sig, argv[1] + sizeof(pubkey), sizeof(sig));
-        // memcpy(hash, argv[1] + sizeof(pubkey) + sizeof(sig), sizeof(hash));
+        memcpy(hash, argv[1] + sizeof(pubkey) + sizeof(sig), sizeof(hash));
 
-        __vm_retbytes(pubkey, sizeof(pubkey));
-        // if (uECC_verify(pubkey, hash, sizeof(hash), sig, curve))
-        // {
-        //     retval = 1;
-        // }
+        __vm_retbytes(sig, sizeof(sig));
+        if (uECC_verify(pubkey, hash, sizeof(hash), sig, curve))
+        {
+            retval = 2;
+        }
 
         break;
     default:
-        __vm_retbytes(argv[0], 1);
+        // __vm_retbytes(argv[0], 1);
         break;
     }
 
