@@ -299,10 +299,9 @@ fn test_ecdsa() {
 
     let mut vm = VM::new();
     // let result = vm.run(&buffer, &vec![b"__vm_script".to_vec()]);
-    let mut pubkey = hex::decode("e91c69230bd93ccd2c64913e71c0f34ddabbefb4acb3a475eae387621fec89325822d4b15e2b72fd1ffd5b58ff1d726c55b74ce114317c3879547199891d3679").unwrap();
-    let sig = hex::decode("166f23ef9c6a5528070dd26ad3b39aeb5f7a7724e7c7c9735c74c0e4a9b820670c6135e5cb51517a461a63cb566a67ec22cb56fda4e4706826e767b1cf37963c").unwrap();
-    let mut msg =
-        hex::decode("0000000000000000000000000000000000000000000000000000000000000000").unwrap();
+    let mut pubkey = hex::decode("927d42216ae79f7599a50e1204da87cf7fce8fe278773ddd9348393b7ee4d714098fd88fba58bd0e014023118858f67e2294719b53deb1546edf7c3440fefe9f").unwrap();
+    let sig = hex::decode("84a28969215b235bcf00cc11330a20198f71a0b51f71badccd535dfbaf776cd1c25e7e75fccaff0f14546d9b2f33d6d7d351590f6590a0c682ac0d8422025edc").unwrap();
+    let mut msg = hex::decode("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad").unwrap();
     let mut args = vec![];
     args.append(&mut pubkey);
     args.append(&mut sig.to_vec());
