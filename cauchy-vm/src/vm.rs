@@ -44,7 +44,13 @@ impl VM {
         let args = &vec![
             vec![func_index],
             input_bytes,
-            vec![len as u8, 0, 0, 0], // len.to_string().as_bytes().to_vec(),
+            vec![
+                len as u8,
+                (len >> 8) as u8,
+                (len >> 16) as u8,
+                (len >> 24) as u8,
+            ],
+            // vec![len as u8, 0, 0, 0], // len.to_string().as_bytes().to_vec(),
         ];
         // println!("args: {:X?}", &args);
         self.run(buffer, args)
@@ -140,7 +146,16 @@ impl Syscalls<u64, SparseMemory> for VMSyscalls {
 
                 // Get any input bytes intended to be sent to the callable script
                 let len = send_bytes.len();
-                let args = &vec![vec![func_index], send_bytes, vec![len as u8, 0, 0, 0]];
+                let args = &vec![
+                    vec![func_index],
+                    send_bytes,
+                    vec![
+                        len as u8,
+                        (len >> 8) as u8,
+                        (len >> 16) as u8,
+                        (len >> 24) as u8,
+                    ],
+                ];
                 let result = call_machine.run(call_script, args);
                 assert!(result.is_ok());
                 let store_bytes = call_machine.get_retbytes().to_vec();
@@ -262,6 +277,18 @@ fn test_sha256() {
         &hex::decode("9595c9df90075148eb06860365df33584b75bff782a510c6cd4883a419833d50").unwrap()
     );
 
+     // Now test hashing the binary itself
+     let mut buffer = Vec::new();
+    File::open("tests/sha256").unwrap().read_to_end(&mut buffer).unwrap();
+    let result = vm.run_args(&buffer, buffer.to_vec());
+    assert!(result.is_ok());
+    let bytes = vm.get_retbytes();
+    assert_eq!(
+        bytes,
+        &hex::decode("e3f2b1b1fdffc0f58ca63ee2e2fc2a233a0463df7244f534f2a581c822ec3631").unwrap()
+    );
+
+
     let bytes = vm.get_retbytes();
     println!("{:X?}", bytes);
 }
@@ -285,6 +312,7 @@ fn test_syscall2() {
     // The return val should be the sha256 hash of "hello"
     assert_eq!(
         bytes,
+        // &hex::decode("87c5158b276f5afd0709709edb49a8b3a9e38de5b9e54ca9dcce8e94b7f631d1").unwrap()
         &hex::decode("2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824").unwrap()
     );
 }
@@ -301,7 +329,8 @@ fn test_ecdsa() {
     // let result = vm.run(&buffer, &vec![b"__vm_script".to_vec()]);
     let mut pubkey = hex::decode("927d42216ae79f7599a50e1204da87cf7fce8fe278773ddd9348393b7ee4d714098fd88fba58bd0e014023118858f67e2294719b53deb1546edf7c3440fefe9f").unwrap();
     let sig = hex::decode("84a28969215b235bcf00cc11330a20198f71a0b51f71badccd535dfbaf776cd1c25e7e75fccaff0f14546d9b2f33d6d7d351590f6590a0c682ac0d8422025edc").unwrap();
-    let mut msg = hex::decode("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad").unwrap();
+    let mut msg =
+        hex::decode("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad").unwrap();
     let mut args = vec![];
     args.append(&mut pubkey);
     args.append(&mut sig.to_vec());
