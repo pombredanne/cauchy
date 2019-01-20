@@ -3,13 +3,13 @@ extern crate rand;
 
 use ckb_vm::{CoreMachine, Error, SparseMemory, Syscalls, A0, A1, A2, A3, A4, A5, A6, A7};
 
+use crate::vm::rand::RngCore;
 use ckb_vm::memory::Memory;
+use rand::rngs::OsRng;
 use std::fs::File;
 use std::io::Read;
 use std::str;
 use std::vec::Vec;
-use rand::rngs::OsRng;
-use crate::vm::rand::RngCore;
 
 pub struct VM {
     ret_bytes: Vec<u8>,
@@ -105,6 +105,7 @@ impl Syscalls<u64, SparseMemory> for VMSyscalls {
                 let recv_sz = machine.registers()[A4];
                 let send_addr = machine.registers()[A5];
                 let send_sz = machine.registers()[A6];
+                let func_index = 0;
 
                 // Get TXID we're trying to call
                 let mut txid = Vec::<u8>::new();
@@ -139,9 +140,9 @@ impl Syscalls<u64, SparseMemory> for VMSyscalls {
                 // Get any input bytes intended to be sent to the callable script
                 let len = send_bytes.len();
                 let args = &vec![
-                    b"__vm_script".to_vec(),
+                    vec![func_index],
                     send_bytes,
-                    len.to_string().as_bytes().to_vec(),
+                    vec![len as u8, 0, 0, 0],
                 ];
                 let result = call_machine.run(call_script, args);
                 assert!(result.is_ok());
@@ -295,11 +296,6 @@ fn test_ecdsa() {
     args.append(&mut msg);
     let result = vm.run_func(&buffer, 2, args.to_vec());
     assert!(result.is_ok());
-    assert_eq!(result.unwrap(), 1);
-
-    let bytes = vm.get_retbytes();
-    println!("ecsda_test returns {:?}", &hex::encode(bytes));
-    // assert_eq!(bytes, &vec![133, 11, 22, 45, 153, 51, 103, 207, 200, 145, 35, 70, 37, 74, 148, 41, 96, 193, 130, 4, 182, 109, 218, 180, 239, 222, 188, 120, 59, 118, 236, 216]);
-    assert_eq!(bytes, &sig);
-    assert!(false);
+    // assert if sig verify fails
+    assert_eq!(result.unwrap(), 2);
 }
