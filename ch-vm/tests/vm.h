@@ -35,16 +35,24 @@
     : "a2", "a3", "a4", "a5", "a6", "a7")
 
 #define __vm_getrand(addr, size) __asm__ volatile( \
-    "mv a5, %1\n\t"                                 \
-    "mv a6, %0\n\t"                                 \
-    "li a7, 0xCBFD\n\t"                             \
-    "ecall\n\t"                                     \
-    : /* no outputs */                              \
-    : "r"(addr), "r"(size)                          \
+    "mv a5, %1\n\t"                                \
+    "mv a6, %0\n\t"                                \
+    "li a7, 0xCBFD\n\t"                            \
+    "ecall\n\t"                                    \
+    : /* no outputs */                             \
+    : "r"(addr), "r"(size)                         \
     : "a5", "a6", "a7")
 
-
-
+void __vm_gettime(int *time)
+{
+    __asm__ volatile(
+        "mv a5, %0\n\t"
+        "li a7, 0xCBFC\n\t"
+        "ecall\n\t"
+        : /* no outputs */
+        : "r"(time)
+        : "a5", "a7");
+}
 // typedef unsigned int size_t;
 
 // void *memset(void *dst, int c, size_t n)

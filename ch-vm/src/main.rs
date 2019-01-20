@@ -6,13 +6,16 @@ use std::io::Read;
 use std::time::{Duration, Instant};
 use std::vec::Vec;
 
+
 pub mod vm;
 use self::vm::VM;
 
 fn main() {
-    // let (sk, pk) = gen_keypair_onchain();
-    let sk = hex::decode("a901c2899091c75bf2cc7e2540d855ea8faa1b09b4f4f02528a6427d454decbc").unwrap();
-    let pk = hex::decode("1f63d51b1420c5d7bdd19aef42ceeb4fc4fe3403f3c9ea7c3b72c8731e96d2d9bdc8536df25ac575eaf25b0fe6522984889840b941a9d6fde79e7cb21b512b6f").unwrap();
+    
+    /*
+    let (sk, pk) = gen_keypair_onchain();
+    // let sk = hex::decode("a901c2899091c75bf2cc7e2540d855ea8faa1b09b4f4f02528a6427d454decbc").unwrap();
+    // let pk = hex::decode("1f63d51b1420c5d7bdd19aef42ceeb4fc4fe3403f3c9ea7c3b72c8731e96d2d9bdc8536df25ac575eaf25b0fe6522984889840b941a9d6fde79e7cb21b512b6f").unwrap();
     println!(
         "SK:  {:X?}\nPK:  {:X?}",
         &hex::encode(&sk),
@@ -32,6 +35,7 @@ fn main() {
     } else {
         println!("Sig verify failed :-(");
     }
+    */
 }
 
 fn verify_sig(pubkey: &Vec<u8>, sig: &Vec<u8>, hash: &Vec<u8>) -> bool {

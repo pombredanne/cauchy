@@ -9,6 +9,7 @@ use rand::rngs::OsRng;
 use std::fs::File;
 use std::io::Read;
 use std::str;
+use std::time::SystemTime;
 use std::vec::Vec;
 
 pub struct VM {
@@ -139,11 +140,7 @@ impl Syscalls<u64, SparseMemory> for VMSyscalls {
 
                 // Get any input bytes intended to be sent to the callable script
                 let len = send_bytes.len();
-                let args = &vec![
-                    vec![func_index],
-                    send_bytes,
-                    vec![len as u8, 0, 0, 0],
-                ];
+                let args = &vec![vec![func_index], send_bytes, vec![len as u8, 0, 0, 0]];
                 let result = call_machine.run(call_script, args);
                 assert!(result.is_ok());
                 let store_bytes = call_machine.get_retbytes().to_vec();
@@ -169,6 +166,22 @@ impl Syscalls<u64, SparseMemory> for VMSyscalls {
                 machine
                     .memory_mut()
                     .store_bytes(addr as usize, &rng_bytes)
+                    .unwrap();
+                Ok(true)
+            }
+            // __vm_gettime()
+            0xCBFC => {
+                let addr = machine.registers()[A5];
+                let t = SystemTime::now()
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs();
+                machine
+                    .memory_mut()
+                    .store_bytes(
+                        addr as usize,
+                        &vec![t as u8, (t >> 8) as u8, (t >> 16) as u8, (t >> 24) as u8],
+                    )
                     .unwrap();
                 Ok(true)
             }
@@ -298,4 +311,19 @@ fn test_ecdsa() {
     assert!(result.is_ok());
     // assert if sig verify fails
     assert_eq!(result.unwrap(), 2);
+}
+
+#[test]
+fn test_time() {
+    let mut buffer = Vec::new();
+    File::open("tests/time")
+        .unwrap()
+        .read_to_end(&mut buffer)
+        .unwrap();
+
+    let mut vm = VM::new();
+    let result = vm.run_func(&buffer, 0, vec![]);
+    println!("{:X?}", &hex::encode(&vm.get_retbytes()));
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), 1);
 }
