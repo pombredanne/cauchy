@@ -1,9 +1,14 @@
-use bytes::Buf;
-use bytes::Bytes;
+use std::sync::Arc;
+
+use bytes::{Buf, Bytes};
 use crypto::hashes::blake2b::Blk2bHashable;
+
+use db::rocksdb::RocksDb;
+use db::*;
 use primitives::script::Script;
 use primitives::varint::VarInt;
 use utils::constants::*;
+use utils::serialisation::*;
 
 /*
                        v Number of referancable scripts
@@ -23,12 +28,21 @@ pub struct Transaction {
 }
 
 impl Transaction {
-    pub fn new(time: u64, n_spendable: u32, scripts: Vec<Script>) -> Self {
+    pub fn new(time: u64, n_spendable: u32, scripts: Vec<Script>) -> Transaction {
         Transaction {
             time,
             n_spendable,
             scripts,
         }
+    }
+
+    pub fn from_id(tx_db: Arc<RocksDb>, tx_id: Bytes) -> Result<Option<Transaction>, String> {
+        let tx_raw_opt = tx_db.get(&tx_id)?;
+        let tx_raw = match tx_raw_opt {
+            Some(some) => some,
+            None => return Ok(None),
+        };
+        Ok(Some(Transaction::try_from(tx_raw)?))
     }
 
     pub fn get_script(&self, i: usize) -> Result<&Script, String> {

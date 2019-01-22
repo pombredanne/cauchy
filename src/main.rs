@@ -19,23 +19,21 @@ pub mod utils;
 
 use bus::Bus;
 use bytes::Bytes;
+use crossbeam::channel;
 use crypto::signatures::ecdsa;
-use crypto::sketches::odd_sketch::*;
+use db::rocksdb::RocksDb;
+use db::*;
+use futures::lazy;
+use futures::sync::mpsc;
 use primitives::script::Script;
 use primitives::status::Status;
 use primitives::transaction::Transaction;
-use utils::mining;
-
-use db::rocksdb::RocksDb;
-use db::*;
-use utils::constants::*;
-
-use crossbeam::channel;
-use futures::future::lazy;
 use rand::Rng;
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time;
+use utils::constants::*;
+use utils::mining;
 
 #[cfg(test)]
 mod test {
@@ -52,20 +50,11 @@ mod test {
 fn main() {
     let tx_db = Arc::new(RocksDb::open_db(TX_DB_PATH).unwrap());
 
-    let mut state = vec![
-        Bytes::from(&b"a"[..]),
-        Bytes::from(&b"b"[..]),
-        Bytes::from(&b"c"[..]),
-        Bytes::from(&b"d"[..]),
-        Bytes::from(&b"e"[..]),
-        Bytes::from(&b"f"[..]),
-    ];
-
     let (sk, pk) = ecdsa::generate_keypair();
 
     let (distance_send, distance_recv) = channel::unbounded();
     let mut odd_sketch_bus = Bus::new(10);
-    let n_mining_threads: u64 = 0;
+    let n_mining_threads: u64 = 1;
 
     for i in 0..n_mining_threads {
         let distance_send_c = distance_send.clone();
@@ -81,15 +70,23 @@ fn main() {
     let secret_shared = Arc::new(RwLock::new(secret));
 
     // Server
-    let status_c = self_status.clone();
-    let secret_shared_c = secret_shared.clone();
+    let (new_socket_tx, new_socket_rx) = mpsc::channel(1);
+    let status_inner = self_status.clone();
+    let secret_shared_inner = secret_shared.clone();
     let server_verbose = true;
-    let server = daemon::server(tx_db, status_c, pk, sk, secret_shared_c, server_verbose);
+    let server = daemon::server(
+        tx_db,
+        status_inner,
+        pk,
+        sk,
+        secret_shared_inner,
+        server_verbose,
+        new_socket_rx,
+    );
 
     // RPC Server
-    let secret_shared_c = secret_shared.clone();
     let rpc_verbose = true;
-    let rpc_server = daemon::rpc_server(secret_shared_c, rpc_verbose);
+    let rpc_server = daemon::rpc_server(rpc_verbose, new_socket_tx);
 
     // Spawn servers
     thread::spawn(move || {

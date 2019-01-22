@@ -49,7 +49,7 @@ impl Encoder for MessageCodec {
             }
             Message::OddSketch { sketch } => {
                 dst.put_u8(3);
-                dst.extend(Bytes::from(VarInt::new(sketch.len() as u64)));
+                //dst.extend(Bytes::from(VarInt::new(sketch.len() as u64)));
                 dst.extend(sketch);
             }
             Message::IBLT { iblt } => {
@@ -60,7 +60,6 @@ impl Encoder for MessageCodec {
                 dst.extend(iblt_raw);
             }
             Message::GetTransactions { ids } => {
-                let mut payload = BytesMut::new();
                 dst.put_u8(5);
                 dst.extend(Bytes::from(VarInt::new(ids.len() as u64)));
                 for id in ids {
@@ -90,8 +89,6 @@ impl Decoder for MessageCodec {
     type Item = Message;
     type Error = Error;
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-        // TODO: Magic bytes
-
         let mut buf = src.clone().into_buf();
 
         if buf.remaining() == 0 {
@@ -219,7 +216,7 @@ impl Decoder for MessageCodec {
                     let tx_len_vi = match VarInt::parse_buf(&mut buf) {
                         Ok(some) => some,
                         Err(_) => {
-                            return Err(Error::new(ErrorKind::Other, "Failed to parse VarInt"))
+                            return Err(Error::new(ErrorKind::Other, "Failed to parse VarInt"));
                         }
                     };
                     let tx_len_len = tx_len_vi.len();
@@ -253,8 +250,8 @@ impl Decoder for MessageCodec {
             }
             _ => {
                 // TODO: Remove malformed msgs
-                println!("{}", String::from_utf8_lossy(&src.clone().freeze()));
-                println!("{}", String::from_utf8_lossy(&buf.bytes()));
+                println!("Received: {}", String::from_utf8_lossy(&src.clone().freeze()));
+                println!("Received: {}", String::from_utf8_lossy(&buf.bytes()));
                 Err(Error::new(ErrorKind::InvalidData, "Invalid Message"))
             }
         }

@@ -1,12 +1,8 @@
-use bytes::Bytes;
-use db::rocksdb::RocksDb;
-use db::*;
-use primitives::status::Status;
-use secp256k1::{PublicKey, SecretKey};
-
+use futures::sync::mpsc;
+use futures::sync::oneshot;
+use futures::Future;
 use net::messages::*;
 use net::rpc_messages::*;
-use std::env;
 use std::net::SocketAddr;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
@@ -15,7 +11,11 @@ use tokio::io::{Error, ErrorKind};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::prelude::*;
 use tokio::timer::Interval;
-
+use bytes::Bytes;
+use db::rocksdb::RocksDb;
+use db::*;
+use primitives::status::Status;
+use secp256k1::{PublicKey, SecretKey};
 use crypto::signatures::ecdsa;
 use crypto::sketches::iblt::*;
 use crypto::sketches::odd_sketch::*;
@@ -27,12 +27,10 @@ use utils::constants::*;
 use utils::serialisation::*;
 
 pub fn rpc_server(
-    secret: Arc<RwLock<u64>>,
     verbose: bool,
+    tcp_socket_send: mpsc::Sender<TcpStream>,
 ) -> impl Future<Item = (), Error = ()> + Send + 'static {
-    let addr = env::args()
-        .nth(1)
-        .unwrap_or(format!("0.0.0.0:{}", RPC_SERVER_PORT).to_string());
+    let addr = format!("0.0.0.0:{}", RPC_SERVER_PORT).to_string();
     let addr = addr.parse::<SocketAddr>().unwrap();
 
     let listener = TcpListener::bind(&addr)
@@ -41,7 +39,7 @@ pub fn rpc_server(
 
     let server = listener
         .incoming()
-        .map_err(|e| println!("error accepting socket; error = {:?}", e))
+        .map_err(|e| println!("Error accepting socket; error = {:?}", e))
         .for_each(move |socket| {
             let socket_addr = socket.peer_addr().unwrap();
             if verbose {
@@ -50,43 +48,42 @@ pub fn rpc_server(
 
             let framed_sock = Framed::new(socket, RPCCodec);
             let (_, stream) = framed_sock.split();
-            let secret_c = secret.clone();
+            let tcp_socket_send_inner = tcp_socket_send.clone();
 
             let send = stream
                 .for_each(move |msg| match msg {
                     RPC::AddPeer { addr } => {
-                        // TODO: Catch errors
                         if verbose {
                             println!("Received addpeer {} message from {}", addr, socket_addr);
                         }
-
-                        let secret_c = secret_c.clone();
-                        TcpStream::connect(&addr).and_then(move |sock| {
-                            if verbose {
-                                println!("Sent handshake initialisation to {}", addr);
-                            }
-
-                            let framed_sock = Framed::new(sock, MessageCodec);
-                            let (sink, _) = framed_sock.split();
-
-                            let secret_r: u64 = *secret_c.read().unwrap();
-                            sink.send(Message::StartHandshake { secret: secret_r })
-                                .map(|_| ())
-                                .or_else(|e| {
-                                    println!("error = {:?}", e);
-                                    Ok(())
-                                })
-                        })
+                        let tcp_socket_send_inner = tcp_socket_send_inner.clone();
+                        TcpStream::connect(&addr)
+                            .and_then(move |sock| {
+                                tcp_socket_send_inner
+                                    .send(sock)
+                                    .map_err(|e| Error::new(ErrorKind::Other, "RPC addpeer channel failure"))
+                            })
+                            .map(|_| ())
+                            .or_else(|e| {
+                                println!("error = {:?}", e);
+                                Ok(())
+                            })
                     }
                 })
-                .map(|_| ())
-                .or_else(|e| {
-                    println!("error = {:?}", e);
-                    Ok(())
-                });
+                .map_err(|e| ());
             tokio::spawn(send)
         });
     server
+}
+
+macro_rules! command_peer {
+    ($arena: ident, $pk: ident, $fn_name: ident, $input: ident) => {
+        let arena_r = $arena.read().unwrap();
+        let peer_status = arena_r.get_peer(&$pk).unwrap();
+        drop(arena_r);
+        peer_status.$fn_name($input);
+        drop(peer_status);
+    };
 }
 
 pub fn server(
@@ -96,280 +93,311 @@ pub fn server(
     local_sk: SecretKey,
     secret: Arc<RwLock<u64>>,
     verbose: bool,
+    new_stream_recv: mpsc::Receiver<TcpStream>,
+    //msg: mpsc::Receiver<Message>,
 ) -> impl Future<Item = (), Error = ()> + Send + 'static {
-    let mut arena = Arc::new(RwLock::new(Arena::new(&local_pk, self_status.clone())));
+    let arena = Arc::new(RwLock::new(Arena::new(&local_pk, self_status.clone())));
 
-    let addr = env::args()
-        .nth(1)
-        .unwrap_or(format!("0.0.0.0:{}", SERVER_PORT).to_string());
+    let addr = format!("0.0.0.0:{}", SERVER_PORT).to_string();
     let addr = addr.parse::<SocketAddr>().unwrap();
 
-    let dummy_pk = ecdsa::generate_dummy_pubkey();
-
     let listener = TcpListener::bind(&addr)
-        .map_err(|_| "failed to bind")
+        .map_err(|_| "Failed to bind")
         .unwrap();
 
-    let server = listener
+    let incoming = listener
         .incoming()
-        .map_err(|e| println!("error accepting socket; error = {:?}", e))
-        .for_each(move |socket| {
-            let socket_addr = socket.peer_addr().unwrap();
+        .map_err(|e| println!("Failure accepting socket; {:?}", e))
+        .select(new_stream_recv);
+
+    let server = incoming.for_each(move |socket| {
+        let socket_addr = socket.peer_addr().unwrap();
+        if verbose {
+            println!("New server socket to {}", socket_addr);
+        }
+
+        // Intiate handshake
+        let (handshake_sender, handshake_receiver) = mpsc::channel::<Message>(1);
+        let sender = handshake_sender.send(Message::StartHandshake { secret: *secret.read().unwrap() }).then(|tx| {
+                        match tx {
+                            Ok(_tx) => {
+                                println!("Sink flushed");
+                                Ok(())
+                            }
+                            Err(e) => {
+                                println!("Sink failed! {:?}", e);
+                                Err(())
+                            }
+                        }
+                    });
+        tokio::spawn(sender);
+
+        // Generate dummy pubkey
+        let dummy_pk = ecdsa::generate_dummy_pubkey();
+        let socket_pk = Arc::new(RwLock::new(dummy_pk));
+        let socked_pk_read = *socket_pk.read().unwrap();
+        let mut arena_w = arena.write().unwrap();
+        (*arena_w).new_peer(&socked_pk_read);
+        drop(arena_w);
+
+        // Frame the socket
+        let framed_sock = Framed::new(socket, MessageCodec);
+        let (sink, stream) = framed_sock.split();
+
+        let tx_db_inner = tx_db.clone();
+
+        // Heartbeat OddSketch
+        let self_status_inner = self_status.clone();
+        let heartbeat_odd_sketch = Interval::new_interval(Duration::new(
+            ODDSKETCH_HEARTBEAT_PERIOD_SEC,
+            ODDSKETCH_HEARTBEAT_PERIOD_NANO,
+        ))
+        .map(move |_| {
             if verbose {
-                println!("New server socket to {}", socket_addr);
+                println!("Sending odd sketch to {}", socket_addr);
             }
 
-            let socket_pk = Arc::new(RwLock::new(dummy_pk));
-            let framed_sock = Framed::new(socket, MessageCodec);
-            let (sink, stream) = framed_sock.split();
-            let tx_db_c = tx_db.clone();
+            Message::OddSketch {
+                sketch: self_status_inner.get_odd_sketch(),
+            }
+        })
+        .map_err(|_| Error::new(ErrorKind::Other, "Odd sketch heart failure"));
 
-            // Heartbeat OddSketch
-            let arena_c_a = arena.clone();
-            let arena_c_b = arena.clone();
-            let self_status_c = self_status.clone();
-            let heartbeat_odd_sketch = Interval::new_interval(Duration::new(
-                ODDSKETCH_HEARTBEAT_PERIOD_SEC,
-                ODDSKETCH_HEARTBEAT_PERIOD_NANO,
-            ))
-            .map(move |_| {
+        // Heartbeat Nonce
+        let arena_inner_a = arena.clone();
+        let arena_inner_b = arena.clone();
+        let self_status_inner = self_status.clone();
+        let socket_pk_inner = socket_pk.clone();
+        let heartbeat_nonce = Interval::new_interval(Duration::new(
+            NONCE_HEARTBEAT_PERIOD_SEC,
+            NONCE_HEARTBEAT_PERIOD_NANO,
+        ))
+        .map(move |_| {
+            (
+                self_status_inner.get_nonce(),
+                *socket_pk_inner.read().unwrap(),
+            )
+        })
+        .filter(move |(_, sock_pk)| *sock_pk != dummy_pk)
+        .filter(move |(current_nonce, sock_pk)| {
+            *current_nonce
+                != (*arena_inner_a.read().unwrap())
+                    .get_perception(sock_pk)
+                    .nonce
+        })
+        .map(move |(current_nonce, sock_pk)| {
+            if verbose {
+                println!("Sending nonce to {}", socket_addr);
+            }
+            let mut arena_r = arena_inner_b.write().unwrap();
+            (*arena_r).update_perception(&sock_pk);
+            drop(arena_r);
+
+            Message::Nonce {
+                nonce: current_nonce,
+            }
+        })
+        .map_err(|_| Error::new(ErrorKind::Other, "Nonce heart failure"));
+
+        // Heartbeat Reconcile
+        // TODO: Move out of this scope
+        let socket_pk_inner = socket_pk.clone();
+        let arena_inner = arena.clone();
+        let heartbeat_reconcile = Interval::new_interval(Duration::new(
+            RECONCILE_HEARTBEAT_PERIOD_SEC,
+            RECONCILE_HEARTBEAT_PERIOD_NANO,
+        ))
+        .map(move |_| *socket_pk_inner.read().unwrap())
+        .filter(move |sock_pk| *sock_pk != dummy_pk)
+        .filter(move |sock_pk| {
+            // Update order
+            let mut arena_r = arena_inner.write().unwrap();
+            (*arena_r).update_order();
+            drop(arena_r);
+
+            // Find leader
+            let arena_r = arena_inner.read().unwrap();
+            let leader_pk = arena_r.get_order()[0];
+            drop(arena_r);
+            *sock_pk == leader_pk
+        })
+        .map(|_| Message::Reconcile)
+        .map_err(|e| Error::new(ErrorKind::Other, e));
+
+        // Filter responses
+        let socket_pk_inner = socket_pk.clone();
+        let arena_inner = arena.clone();
+        let secret_inner = secret.clone();
+        let queries = stream.filter(move |msg| match msg {
+            Message::StartHandshake { .. } => {
                 if verbose {
-                    println!("Sending odd sketch to {}", socket_addr);
+                    println!("Received handshake initialisation from {}", socket_addr);
                 }
-
-                Message::OddSketch {
-                    sketch: self_status_c.get_odd_sketch(),
-                }
-            })
-            .map_err(|e| Error::new(ErrorKind::Other, "Odd sketch heart failure"));
-
-            // Heartbeat Nonce
-            let self_status_c = self_status.clone();
-            let socket_pk_c = socket_pk.clone();
-            let heartbeat_nonce = Interval::new_interval(Duration::new(
-                NONCE_HEARTBEAT_PERIOD_SEC,
-                NONCE_HEARTBEAT_PERIOD_NANO,
-            ))
-            .map(move |_| (self_status_c.get_nonce(), *socket_pk_c.read().unwrap()))
-            .filter(move |(_, sock_pk)| *sock_pk != dummy_pk)
-            .filter(move |(current_nonce, sock_pk)| {
-                *current_nonce != (*arena_c_a.read().unwrap()).get_perception(sock_pk).nonce
-            })
-            .map(move |(current_nonce, sock_pk)| {
+                true
+            }
+            Message::EndHandshake { pubkey, sig } => {
                 if verbose {
-                    println!("Sending nonce to {}", socket_addr);
+                    println!("Received handshake finalisation from {}", socket_addr);
                 }
-                let mut arena_r = arena_c_b.write().unwrap();
-                arena_r.update_perception(&sock_pk);
 
-                Message::Nonce {
-                    nonce: current_nonce,
+                // Add peer to arena
+                let secret_r: u64 = *secret_inner.read().unwrap();
+                let secret_msg = ecdsa::message_from_preimage(Bytes::from(VarInt::new(secret_r)));
+                if ecdsa::verify(&secret_msg, sig, pubkey).unwrap() {
+                    if verbose {
+                        println!("Handshake completed with {}", socket_addr);
+                    }
+                    let arena_inner = arena_inner.clone();
+
+                    let mut arena_write = arena_inner.write().unwrap();
+                    let socket_pk_read = *socket_pk_inner.read().unwrap();
+                    (*arena_write).replace_key(&socket_pk_read, &pubkey);
+                    drop(arena_write);
+                    drop(socket_pk_read);
+                    let mut socket_pk_locked = socket_pk_inner.write().unwrap();
+                    *socket_pk_locked = *pubkey;
+                } else {
+                    if verbose {
+                        println!("Handshake failed with {}", socket_addr);
+                    }
                 }
-            })
-            .map_err(|e| Error::new(ErrorKind::Other, "Nonce heart failure"));
-
-            // Heartbeat Reconcile
-            // TODO: Move out of this scope
-            let socket_pk_c = socket_pk.clone();
-            let arena_c = arena.clone();
-            let heartbeat_reconcile = Interval::new_interval(Duration::new(
-                RECONCILE_HEARTBEAT_PERIOD_SEC,
-                RECONCILE_HEARTBEAT_PERIOD_NANO,
-            ))
-            .map(move |_| *socket_pk_c.read().unwrap())
-            .filter(move |sock_pk| *sock_pk != dummy_pk)
-            .filter(move |sock_pk| {
+                false
+            }
+            Message::Nonce { nonce } => {
                 if verbose {
-                    println!("Sending reconcile to {}", socket_addr);
+                    println!("Received nonce from {}", socket_addr);
                 }
 
-                // Update order
-                let mut arena_r = arena_c.write().unwrap();
-                arena_r.update_order();
-                drop(arena_r);
-
-                // Find leader
-                let arena_r = arena_c.read().unwrap();
-                let leader_pk = arena_r.get_order()[0];
-                println!("Leader: {}", leader_pk);
-                println!("Socket: {}", sock_pk);
-                *sock_pk == leader_pk
-            })
-            .map(|_| Message::Reconcile)
-            .map_err(|e| Error::new(ErrorKind::Other, e));
-
-            // Filter responses
-            let socket_pk_c = socket_pk.clone();
-            let arena_c = arena.clone();
-            let secret_c = secret.clone();
-            let queries = stream.filter(move |msg| match msg {
-                Message::StartHandshake { .. } => {
-                    if verbose {
-                        println!("Received handshake initialisation from {}", socket_addr);
-                    }
-                    true
+                // Update nonce
+                let socket_pk_locked = *socket_pk_inner.read().unwrap();
+                let nonce = *nonce;
+                command_peer!(arena_inner, socket_pk_locked, update_nonce, nonce);
+                false
+            }
+            Message::OddSketch { sketch } => {
+                if verbose {
+                    println!("Received odd sketch from {}", socket_addr);
                 }
-                Message::EndHandshake { pubkey, sig } => {
-                    if verbose {
-                        println!("Received handshake finalisation from {}", socket_addr);
-                    }
 
-                    // Add peer to arena
-                    let new_status = Arc::new(Status::null());
-                    let mut arena_m = arena_c.write().unwrap();
-                    let secret_r: u64 = *secret_c.read().unwrap();
-                    let secret_msg =
-                        ecdsa::message_from_preimage(Bytes::from(VarInt::new(secret_r)));
-                    if ecdsa::verify(&secret_msg, sig, pubkey).unwrap() {
-                        if verbose {
-                            println!("Handshake completed with {}", socket_addr);
-                        }
-
-                        arena_m.add_peer(&pubkey, new_status);
-                        let mut socket_pk_locked = socket_pk_c.write().unwrap();
-                        *socket_pk_locked = *pubkey;
-                    } else {
-                        if verbose {
-                            println!("Handshake failed with {}", socket_addr);
-                        }
-                    }
-                    false
+                // Update state sketch
+                let socket_pk_locked = *socket_pk_inner.read().unwrap();
+                let sketch = sketch.clone();
+                command_peer!(arena_inner, socket_pk_locked, update_odd_sketch, sketch);
+                false
+            }
+            Message::IBLT { iblt } => {
+                if verbose {
+                    println!("Received IBLT from {}", socket_addr);
                 }
-                Message::Nonce { nonce } => {
-                    if verbose {
-                        println!("Received nonce from {}", socket_addr);
-                    }
 
-                    // Update nonce
-                    let arena_r = arena_c.read().unwrap();
-                    let socket_pk_locked = *socket_pk_c.read().unwrap();
-
-                    let peer_status = arena_r.get_peer(&socket_pk_locked);
-                    peer_status.update_nonce(*nonce);
-                    false
+                // let arena_r = arena_inner.read().unwrap();
+                let socket_pk_locked = *socket_pk_inner.read().unwrap();
+                let iblt = iblt.clone();
+                command_peer!(arena_inner, socket_pk_locked, update_mini_sketch, iblt);
+                true
+            }
+            Message::GetTransactions { .. } => {
+                if verbose {
+                    println!("Received transaction request from {}", socket_addr);
                 }
-                Message::OddSketch { sketch } => {
-                    if verbose {
-                        println!("Received odd sketch from {}", socket_addr);
-                    }
 
-                    // Update state sketch
-                    let arena_r = arena_c.read().unwrap();
-                    let socket_pk_locked = socket_pk_c.read().unwrap();
-                    let peer_status = arena_r.get_peer(&*socket_pk_locked);
-                    peer_status.update_odd_sketch(sketch.clone());
-                    false
+                true
+            }
+            Message::Transactions { .. } => {
+                if verbose {
+                    println!("Received transactions from {}", socket_addr);
                 }
-                Message::IBLT { iblt } => {
-                    if verbose {
-                        println!("Received IBLT from {}", socket_addr);
-                    }
 
-                    let arena_r = arena_c.read().unwrap();
-                    let socket_pk_locked = *socket_pk_c.read().unwrap();
-                    let peer_status = arena_r.get_peer(&socket_pk_locked);
-                    peer_status.update_mini_sketch(iblt.clone());
-                    true
+                false
+            }
+            Message::Reconcile => {
+                if verbose {
+                    println!("Received reconcile from {}", socket_addr);
                 }
-                Message::GetTransactions { .. } => {
-                    if verbose {
-                        println!("Received transaction request from {}", socket_addr);
-                    }
 
-                    true
-                }
-                Message::Transactions { .. } => {
-                    if verbose {
-                        println!("Received transactions from {}", socket_addr);
-                    }
-
-                    false
-                }
-                Message::Reconcile => {
-                    if verbose {
-                        println!("Received reconcile from {}", socket_addr);
-                    }
-
-                    true
-                }
-            });
-
-            let arena_c = arena.clone();
-            let responses = queries.map(move |msg| match msg {
-                Message::StartHandshake { secret } => {
-                    if verbose {
-                        println!("Sending handshake finalisation to {}", socket_addr);
-                    }
-
-                    Ok(Message::EndHandshake {
-                        pubkey: local_pk,
-                        sig: ecdsa::sign(
-                            &ecdsa::message_from_preimage(Bytes::from(VarInt::new(secret))),
-                            &local_sk,
-                        ),
-                    })
-                }
-                Message::GetTransactions { ids } => {
-                    if verbose {
-                        println!("Sending transactions to {}", socket_addr);
-                    }
-
-                    let mut txs = Vec::with_capacity(ids.len());
-                    for id in ids {
-                        match tx_db_c.get(&id) {
-                            Ok(Some(tx_raw)) => txs.push(Transaction::try_from(tx_raw).unwrap()),
-                            _ => (),
-                        }
-                    }
-                    Ok(Message::Transactions { txs })
-                }
-                Message::IBLT { iblt } => {
-                    if verbose {
-                        println!("Sending transactions request to {}", socket_addr);
-                    }
-
-                    let arena_r = arena_c.read().unwrap();
-                    let socket_pk_locked = *socket_pk.read().unwrap();
-
-                    let perception = arena_r.get_perception(&socket_pk_locked);
-
-                    let perception_iblt: IBLT = perception.mini_sketch;
-                    let (ids, _) = (perception_iblt - iblt).decode().unwrap();
-                    let peer_odd_sketch = arena_r.get_peer(&socket_pk_locked).get_odd_sketch();
-                    let perception_odd_sketch = perception.odd_sketch;
-
-                    // Check for fraud
-                    if peer_odd_sketch.byte_xor(perception_odd_sketch) == ids.odd_sketch() {
-                        Ok(Message::GetTransactions { ids })
-                    } else {
-                        Err("Fraudulent Minisketch provided".to_string())
-                    }
-                }
-                Message::Reconcile => {
-                    if verbose {
-                        println!("Sending IBLT to {}", socket_addr);
-                    }
-
-                    let iblt = (*arena_c.read().unwrap())
-                        .get_peer(&local_pk)
-                        .get_mini_sketch();
-                    Ok(Message::IBLT { iblt })
-                }
-                _ => unreachable!(),
-            });
-
-            // Remove failed responses and merge with heartbeats
-            let responses = responses.filter(|x| x.is_ok()).map(|x| x.unwrap());
-            let out_msgs = responses
-                .select(heartbeat_odd_sketch)
-                .select(heartbeat_nonce)
-                .select(heartbeat_reconcile);
-
-            let send = sink.send_all(out_msgs).map(|_| ()).or_else(|e| {
-                println!("error = {:?}", e);
-                Ok(())
-            });
-            tokio::spawn(send)
+                false // TODO: Re-enable
+            }
         });
+
+        let arena_inner = arena.clone();
+        let responses = queries.map(move |msg| match msg {
+            Message::StartHandshake { secret } => {
+                if verbose {
+                    println!("Sending handshake finalisation to {}", socket_addr);
+                }
+
+                Ok(Message::EndHandshake {
+                    pubkey: local_pk,
+                    sig: ecdsa::sign(
+                        &ecdsa::message_from_preimage(Bytes::from(VarInt::new(secret))),
+                        &local_sk,
+                    ),
+                })
+            }
+            Message::GetTransactions { ids } => {
+                if verbose {
+                    println!("Sending transactions to {}", socket_addr);
+                }
+
+                let mut txs = Vec::with_capacity(ids.len());
+                for id in ids {
+                    match tx_db_inner.get(&id) {
+                        Ok(Some(tx_raw)) => txs.push(Transaction::try_from(tx_raw).unwrap()),
+                        _ => (),
+                    }
+                }
+                Ok(Message::Transactions { txs })
+            }
+            Message::IBLT { iblt } => {
+                if verbose {
+                    println!("Sending transactions request to {}", socket_addr);
+                }
+
+                let arena_r = arena_inner.read().unwrap();
+                let socket_pk_locked = *socket_pk.read().unwrap();
+
+                let perception = arena_r.get_perception(&socket_pk_locked);
+
+                let perception_iblt: IBLT = perception.mini_sketch;
+                let (ids, _) = (perception_iblt - iblt).decode().unwrap();
+                let peer_odd_sketch = arena_r.get_peer(&socket_pk_locked).unwrap().get_odd_sketch();
+                let perception_odd_sketch = perception.odd_sketch;
+
+                // Check for fraud
+                if peer_odd_sketch.byte_xor(perception_odd_sketch) == ids.odd_sketch() {
+                    Ok(Message::GetTransactions { ids })
+                } else {
+                    Err("Fraudulent Minisketch provided".to_string())
+                }
+            }
+            Message::Reconcile => {
+                if verbose {
+                    println!("Sending IBLT to {}", socket_addr);
+                }
+
+                let iblt = (*arena_inner.read().unwrap())
+                    .get_peer(&local_pk).unwrap()
+                    .get_mini_sketch();
+                Ok(Message::IBLT { iblt })
+            }
+            _ => unreachable!(),
+        });
+
+        // Remove failed responses and merge with heartbeats
+        let handshake_receiver = handshake_receiver.map_err(|e| Error::new(ErrorKind::Other, "Handshake channel failure"));
+
+        let responses = responses.filter(|x| x.is_ok()).map(|x| x.unwrap());
+        let out_msgs = responses
+            .select(heartbeat_odd_sketch)
+            .select(heartbeat_nonce)
+            .select(heartbeat_reconcile)
+            .select(handshake_receiver);
+
+        let send = sink.send_all(out_msgs).map(|_| ()).or_else(|e| {
+            println!("error = {:?}", e);
+            Ok(())
+        });
+        tokio::spawn(send)
+    });
     server
 }

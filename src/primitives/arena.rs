@@ -2,9 +2,8 @@ use bytes::Bytes;
 use primitives::status::{StaticStatus, Status};
 use secp256k1::PublicKey;
 use std::collections::{HashMap, HashSet};
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use utils::byte_ops::Hamming;
-use utils::constants::*;
 
 pub struct Arena {
     self_pubkey: PublicKey,
@@ -27,6 +26,20 @@ impl Arena {
         new
     }
 
+    pub fn replace_key(&mut self, pubkey_a: &PublicKey, pubkey_b: &PublicKey) {
+        let value = self.peer_status.remove(pubkey_a).unwrap();
+        self.peer_status.insert(*pubkey_b, value);
+
+        let value = self.perceived_status.remove(pubkey_a).unwrap();
+        self.perceived_status.insert(*pubkey_b, value);
+        self.live_peers.remove(pubkey_a);
+        self.live_peers.insert(*pubkey_b);
+    }
+
+    pub fn new_peer(&mut self, pubkey: &PublicKey) {
+        self.add_peer(pubkey, Arc::new(Status::null()))
+    }
+
     pub fn add_peer(&mut self, pubkey: &PublicKey, status: Arc<Status>) {
         println!("Added new peer to arena!");
         self.peer_status.insert(*pubkey, status);
@@ -45,8 +58,9 @@ impl Arena {
         );
     }
 
-    pub fn get_peer(&self, pubkey: &PublicKey) -> Arc<Status> {
-        (*self.peer_status.get(pubkey).unwrap()).clone()
+    pub fn get_peer(&self, pubkey: &PublicKey) -> Option<Arc<Status>> {
+        let status = self.peer_status.get(pubkey)?;
+        Some(status.clone())
     }
 
     pub fn update_order(&mut self) {
@@ -70,6 +84,7 @@ impl Arena {
 
         let mut ordered: Vec<PublicKey> = self.live_peers.clone().into_iter().collect();
         ordered.sort_by_key(|x| distances.get(x));
+        println!("Order: {:?}", ordered);
         self.order = ordered
     }
 
