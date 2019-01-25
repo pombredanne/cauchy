@@ -19,7 +19,7 @@ pub struct SparseMemory {
     // INVALID_PAGE_INDEX. Considering u16 takes 2 bytes, this add an additional
     // of 64KB extra storage cost assuming we have 128MB memory.
     indices: [u16; MAX_PAGES],
-    pages: Vec<Page>,
+    pub pages: Vec<Page>,
 }
 
 impl SparseMemory {
@@ -70,6 +70,12 @@ impl SparseMemory {
         let mut buffer = File::create(fname).unwrap();
         for p in self.pages.iter(){
             buffer.write(p).unwrap();
+        }
+    }
+
+    pub fn dump_to_vec(&mut self, arr : &mut Vec<Page>){
+        for p in self.pages.iter(){
+            arr.push(*p);
         }
     }
 }

@@ -149,7 +149,7 @@ pub trait CoreMachine<R: Register, M: Memory> {
         Ok(())
     }
 
-    fn store_retbytes(&mut self, retbytes : Vec<u8>);
+    fn store_retbytes(&mut self, retbytes: Vec<u8>);
 
     fn get_retbytes(&mut self) -> &Vec<u8>;
 }
@@ -214,11 +214,11 @@ impl<R: Register, M: Memory> CoreMachine<R, M> for DefaultCoreMachine<R, M> {
         self.max_cycles
     }
 
-    fn store_retbytes(&mut self, retbytes : Vec<u8>){
+    fn store_retbytes(&mut self, retbytes: Vec<u8>) {
         self.ret_bytes = retbytes;
     }
 
-    fn get_retbytes(&mut self) -> &Vec<u8>{
+    fn get_retbytes(&mut self) -> &Vec<u8> {
         &self.ret_bytes
     }
 }
@@ -331,11 +331,11 @@ impl<'a, R: Register, M: Memory> CoreMachine<R, M> for DefaultMachine<'a, R, M> 
         self.max_cycles
     }
 
-    fn store_retbytes(&mut self, retbytes : Vec<u8>){
+    fn store_retbytes(&mut self, retbytes: Vec<u8>) {
         self.ret_bytes = retbytes;
     }
 
-    fn get_retbytes(&mut self) -> &Vec<u8>{
+    fn get_retbytes(&mut self) -> &Vec<u8> {
         &self.ret_bytes
     }
 }

@@ -25,7 +25,7 @@ fn main() {
     File::open("scripts/sha256").unwrap().read_to_end(&mut buffer).unwrap();
 
     // let buffer = b"abc".to_vec();
-    println!("binary size: {:?}", buffer.len());
+    // println!("binary size: {:?}", buffer.len());
     let hash = gen_sha256(&buffer);
     println!("hsh: {:X?}", &hex::encode(&hash));
 
