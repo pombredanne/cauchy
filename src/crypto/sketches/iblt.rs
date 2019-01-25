@@ -1,5 +1,4 @@
-// TODO: Eventually replace this with minisketch
-// TODO: Optimize this
+// TODO: Eventually replace this with minisketch and do optimizations
 
 use bytes::Bytes;
 use crypto::hashes::blake2b::*;
@@ -9,7 +8,6 @@ use std::collections::HashSet;
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 use utils::byte_ops::*;
 use utils::constants::*;
-use utils::serialisation::*;
 
 #[derive(PartialEq, Clone, Debug)]
 pub struct Row {
@@ -30,8 +28,8 @@ impl Row {
     pub fn new(count: i32, payload: Bytes, checksum: Bytes) -> Row {
         Row {
             count,
-            payload,
-            checksum,
+            payload: payload.slice_to(IBLT_PAYLOAD_LEN),
+            checksum: checksum.slice_to(IBLT_CHECKSUM_LEN),
         }
     }
 
@@ -50,7 +48,7 @@ impl Row {
     pub fn unit_row(payload: &Bytes) -> Row {
         Row {
             count: 1,
-            payload: payload.clone(),
+            payload: payload.clone().slice_to(IBLT_PAYLOAD_LEN),
             checksum: payload.blake2b().slice_to(IBLT_CHECKSUM_LEN),
         }
     }
@@ -58,7 +56,7 @@ impl Row {
     pub fn count_row(payload: &Bytes, count: i32) -> Row {
         Row {
             count,
-            payload: payload.clone(),
+            payload: payload.clone().slice_to(IBLT_PAYLOAD_LEN),
             checksum: payload.blake2b().slice_to(IBLT_CHECKSUM_LEN),
         }
     }
@@ -81,8 +79,8 @@ impl Add for Row {
     fn add(self, other: Row) -> Row {
         Row {
             count: self.count + other.count,
-            payload: self.payload.byte_xor(other.payload),
-            checksum: self.checksum.byte_xor(other.checksum),
+            payload: Bytes::byte_xor(self.payload, other.payload),
+            checksum: Bytes::byte_xor(self.checksum, other.checksum),
         }
     }
 }
@@ -91,8 +89,8 @@ impl AddAssign for Row {
     fn add_assign(&mut self, other: Row) {
         *self = Row {
             count: self.count + other.count,
-            payload: self.payload.clone().byte_xor(other.payload),
-            checksum: self.checksum.clone().byte_xor(other.checksum),
+            payload: Bytes::byte_xor(self.payload.clone(), other.payload),
+            checksum: Bytes::byte_xor(self.checksum.clone(), other.checksum),
         };
     }
 }
@@ -103,8 +101,8 @@ impl Sub for Row {
     fn sub(self, other: Row) -> Row {
         Row {
             count: self.count - other.count,
-            payload: self.payload.byte_xor(other.payload),
-            checksum: self.checksum.byte_xor(other.checksum),
+            payload: Bytes::byte_xor(self.payload, other.payload),
+            checksum: Bytes::byte_xor(self.checksum, other.checksum),
         }
     }
 }
@@ -113,8 +111,8 @@ impl SubAssign for Row {
     fn sub_assign(&mut self, other: Row) {
         *self = Row {
             count: self.count - other.count,
-            payload: self.payload.clone().byte_xor(other.payload),
-            checksum: self.checksum.clone().byte_xor(other.checksum),
+            payload: Bytes::byte_xor(self.payload.clone(), other.payload),
+            checksum: Bytes::byte_xor(self.checksum.clone(), other.checksum),
         };
     }
 }
@@ -172,7 +170,7 @@ impl IBLT {
     pub fn insert(&mut self, payload: Bytes) {
         let len = self.rows.len();
         for i in (0..self.n_hashes).map(|k| get_pos(&payload, k, len)) {
-            self.rows[i] += Row::unit_row(&payload);
+            self.rows[i] = self.rows[i].clone() + Row::unit_row(&payload);
         }
     }
 
@@ -204,7 +202,7 @@ impl IBLT {
         if decode_iblt.is_empty() {
             Ok((left, right))
         } else {
-            Err("Failed to decode".to_string())
+            Err("Failed to decode IBLT".to_string())
         }
     }
 }

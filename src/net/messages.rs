@@ -43,7 +43,6 @@ impl Encoder for MessageCodec {
                 dst.extend(bytes_from_sig(sig));
             }
             Message::Nonce { nonce } => {
-                //println!("Send nonce: {}", nonce);
                 dst.put_u8(2);
                 dst.extend(Bytes::from(VarInt::new(nonce)));
             }
@@ -54,12 +53,16 @@ impl Encoder for MessageCodec {
             }
             Message::IBLT { iblt } => {
                 dst.put_u8(4);
-                let n_rows = iblt.len();
-                let iblt_raw = Bytes::from(iblt);
+                let rows = iblt.get_rows();
+                let n_rows = rows.len();
+                println!("Number of rows: {}", n_rows);
                 dst.extend(Bytes::from(VarInt::new(n_rows as u64)));
-                dst.extend(iblt_raw);
+                for row in rows {
+                    dst.extend(Bytes::from(row.clone()));
+                }
             }
             Message::GetTransactions { ids } => {
+                println!("Encoding get txns");
                 dst.put_u8(5);
                 dst.extend(Bytes::from(VarInt::new(ids.len() as u64)));
                 for id in ids {
@@ -164,24 +167,32 @@ impl Decoder for MessageCodec {
                 Ok(Some(msg))
             }
             4 => {
-                let iblt_len_vi = match VarInt::parse_buf(&mut buf) {
+                let n_rows_vi = match VarInt::parse_buf(&mut buf) {
                     Ok(some) => some,
                     Err(_) => return Ok(None),
                 };
-                let total_size =
-                    usize::from(iblt_len_vi) * (IBLT_CHECKSUM_LEN + 8 + IBLT_PAYLOAD_LEN);
+                let n_rows_len = n_rows_vi.len();
+                let n_rows = usize::from(n_rows_vi);
+                println!("Number of rows: {}", n_rows);
+                
+                let row_len = 4 + IBLT_PAYLOAD_LEN + IBLT_CHECKSUM_LEN;
+                let total_size = n_rows * row_len;
+
                 if buf.remaining() < total_size {
                     return Ok(None);
                 }
-                let mut iblt_dst = vec![0; total_size];
-                buf.copy_to_slice(&mut iblt_dst);
-                let msg = Message::IBLT {
-                    iblt: IBLT::from(Bytes::from(&iblt_dst[..])),
-                };
-                src.advance(1 + total_size);
+                let mut rows = Vec::with_capacity(n_rows);
+                for _ in 0..n_rows {
+                    let mut row_dst = vec![0; row_len];
+                    buf.copy_to_slice(&mut row_dst);
+                    rows.push(Row::from(Bytes::from(&row_dst[..])));
+                }
+                let msg = Message::IBLT { iblt: IBLT::from_rows(rows, IBLT_N_HASHES) };
+                src.advance(1 + n_rows_len + total_size);
                 Ok(Some(msg))
             }
             5 => {
+                println!("Decoding get txns");
                 let n_tx_ids_vi = match VarInt::parse_buf(&mut buf) {
                     Ok(some) => some,
                     Err(_) => return Ok(None),

@@ -8,12 +8,13 @@ where
     pos % modulo
 }
 
-pub fn get_bit_pos<T>(value: &T, modulo: usize) -> (u8, usize)
+pub fn get_bit_pos<T>(value: &T, modulo: usize) -> (u16, usize)
 where
     T: Blk2bHashable,
-{
-    let modulo = modulo as u8;
-    let pos = value.blake2b()[0] % (modulo * 8); // Bit position
+{   
+    let digest = value.blake2b();
+    let modulo = modulo as u16;
+    let pos = ((digest[0] as u16) + ((digest[1] as u16) << 8)) % (modulo * 8); // Bit position // TODO: Check
     let shift = &pos % 8; // Position within the byte
     let index = (pos / modulo) as usize; // Position of the byte
     (shift, index)

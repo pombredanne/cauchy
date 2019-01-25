@@ -81,7 +81,8 @@ impl Arena {
                 (*pubkey, dist)
             })
             .collect();
-
+            
+        println!("Distances: {:?}", distances.values());
         let mut ordered: Vec<PublicKey> = self.live_peers.clone().into_iter().collect();
         ordered.sort_by_key(|x| distances.get(x));
         println!("Order: {:?}", ordered);

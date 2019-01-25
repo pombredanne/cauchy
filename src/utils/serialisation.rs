@@ -12,7 +12,7 @@ use utils::constants::*;
 pub trait TryFrom<T>: Sized {
     type Err;
     fn try_from(_: T) -> Result<Self, Self::Err>;
-} // Isn't this stable now??
+} 
 
 impl From<VarInt> for Bytes {
     fn from(varint: VarInt) -> Bytes {
@@ -29,7 +29,7 @@ impl From<VarInt> for Bytes {
             len += 1;
         }
         tmp.reverse();
-        Bytes::from(tmp)
+        Bytes::from(tmp) // TODO: Replace with bufmut
     }
 }
 
@@ -68,7 +68,7 @@ impl From<Transaction> for Bytes {
             buf.put(&Bytes::from(VarInt::from(script_raw.len())));
             buf.put(&script_raw);
         }
-        Bytes::from(buf)
+        Bytes::from(buf) // TODO: Replace with bufmut
     }
 }
 
@@ -118,7 +118,7 @@ impl From<SpendState> for Bytes {
         for val in tx_state.iter() {
             buf.put_u32_be(*val);
         }
-        Bytes::from(buf)
+        Bytes::from(buf) // TODO: Replace with bufmut
     }
 }
 
@@ -165,6 +165,34 @@ impl From<Bytes> for IBLT {
             ));
         }
 
-        IBLT::from_rows(rows, 4)
+        IBLT::from_rows(rows, IBLT_N_HASHES)
+    }
+}
+
+impl From<Row> for Bytes {
+    fn from(row: Row) -> Bytes {
+        let mut buf = BytesMut::with_capacity(4 + IBLT_CHECKSUM_LEN + IBLT_PAYLOAD_LEN);
+        buf.put_i32_be(row.get_count());
+        buf.put(&row.get_payload()[..]);
+        buf.put(&row.get_checksum()[..]);
+        println!("Buf len: {}", buf.len());
+        Bytes::from(buf)
+    }
+}
+
+impl From<Bytes> for Row {
+    fn from(raw: Bytes) -> Row {
+        let mut buf = raw.into_buf();
+        let count = buf.get_i32_be();
+        let mut dst_payload = vec![0; IBLT_PAYLOAD_LEN];
+        buf.copy_to_slice(&mut dst_payload);
+        let mut dst_checksum = vec![0; IBLT_CHECKSUM_LEN];
+        buf.copy_to_slice(&mut dst_checksum);
+        Row::new(
+            count,
+            Bytes::from(&dst_payload[..]),
+            Bytes::from(&dst_checksum[..]),
+        )
+
     }
 }

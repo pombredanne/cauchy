@@ -1,5 +1,4 @@
 use futures::sync::mpsc;
-use futures::sync::oneshot;
 use futures::Future;
 use net::messages::*;
 use net::rpc_messages::*;
@@ -244,6 +243,7 @@ pub fn server(
                 let secret_r: u64 = *secret_inner.read().unwrap();
                 let secret_msg = ecdsa::message_from_preimage(Bytes::from(VarInt::new(secret_r)));
                 if ecdsa::verify(&secret_msg, sig, pubkey).unwrap() {
+                    // If peer correctly signs our secret we upgrade them from a dummy pk
                     if verbose {
                         println!("Handshake completed with {}", socket_addr);
                     }
@@ -315,7 +315,7 @@ pub fn server(
                     println!("Received reconcile from {}", socket_addr);
                 }
 
-                false // TODO: Re-enable
+                true // TODO: Reeanble
             }
         });
 

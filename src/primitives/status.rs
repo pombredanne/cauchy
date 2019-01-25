@@ -26,7 +26,7 @@ impl StaticStatus {
         StaticStatus {
             nonce: 0,
             odd_sketch: Bytes::from(&[0; SKETCH_CAPACITY][..]),
-            mini_sketch: IBLT::with_capacity(64, 4),
+            mini_sketch: IBLT::with_capacity(SKETCH_CAPACITY, IBLT_N_HASHES),
         }
     }
 }
@@ -62,7 +62,7 @@ impl Status {
         Status {
             nonce: RwLock::new(0),
             odd_sketch: RwLock::new(BytesMut::from(&[0; SKETCH_CAPACITY][..])),
-            mini_sketch: RwLock::new(IBLT::with_capacity(SKETCH_CAPACITY, 4)),
+            mini_sketch: RwLock::new(IBLT::with_capacity(SKETCH_CAPACITY, IBLT_N_HASHES)),
         }
     }
 

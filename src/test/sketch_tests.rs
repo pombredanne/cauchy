@@ -51,15 +51,16 @@ mod iblt {
     use crypto::sketches::odd_sketch::*;
     use std::collections::HashSet;
     use utils::serialisation::*;
+    use utils::constants::IBLT_PAYLOAD_LEN;
 
     #[test]
     fn test_iblt_single() {
-        let mut iblt = IBLT::with_capacity(3, 1);
-        let val = Bytes::from(&b"hello"[..]);
+        let mut iblt = IBLT::with_capacity(30, 3);
+        let val = Bytes::from(&b"hello"[..]).blake2b().slice_to(IBLT_PAYLOAD_LEN);
         iblt.insert(val.clone());
 
-        let mut left: HashSet<Bytes> = HashSet::with_capacity(3);
-        let mut right: HashSet<Bytes> = HashSet::with_capacity(3);
+        let mut left: HashSet<Bytes> = HashSet::with_capacity(30);
+        let mut right: HashSet<Bytes> = HashSet::with_capacity(30);
 
         left.insert(val);
 
@@ -75,13 +76,15 @@ mod iblt {
         let mut iblt_b = IBLT::with_capacity(64, 4);
 
         for i in 0..1000 {
-            iblt_a.insert(Bytes::from(&[i as u8][..]));
-            hashset_a.insert(Bytes::from(&[i as u8][..]));
+            let element = Bytes::from(&[i as u8][..]).blake2b().slice_to(IBLT_PAYLOAD_LEN);
+            iblt_a.insert(element.clone());
+            hashset_a.insert(element);
         }
 
         for i in 32..1000 {
-            iblt_b.insert(Bytes::from(&[i as u8][..]));
-            hashset_b.insert(Bytes::from(&[i as u8][..]));
+            let element = Bytes::from(&[i as u8][..]).blake2b().slice_to(IBLT_PAYLOAD_LEN);
+            iblt_b.insert(element.clone());
+            hashset_b.insert(element);
         }
 
         let (res_left, res_right) = (iblt_a - iblt_b).decode().unwrap();
@@ -105,8 +108,9 @@ mod iblt {
         let mut hashset: HashSet<Bytes> = HashSet::with_capacity(64);
 
         for i in 0..8 {
-            iblt.insert(Bytes::from(&[i as u8][..]));
-            hashset.insert(Bytes::from(&[i as u8][..]));
+            let element = Bytes::from(&[i as u8][..]).blake2b().slice_to(IBLT_PAYLOAD_LEN);
+            iblt.insert(element.clone());
+            hashset.insert(element);
         }
 
         assert_eq!(iblt, hashset.odd_sketch());
