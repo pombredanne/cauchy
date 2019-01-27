@@ -1,43 +1,63 @@
 extern crate ckb_vm;
 extern crate hex;
 
+use ckb_vm::SparseMemory;
+
 use std::fs::File;
 use std::io::Read;
 use std::time::{Duration, Instant};
 use std::vec::Vec;
 
-
 pub mod vm;
+pub mod vmsnapshot;
 use self::vm::VM;
 
 fn main() {
-    
-    // let (sk, pk) = gen_keypair_onchain();
-    let sk = hex::decode("a901c2899091c75bf2cc7e2540d855ea8faa1b09b4f4f02528a6427d454decbc").unwrap();
-    let pk = hex::decode("1f63d51b1420c5d7bdd19aef42ceeb4fc4fe3403f3c9ea7c3b72c8731e96d2d9bdc8536df25ac575eaf25b0fe6522984889840b941a9d6fde79e7cb21b512b6f").unwrap();
-    println!(
-        "SK:  {:X?}\nPK:  {:X?}",
-        &hex::encode(&sk),
-        &hex::encode(&pk)
-    );
-
     let mut buffer = Vec::new();
-    File::open("scripts/sha256").unwrap().read_to_end(&mut buffer).unwrap();
+    File::open("tests/freeze")
+        .unwrap()
+        .read_to_end(&mut buffer)
+        .unwrap();
 
-    // let buffer = b"abc".to_vec();
-    // println!("binary size: {:?}", buffer.len());
-    let hash = gen_sha256(&buffer);
-    println!("hsh: {:X?}", &hex::encode(&hash));
+    let mut vm = VM::new();
+    vm.txid_set("tests/freeze".as_bytes());
+    let result = vm.run_func(&buffer, 0, vec![]);
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), 0xFF);
 
-    let sig = gen_sig(&sk, &hash);
-    println!("Sig: {:X?}", &hex::encode(&sig));
-
-    let verified = verify_sig(&pk, &sig, &hash);
-    if (verified) {
-        println!("Sig verified!");
-    } else {
-        println!("Sig verify failed :-(");
+    let result = vm.resume("tests/freeze".to_string());
+    if !(result.is_ok()){
+        println!("{:?}", result.err());
+        assert!(false);
     }
+    assert_eq!(result.unwrap(), 1);
+
+    // let (sk, pk) = gen_keypair_onchain();
+    // let sk = hex::decode("a901c2899091c75bf2cc7e2540d855ea8faa1b09b4f4f02528a6427d454decbc").unwrap();
+    // let pk = hex::decode("1f63d51b1420c5d7bdd19aef42ceeb4fc4fe3403f3c9ea7c3b72c8731e96d2d9bdc8536df25ac575eaf25b0fe6522984889840b941a9d6fde79e7cb21b512b6f").unwrap();
+    // println!(
+    //     "SK:  {:X?}\nPK:  {:X?}",
+    //     &hex::encode(&sk),
+    //     &hex::encode(&pk)
+    // );
+
+    // let mut buffer = Vec::new();
+    // File::open("scripts/sha256").unwrap().read_to_end(&mut buffer).unwrap();
+
+    // // let buffer = b"abc".to_vec();
+    // // println!("binary size: {:?}", buffer.len());
+    // let hash = gen_sha256(&buffer);
+    // println!("hsh: {:X?}", &hex::encode(&hash));
+
+    // let sig = gen_sig(&sk, &hash);
+    // println!("Sig: {:X?}", &hex::encode(&sig));
+
+    // let verified = verify_sig(&pk, &sig, &hash);
+    // if (verified) {
+    //     println!("Sig verified!");
+    // } else {
+    //     println!("Sig verify failed :-(");
+    // }
 }
 
 fn verify_sig(pubkey: &Vec<u8>, sig: &Vec<u8>, hash: &Vec<u8>) -> bool {

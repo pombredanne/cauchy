@@ -2,8 +2,8 @@ extern crate ckb_vm;
 extern crate rand;
 
 use ckb_vm::{
-    CoreMachine, Error, SparseMemory, Syscalls, A0, A1, A2, A3, A4, A5, A6, A7,
-    RISCV_GENERAL_REGISTER_NUMBER,
+    CoreMachine, DefaultMachine, Error, SparseMemory, Syscalls, A0, A1, A2, A3, A4, A5, A6, A7,
+    DEFAULT_STACK_SIZE, RISCV_GENERAL_REGISTER_NUMBER, RISCV_MAX_MEMORY,
 };
 
 use ckb_vm::instructions::Register;
@@ -14,26 +14,38 @@ use ckb_vm::memory::Memory;
 use rand::rngs::OsRng;
 use std::fs::File;
 use std::io::{Read, Write};
-use std::mem::size_of;
 use std::str;
 use std::time::SystemTime;
 use std::vec::Vec;
 
+use crate::vmsnapshot::VMSnapshot;
+
 pub struct VM {
     ret_bytes: Vec<u8>,
+    txid: Vec<u8>,
 }
 
 impl VM {
     pub fn new() -> VM {
-        VM { ret_bytes: vec![] }
+        VM {
+            ret_bytes: vec![],
+            txid: vec![],
+        }
+    }
+
+    pub fn txid_set(&mut self, txid: &[u8]) {
+        self.txid = txid.to_vec();
     }
 
     pub fn run(&mut self, buffer: &[u8], args: &[Vec<u8>]) -> Result<u8, Error> {
         // self.machine.run(buffer, args)
-        let mut machine = ckb_vm::DefaultMachine::<u64, SparseMemory>::default();
-        machine.add_syscall_module(Box::new(VMSyscalls {}));
+        let mut machine = DefaultMachine::<u64, SparseMemory>::default();
+        machine.add_syscall_module(Box::new(VMSyscalls { txid: self.txid.to_vec() }));
         let result = machine.run(buffer, args);
         self.ret_bytes = machine.get_retbytes().to_vec();
+        // machine
+        //     .memory_mut()
+        //     .dump_to_file("machine.memoryz".to_string());
         result
     }
 
@@ -57,60 +69,71 @@ impl VM {
                 (len >> 16) as u8,
                 (len >> 24) as u8,
             ],
-            // vec![len as u8, 0, 0, 0], // len.to_string().as_bytes().to_vec(),
         ];
-        // println!("args: {:X?}", &args);
         self.run(buffer, args)
     }
 
     pub fn get_retbytes(&mut self) -> &Vec<u8> {
         &self.ret_bytes
     }
+
+    pub fn resume(&mut self, fname: String) -> Result<u8, Error> {
+        let mut machine = ckb_vm::DefaultMachine::<u64, SparseMemory>::default();
+
+        let mut buffer = Vec::new();
+        File::open(fname).unwrap().read_to_end(&mut buffer).unwrap();
+        machine.load_elf(&buffer).unwrap();
+        machine.add_syscall_module(Box::new(VMSyscalls {
+            txid: self.txid.to_vec(),
+        }));
+        machine.initialize_stack(
+            &vec![],
+            RISCV_MAX_MEMORY - DEFAULT_STACK_SIZE,
+            DEFAULT_STACK_SIZE,
+        )?;
+
+        let mut buffer = Vec::new();
+        File::open(hex::encode(&self.txid))
+            .unwrap()
+            .read_to_end(&mut buffer)
+            .unwrap();
+
+        let mut idx = 0;
+
+        /*
+        -8     "li a7, 0xCBFB\n\t"
+        +0     "ecall\n\t"
+        +4     "li a0, 0xFF\n\t"
+        +6,+8  "li a7, 93\n\t"
+        +10,+12 "ecall\n\t"
+        +16     ...
+        */
+        let pc = VMSnapshot::<u64>::deserialize_reg(&mut buffer, &mut idx) + 16;
+        machine.set_pc(Register::from_u64(pc));
+
+        for (i, r) in machine.registers_mut().iter_mut().enumerate() {
+            let ret = VMSnapshot::<u64>::deserialize_reg(&mut buffer[idx..], &mut idx);
+            *r = Register::from_u64(ret);
+            // println!("Reg {:?}: {:X?}", i, r.to_u64());
+        }
+
+        machine.registers_mut()[A0] = 222;
+        machine.registers_mut()[A7] = 1111;
+
+        machine.memory_mut().store_bytes(0, &buffer[idx..])?;
+
+        // let mut buffer = File::create("resume.memoryz").unwrap();
+        // for p in machine.memory_mut().pages.iter() {
+        //     buffer.write(p).unwrap();
+        // }
+
+        machine.resume()
+    }
 }
 
-struct VMSnapshot<R: Register> {
-    pages: Vec<Page>,
-    registers: Vec<R>,
-    pc : R,
+struct VMSyscalls {
+    txid: Vec<u8>,
 }
-
-impl<R: Register> VMSnapshot<R> {
-    pub fn new(machine: &mut CoreMachine<R, SparseMemory>) -> VMSnapshot<R> {
-        VMSnapshot {
-            pages: machine.memory_mut().pages.to_vec(),
-            registers: machine.registers_mut().to_vec(),
-            pc: machine.pc(),
-        }
-    }
-
-    fn serialize_reg(&self, reg: &R, bytes: &mut Vec<u8>) {
-        for i in 0..size_of::<R>() {
-            bytes.push( (reg.to_u64() >> (i * 8)) as u8);
-        }
-    }
-
-    pub fn save_to_file(&mut self) {
-        let mut buffer = File::create("sysdump.memoryz").unwrap();
-
-        let mut data: Vec<u8> = vec![];
-
-        // Save PC
-        self.serialize_reg(&self.pc, &mut data);
-
-        // Serialize registers
-        for r in self.registers.iter() {
-            self.serialize_reg(r, &mut data);
-        }
-        buffer.write(&data).unwrap();
-
-        // Dump memory pages
-        for p in self.pages.iter() {
-            buffer.write(p).unwrap();
-        }
-    }
-}
-
-struct VMSyscalls {}
 
 impl VMSyscalls {
     fn lookup_script() -> Vec<u8> {
@@ -130,16 +153,9 @@ impl Syscalls<u64, SparseMemory> for VMSyscalls {
 
     fn ecall(&mut self, machine: &mut CoreMachine<u64, SparseMemory>) -> Result<bool, Error> {
         match machine.registers()[A7] {
-            // For testing purposes, leave it
+            // Used to detect invalid PC assignment during resume
             1111 => {
-                let result = machine.registers()[A0]
-                    + machine.registers()[A1]
-                    + machine.registers()[A2]
-                    + machine.registers()[A3]
-                    + machine.registers()[A4]
-                    + machine.registers()[A5];
-                machine.registers_mut()[A0] = result;
-                Ok(true)
+                Err(ckb_vm::Error::InvalidInstruction(123))
             }
             //  __vm_retbytes(addr, size)
             0xCBFF => {
@@ -191,7 +207,7 @@ impl Syscalls<u64, SparseMemory> for VMSyscalls {
 
                 // Setup a new machine to run the script
                 let mut call_machine = ckb_vm::DefaultMachine::<u64, SparseMemory>::default();
-                call_machine.add_syscall_module(Box::new(VMSyscalls {}));
+                call_machine.add_syscall_module(Box::new(VMSyscalls { txid: vec![] }));
 
                 // Get any input bytes intended to be sent to the callable script
                 let len = send_bytes.len();
@@ -254,7 +270,7 @@ impl Syscalls<u64, SparseMemory> for VMSyscalls {
                 let addr = machine.registers()[A5];
                 //machine.memory_mut().dump_to_file("memory.sysdump".to_string());
                 let mut snapshot = VMSnapshot::new(machine);
-                snapshot.save_to_file();
+                snapshot.save_to_file(hex::encode(&self.txid));
                 Ok(true)
             }
             _ => Ok(false),
@@ -424,7 +440,12 @@ fn test_freeze() {
         .unwrap();
 
     let mut vm = VM::new();
+    vm.txid_set("tests/freeze".as_bytes());
     let result = vm.run_func(&buffer, 0, vec![]);
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), 0xFF);
+
+    // let result = vm.resume("tests/freeze".to_string());
+    // assert!(result.is_ok());
+    // assert_eq!(result.unwrap(), 1);
 }

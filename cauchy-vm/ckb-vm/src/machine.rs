@@ -1,3 +1,4 @@
+
 use super::bits::rounddown;
 use super::decoder::build_imac_decoder;
 use super::instructions::{Instruction, Register};
@@ -13,6 +14,9 @@ use std::cmp::max;
 use std::fmt::{self, Display};
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
+
+use std::fs::File;
+use std::io::{Read, Write};
 
 fn elf_bits(header: &Header) -> Option<usize> {
     // This is documented in ELF specification, we are exacting ELF file
@@ -451,4 +455,32 @@ where
         }
         Ok(self.exit_code)
     }
+
+    pub fn resume(&mut self) -> Result<u8, Error> {
+        for syscall in &mut self.syscalls {
+            syscall.initialize(&mut self.core)?;
+        }
+
+        let decoder = build_imac_decoder::<R>();
+        self.running = true;
+        while self.running {
+            let instruction = {
+                let pc = self.pc().to_usize();
+                let memory = self.memory_mut();
+                decoder.decode(memory, pc)?
+            };
+            instruction.execute(self)?;
+            let cycles = self
+                .instruction_cycle_func
+                .as_ref()
+                .map(|f| f(&instruction))
+                .unwrap_or(0);
+            self.add_cycles(cycles)?;
+        }
+        Ok(self.exit_code)
+    }
+
+
+   
+    
 }
