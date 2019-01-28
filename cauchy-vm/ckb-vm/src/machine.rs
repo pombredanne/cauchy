@@ -1,4 +1,3 @@
-
 use super::bits::rounddown;
 use super::decoder::build_imac_decoder;
 use super::instructions::{Instruction, Register};
@@ -479,8 +478,4 @@ where
         }
         Ok(self.exit_code)
     }
-
-
-   
-    
 }

@@ -8,3 +8,4 @@ edition = "2018"
 ckb-vm = { path = "./ckb-vm"}
 hex = "*"
 rand = "*"
+sha2 = "*"

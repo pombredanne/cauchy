@@ -1,15 +1,16 @@
 extern crate ckb_vm;
 extern crate rand;
+extern crate sha2;
 
 use ckb_vm::{
     CoreMachine, DefaultMachine, Error, SparseMemory, Syscalls, A0, A1, A2, A3, A4, A5, A6, A7,
-    DEFAULT_STACK_SIZE, RISCV_GENERAL_REGISTER_NUMBER, RISCV_MAX_MEMORY,
+    DEFAULT_STACK_SIZE, RISCV_MAX_MEMORY,
 };
 
 use ckb_vm::instructions::Register;
-use ckb_vm::memory::Page;
 
 use crate::vm::rand::RngCore;
+use sha2::{Sha256, Digest};
 use ckb_vm::memory::Memory;
 use rand::rngs::OsRng;
 use std::fs::File;
@@ -38,7 +39,9 @@ impl VM {
     }
 
     pub fn run(&mut self, buffer: &[u8], args: &[Vec<u8>]) -> Result<u8, Error> {
-        // self.machine.run(buffer, args)
+        let mut hasher = Sha256::new();
+        hasher.input(&buffer);
+        self.txid = hasher.result().to_vec();
         let mut machine = DefaultMachine::<u64, SparseMemory>::default();
         machine.add_syscall_module(Box::new(VMSyscalls { txid: self.txid.to_vec() }));
         let result = machine.run(buffer, args);
@@ -77,11 +80,12 @@ impl VM {
         &self.ret_bytes
     }
 
-    pub fn resume(&mut self, fname: String) -> Result<u8, Error> {
+    pub fn resume(&mut self, buffer: &[u8]) -> Result<u8, Error> {
+        let mut hasher = Sha256::new();
+        hasher.input(&buffer);
+        self.txid = hasher.result().to_vec();
+        
         let mut machine = ckb_vm::DefaultMachine::<u64, SparseMemory>::default();
-
-        let mut buffer = Vec::new();
-        File::open(fname).unwrap().read_to_end(&mut buffer).unwrap();
         machine.load_elf(&buffer).unwrap();
         machine.add_syscall_module(Box::new(VMSyscalls {
             txid: self.txid.to_vec(),
@@ -92,40 +96,7 @@ impl VM {
             DEFAULT_STACK_SIZE,
         )?;
 
-        let mut buffer = Vec::new();
-        File::open(hex::encode(&self.txid))
-            .unwrap()
-            .read_to_end(&mut buffer)
-            .unwrap();
-
-        let mut idx = 0;
-
-        /*
-        -8     "li a7, 0xCBFB\n\t"
-        +0     "ecall\n\t"
-        +4     "li a0, 0xFF\n\t"
-        +6,+8  "li a7, 93\n\t"
-        +10,+12 "ecall\n\t"
-        +16     ...
-        */
-        let pc = VMSnapshot::<u64>::deserialize_reg(&mut buffer, &mut idx) + 16;
-        machine.set_pc(Register::from_u64(pc));
-
-        for (i, r) in machine.registers_mut().iter_mut().enumerate() {
-            let ret = VMSnapshot::<u64>::deserialize_reg(&mut buffer[idx..], &mut idx);
-            *r = Register::from_u64(ret);
-            // println!("Reg {:?}: {:X?}", i, r.to_u64());
-        }
-
-        machine.registers_mut()[A0] = 222;
-        machine.registers_mut()[A7] = 1111;
-
-        machine.memory_mut().store_bytes(0, &buffer[idx..])?;
-
-        // let mut buffer = File::create("resume.memoryz").unwrap();
-        // for p in machine.memory_mut().pages.iter() {
-        //     buffer.write(p).unwrap();
-        // }
+        VMSnapshot::<u64>::load_from_file(&self.txid, &mut machine);
 
         machine.resume()
     }
@@ -136,12 +107,12 @@ struct VMSyscalls {
 }
 
 impl VMSyscalls {
-    fn lookup_script() -> Vec<u8> {
+    fn lookup_script(txid: &String) -> Vec<u8> {
         let mut buffer = Vec::new();
-        File::open("tests/sha256")
-            .unwrap()
-            .read_to_end(&mut buffer)
-            .unwrap();
+        match File::open(format!("scripts/{}", txid)) {
+            Err(e) => panic!("Unable to load txid {}", txid),
+            Ok(mut r) => r.read_to_end(&mut buffer).unwrap()
+        };
         buffer
     }
 }
@@ -155,7 +126,8 @@ impl Syscalls<u64, SparseMemory> for VMSyscalls {
         match machine.registers()[A7] {
             // Used to detect invalid PC assignment during resume
             1111 => {
-                Err(ckb_vm::Error::InvalidInstruction(123))
+                panic!("PC calculation in VM::resume() is incorrect");
+                //Err(ckb_vm::Error::InvalidInstruction(123))
             }
             //  __vm_retbytes(addr, size)
             0xCBFF => {
@@ -187,14 +159,17 @@ impl Syscalls<u64, SparseMemory> for VMSyscalls {
                 // println!("txid: {:X?} from addr: {:X?}", &hex::decode(txid).unwrap(), txid_addr);
                 println!(
                     "txid: {:X?} from addr: {:X?}",
-                    hex::encode(hex::decode(txid).unwrap()),
+                    hex::encode(hex::decode(&txid).unwrap()),
                     txid_addr
                 );
 
                 // Get the send bytes
                 let mut send_bytes = Vec::<u8>::new();
                 for idx in send_addr..(send_addr + send_sz) {
-                    send_bytes.push(machine.memory_mut().load8(idx as usize).unwrap());
+                    send_bytes.push( match machine.memory_mut().load8(idx as usize) {
+                        Err(e) => panic!("sendbuff out of range in __vm_call()! {:?}", e),
+                        Ok(r) => r
+                    });
                 }
                 println!(
                     "passing: {:X?} from addr: {:X?}",
@@ -203,7 +178,7 @@ impl Syscalls<u64, SparseMemory> for VMSyscalls {
                 );
 
                 // Lookup the script that's being called
-                let call_script = &VMSyscalls::lookup_script();
+                let call_script = &VMSyscalls::lookup_script( &String::from_utf8(txid).unwrap());
 
                 // Setup a new machine to run the script
                 let mut call_machine = ckb_vm::DefaultMachine::<u64, SparseMemory>::default();
@@ -230,9 +205,12 @@ impl Syscalls<u64, SparseMemory> for VMSyscalls {
                     .memory_mut()
                     .store_bytes(recv_addr as usize, &store_bytes)
                     .unwrap();
+                
+                println!("Called script returned {:?}", &hex::encode(&store_bytes));
 
                 Ok(true)
             }
+            // __vm_getrand()
             0xCBFD => {
                 let mut rng = match OsRng::new() {
                     Ok(g) => g,
@@ -242,7 +220,6 @@ impl Syscalls<u64, SparseMemory> for VMSyscalls {
                 let addr = machine.registers()[A6];
                 let mut rng_bytes = vec![0; sz as usize];
                 rng.fill_bytes(&mut rng_bytes);
-                // println!("{:X?}", rng_bytes);
                 machine
                     .memory_mut()
                     .store_bytes(addr as usize, &rng_bytes)
@@ -267,10 +244,9 @@ impl Syscalls<u64, SparseMemory> for VMSyscalls {
             }
             // __vm_receive_wait()
             0xCBFB => {
-                let addr = machine.registers()[A5];
-                //machine.memory_mut().dump_to_file("memory.sysdump".to_string());
                 let mut snapshot = VMSnapshot::new(machine);
                 snapshot.save_to_file(hex::encode(&self.txid));
+                //machine.stop();
                 Ok(true)
             }
             _ => Ok(false),
@@ -440,12 +416,21 @@ fn test_freeze() {
         .unwrap();
 
     let mut vm = VM::new();
-    vm.txid_set("tests/freeze".as_bytes());
     let result = vm.run_func(&buffer, 0, vec![]);
     assert!(result.is_ok());
-    assert_eq!(result.unwrap(), 0xFF);
+    assert_eq!(result.unwrap(), 123);
 
-    // let result = vm.resume("tests/freeze".to_string());
-    // assert!(result.is_ok());
-    // assert_eq!(result.unwrap(), 1);
+    let mut buffer = Vec::new();
+    match File::open("tests/freeze") {
+        Err(e) => panic!("Unable to open file in test_freeze() {:?}", e),
+        Ok(mut r) => r.read_to_end(&mut buffer).unwrap()
+    };       
+        
+
+    let mut vm = VM::new();
+    let result = vm.resume(&buffer);
+       if !(result.is_ok()){
+        panic!("{:?}", result.err());
+    }
+    assert_eq!(result.unwrap(), 1);
 }
