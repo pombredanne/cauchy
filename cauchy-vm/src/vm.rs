@@ -10,9 +10,9 @@ use ckb_vm::{
 use ckb_vm::instructions::Register;
 
 use crate::vm::rand::RngCore;
-use sha2::{Sha256, Digest};
 use ckb_vm::memory::Memory;
 use rand::rngs::OsRng;
+use sha2::{Digest, Sha256};
 use std::fs::File;
 use std::io::{Read, Write};
 use std::str;
@@ -43,7 +43,9 @@ impl VM {
         hasher.input(&buffer);
         self.txid = hasher.result().to_vec();
         let mut machine = DefaultMachine::<u64, SparseMemory>::default();
-        machine.add_syscall_module(Box::new(VMSyscalls { txid: self.txid.to_vec() }));
+        machine.add_syscall_module(Box::new(VMSyscalls {
+            txid: self.txid.to_vec(),
+        }));
         let result = machine.run(buffer, args);
         self.ret_bytes = machine.get_retbytes().to_vec();
         // machine
@@ -80,11 +82,11 @@ impl VM {
         &self.ret_bytes
     }
 
-    pub fn resume(&mut self, buffer: &[u8]) -> Result<u8, Error> {
+    pub fn resume(&mut self, buffer: &[u8], args: &[u8]) -> Result<u8, Error> {
         let mut hasher = Sha256::new();
         hasher.input(&buffer);
         self.txid = hasher.result().to_vec();
-        
+
         let mut machine = ckb_vm::DefaultMachine::<u64, SparseMemory>::default();
         machine.load_elf(&buffer).unwrap();
         machine.add_syscall_module(Box::new(VMSyscalls {
@@ -96,7 +98,13 @@ impl VM {
             DEFAULT_STACK_SIZE,
         )?;
 
-        VMSnapshot::<u64>::load_from_file(&self.txid, &mut machine);
+        let recv_addr = VMSnapshot::<u64>::load_from_file(&self.txid, &mut machine);
+
+        // Store input args at machine's snapshot recv addr
+        machine
+            .memory_mut()
+            .store_bytes(recv_addr as usize, args)
+            .unwrap();
 
         machine.resume()
     }
@@ -111,7 +119,7 @@ impl VMSyscalls {
         let mut buffer = Vec::new();
         match File::open(format!("scripts/{}", txid)) {
             Err(e) => panic!("Unable to load txid {}", txid),
-            Ok(mut r) => r.read_to_end(&mut buffer).unwrap()
+            Ok(mut r) => r.read_to_end(&mut buffer).unwrap(),
         };
         buffer
     }
@@ -127,7 +135,6 @@ impl Syscalls<u64, SparseMemory> for VMSyscalls {
             // Used to detect invalid PC assignment during resume
             1111 => {
                 panic!("PC calculation in VM::resume() is incorrect");
-                //Err(ckb_vm::Error::InvalidInstruction(123))
             }
             //  __vm_retbytes(addr, size)
             0xCBFF => {
@@ -156,48 +163,49 @@ impl Syscalls<u64, SparseMemory> for VMSyscalls {
                 for idx in txid_addr..(txid_addr + 64) {
                     txid.push(machine.memory_mut().load8(idx as usize).unwrap());
                 }
-                // println!("txid: {:X?} from addr: {:X?}", &hex::decode(txid).unwrap(), txid_addr);
-                println!(
-                    "txid: {:X?} from addr: {:X?}",
-                    hex::encode(hex::decode(&txid).unwrap()),
-                    txid_addr
-                );
 
                 // Get the send bytes
                 let mut send_bytes = Vec::<u8>::new();
                 for idx in send_addr..(send_addr + send_sz) {
-                    send_bytes.push( match machine.memory_mut().load8(idx as usize) {
+                    send_bytes.push(match machine.memory_mut().load8(idx as usize) {
                         Err(e) => panic!("sendbuff out of range in __vm_call()! {:?}", e),
-                        Ok(r) => r
+                        Ok(r) => r,
                     });
                 }
-                println!(
-                    "passing: {:X?} from addr: {:X?}",
-                    str::from_utf8(&send_bytes).unwrap(),
-                    send_addr
-                );
 
                 // Lookup the script that's being called
-                let call_script = &VMSyscalls::lookup_script( &String::from_utf8(txid).unwrap());
+                let call_script = &VMSyscalls::lookup_script(&String::from_utf8(txid).unwrap());
 
+                // Get the state ID for this script, which should be the TXID for now
+                let mut hasher = Sha256::new();
+                hasher.input(&call_script);
+                let txid = hasher.result().to_vec();
                 // Setup a new machine to run the script
                 let mut call_machine = ckb_vm::DefaultMachine::<u64, SparseMemory>::default();
-                call_machine.add_syscall_module(Box::new(VMSyscalls { txid: vec![] }));
+                call_machine.add_syscall_module(Box::new(VMSyscalls { txid: txid.to_vec() }));
 
-                // Get any input bytes intended to be sent to the callable script
-                let len = send_bytes.len();
-                let args = &vec![
-                    vec![func_index],
-                    send_bytes,
-                    vec![
-                        len as u8,
-                        (len >> 8) as u8,
-                        (len >> 16) as u8,
-                        (len >> 24) as u8,
-                    ],
-                ];
-                let result = call_machine.run(call_script, args);
-                assert!(result.is_ok());
+                if VMSnapshot::<u64>::has_saved_state(&txid) {
+                    // saved state, resume it
+                    panic!("Not yet implemented -- load state");
+
+                } else {
+                    // No saved state here, spin up a fresh one
+                    println!("Saved state not found for {}", &hex::encode(txid));
+                    // Get any input bytes intended to be sent to the callable script
+                    let len = send_bytes.len();
+                    let args = &vec![
+                        vec![func_index],
+                        send_bytes,
+                        vec![
+                            len as u8,
+                            (len >> 8) as u8,
+                            (len >> 16) as u8,
+                            (len >> 24) as u8,
+                        ],
+                    ];
+                    let result = call_machine.run(call_script, args);
+                    assert!(result.is_ok());
+                }
                 let store_bytes = call_machine.get_retbytes().to_vec();
 
                 // Store our value at address addr
@@ -205,7 +213,7 @@ impl Syscalls<u64, SparseMemory> for VMSyscalls {
                     .memory_mut()
                     .store_bytes(recv_addr as usize, &store_bytes)
                     .unwrap();
-                
+
                 println!("Called script returned {:?}", &hex::encode(&store_bytes));
 
                 Ok(true)
@@ -363,7 +371,6 @@ fn test_syscall2() {
     // The return val should be the sha256 hash of "hello"
     assert_eq!(
         bytes,
-        // &hex::decode("87c5158b276f5afd0709709edb49a8b3a9e38de5b9e54ca9dcce8e94b7f631d1").unwrap()
         &hex::decode("2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824").unwrap()
     );
 }
@@ -423,13 +430,12 @@ fn test_freeze() {
     let mut buffer = Vec::new();
     match File::open("tests/freeze") {
         Err(e) => panic!("Unable to open file in test_freeze() {:?}", e),
-        Ok(mut r) => r.read_to_end(&mut buffer).unwrap()
-    };       
-        
+        Ok(mut r) => r.read_to_end(&mut buffer).unwrap(),
+    };
 
     let mut vm = VM::new();
-    let result = vm.resume(&buffer);
-       if !(result.is_ok()){
+    let result = vm.resume(&buffer, b"DEADBEEF");
+    if !(result.is_ok()) {
         panic!("{:?}", result.err());
     }
     assert_eq!(result.unwrap(), 1);

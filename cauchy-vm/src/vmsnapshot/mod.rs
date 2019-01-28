@@ -9,12 +9,14 @@ use ckb_vm::instructions::Register;
 use ckb_vm::memory::{ Page, Memory};
 
 use std::fs::File;
+use std::path::Path;
 use std::io::{Read, Write};
 
 pub struct VMSnapshot<R: Register> {
     pages: Vec<Page>,
     registers: Vec<R>,
     pc: R,
+    recv_addr: R,
 }
 
 impl<R: Register> VMSnapshot<R> {
@@ -23,6 +25,7 @@ impl<R: Register> VMSnapshot<R> {
             pages: machine.memory_mut().pages.to_vec(),
             registers: machine.registers_mut().to_vec(),
             pc: machine.pc(),
+            recv_addr: machine.registers()[A5],
         }
     }
 
@@ -41,7 +44,9 @@ impl<R: Register> VMSnapshot<R> {
         res
     }
 
-    pub fn load_from_file(txid: &[u8], machine: &mut CoreMachine<u64, SparseMemory>) {
+    pub fn load_from_file(txid: &[u8], machine: &mut CoreMachine<R, SparseMemory>) -> R {
+        
+        // Load the state into a buff
         let mut buffer = Vec::new();
         match File::open(format!("states/{}", hex::encode(&txid))) {
             Err(e) => panic!("Cannot open file states/{} ",hex::encode(&txid)),
@@ -59,33 +64,34 @@ impl<R: Register> VMSnapshot<R> {
         +12    "ecall\n\t"
         +16     ...
         */
+        // Restore PC, then increment past __vm_wait_for_call() asm
         let pc = VMSnapshot::<u64>::deserialize_reg(&mut buffer, &mut idx) + 16;
         println!("PC loaded: {:X}", &pc);
         machine.set_pc(Register::from_u64(pc));
 
+        // Restore registers
         for (i, r) in machine.registers_mut().iter_mut().enumerate() {
             let ret = VMSnapshot::<u64>::deserialize_reg(&mut buffer[idx..], &mut idx);
             *r = Register::from_u64(ret);
             // println!("Loading reg {}: {:X}", i, *r);
         }
-        //machine.memory_mut().store_bytes(0, &buffer[idx..]).unwrap();
+
+        // Restore pages
         for (i, p) in machine.memory_mut().pages.iter_mut().enumerate() {
             p.copy_from_slice(&buffer[idx..idx+RISCV_PAGESIZE]);
             idx += RISCV_PAGESIZE;
         }
 
-        let recv_addr = machine.registers()[A5];
-
-        machine.memory_mut().store_bytes(recv_addr as usize, b"DEADBEEF").unwrap();
-
         // Add hooks to detect PC miscalculation
-        machine.registers_mut()[A0] = 222;
-        machine.registers_mut()[A7] = 1111;
+        machine.registers_mut()[A0] = R::from_u64(222);
+        machine.registers_mut()[A7] = R::from_u64(1111);
 
-        let mut buffer = File::create("resume.memoryz").unwrap();
-        for p in machine.memory_mut().pages.iter() {
-            buffer.write(p).unwrap();
-        }
+        // The recv addr is stored in A5, return that
+        machine.registers()[A5]
+    }
+
+    pub fn has_saved_state(txid: &[u8]) -> bool {
+        Path::new( &format!("states/{}", &hex::encode(txid))).exists()
     }
 
     pub fn save_to_file(&mut self, fname: String) {
