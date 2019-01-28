@@ -52,7 +52,6 @@ impl<R: Register> VMSnapshot<R> {
             Err(e) => panic!("Cannot open file states/{} ",hex::encode(&txid)),
             Ok(mut r) => r.read_to_end(&mut buffer).unwrap()
         };
-            
 
         let mut idx = 0;
 
@@ -66,7 +65,6 @@ impl<R: Register> VMSnapshot<R> {
         */
         // Restore PC, then increment past __vm_wait_for_call() asm
         let pc = VMSnapshot::<u64>::deserialize_reg(&mut buffer, &mut idx) + 16;
-        println!("PC loaded: {:X}", &pc);
         machine.set_pc(Register::from_u64(pc));
 
         // Restore registers
@@ -103,7 +101,6 @@ impl<R: Register> VMSnapshot<R> {
 
         // Save PC
         self.serialize_reg(&self.pc, &mut data);
-        println!("PC saved: {:X}", &self.pc.to_u64());
 
         // Serialize registers
         for (i, r) in self.registers.iter().enumerate() {
