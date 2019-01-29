@@ -106,7 +106,9 @@ impl VM {
             .store_bytes(recv_addr as usize, args)
             .unwrap();
 
-        machine.resume()
+        let result = machine.resume();
+        self.ret_bytes = machine.get_retbytes().to_vec();
+        result
     }
 }
 
@@ -173,40 +175,33 @@ impl Syscalls<u64, SparseMemory> for VMSyscalls {
                     });
                 }
 
-                // Lookup the script that's being called
+                // Lookup the script that's being called, which is  encoded as a string
+                println!("Looking up script {}", &String::from_utf8(txid.to_vec()).unwrap());
                 let call_script = &VMSyscalls::lookup_script(&String::from_utf8(txid).unwrap());
 
-                // Get the state ID for this script, which should be the TXID for now
+                let mut vm = VM::new();
+                let mut retcode : u8 = 0;
+
+                // // Get the state ID for this script, which should be the TXID for now
                 let mut hasher = Sha256::new();
                 hasher.input(&call_script);
                 let txid = hasher.result().to_vec();
-                // Setup a new machine to run the script
-                let mut call_machine = ckb_vm::DefaultMachine::<u64, SparseMemory>::default();
-                call_machine.add_syscall_module(Box::new(VMSyscalls { txid: txid.to_vec() }));
 
                 if VMSnapshot::<u64>::has_saved_state(&txid) {
                     // saved state, resume it
-                    panic!("Not yet implemented -- load state");
-
+                    println!("Loading state {}", &hex::encode(&txid));
+                    println!("Sending bytes {:X?}", &send_bytes);
+                    let result = vm.resume(call_script, &send_bytes);
+                    retcode = result.unwrap();
+                    assert!(result.is_ok());
                 } else {
                     // No saved state here, spin up a fresh one
-                    println!("Saved state not found for {}", &hex::encode(txid));
-                    // Get any input bytes intended to be sent to the callable script
-                    let len = send_bytes.len();
-                    let args = &vec![
-                        vec![func_index],
-                        send_bytes,
-                        vec![
-                            len as u8,
-                            (len >> 8) as u8,
-                            (len >> 16) as u8,
-                            (len >> 24) as u8,
-                        ],
-                    ];
-                    let result = call_machine.run(call_script, args);
+                    println!("Saved state not found for {}", &hex::encode(&txid));
+                    let result = vm.run_func(call_script, func_index, send_bytes);
                     assert!(result.is_ok());
+                    retcode = result.unwrap();
                 }
-                let store_bytes = call_machine.get_retbytes().to_vec();
+                let store_bytes = vm.get_retbytes().to_vec();
 
                 // Store our value at address addr
                 machine
@@ -214,7 +209,7 @@ impl Syscalls<u64, SparseMemory> for VMSyscalls {
                     .store_bytes(recv_addr as usize, &store_bytes)
                     .unwrap();
 
-                println!("Called script returned {:?}", &hex::encode(&store_bytes));
+                println!("Called script returned {:?} with retcode {:}", &hex::encode(&store_bytes), retcode);
 
                 Ok(true)
             }
@@ -254,7 +249,7 @@ impl Syscalls<u64, SparseMemory> for VMSyscalls {
             0xCBFB => {
                 let mut snapshot = VMSnapshot::new(machine);
                 snapshot.save_to_file(hex::encode(&self.txid));
-                //machine.stop();
+                println!("Saved state {:?}", &hex::encode(&self.txid));
                 Ok(true)
             }
             _ => Ok(false),
@@ -428,15 +423,43 @@ fn test_freeze() {
     assert_eq!(result.unwrap(), 123);
 
     let mut buffer = Vec::new();
-    match File::open("tests/freeze") {
+    match File::open("tests/freeze_call") {
         Err(e) => panic!("Unable to open file in test_freeze() {:?}", e),
         Ok(mut r) => r.read_to_end(&mut buffer).unwrap(),
     };
 
     let mut vm = VM::new();
-    let result = vm.resume(&buffer, b"DEADBEEF");
+    let result = vm.run_args(&buffer, b"DEADBEEF".to_vec());
     if !(result.is_ok()) {
         panic!("{:?}", result.err());
     }
+    assert_eq!(result.unwrap(), 0);
+}
+
+#[test]
+fn test_simple_contract() {
+    // let mut buffer = Vec::new();
+    // File::open("tests/simple_contract")
+    //     .unwrap()
+    //     .read_to_end(&mut buffer)
+    //     .unwrap();
+
+    // let mut vm = VM::new();
+    // let result = vm.run_func(&buffer, 0, vec![]);
+    
+    // println!("contract: {:X?}", &hex::encode(&vm.get_retbytes()));
+    // assert!(result.is_ok());
+    // assert_eq!(result.unwrap(), 123);
+
+    let mut buffer = Vec::new();
+    File::open("tests/simple_contract_call")
+        .unwrap()
+        .read_to_end(&mut buffer)
+        .unwrap();
+
+    let mut vm = VM::new();
+    let result = vm.run_func(&buffer, 0, vec![]);
+    println!("contract_call: {:X?}", &hex::encode(&vm.get_retbytes()));
+    assert!(result.is_ok());
     assert_eq!(result.unwrap(), 1);
 }

@@ -31,3 +31,5 @@ cauchy-vm/ckb-vm/Cargo\.lock
 cauchy-vm/ckb-vm/target/rls/
 
 cauchy-vm/target/
+
+cauchy-vm/states/
