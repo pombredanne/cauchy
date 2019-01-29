@@ -36,23 +36,6 @@ void __vm_call(const char *txid, void *sendbuff, int sendsize, void *recvbuff, i
         : "a2", "a3", "a4", "a5", "a6", "a7");
 }
 
-//static inline void __vm_wait_for_call(void *const recv_addr, int size)
-//{
-// For now, macro this to ensure it's defined inline -- gcc was not inlining correctly, revisit later
-// #define __vm_wait_for_call(recv_addr, size) \
-//     __asm__ volatile(                       \
-//         "mv a5, %0\n\t"                     \
-//         "mv a6, %1\n\t"                     \
-//         "li a7, 0xCBFB\n\t"                 \
-//         "ecall\n\t"                         \
-//         "li a0, 123\n\t"   \
-//          "li a7, 93\n\t" \
-//          "ecall\n\t" \
-//         : /* no output */                   \
-//         : "r"(recv_addr), "r"(size)         \
-//         : "a0", "a5", "a6", "a7");
-//}
-
 void __vm_wait_for_call(void *const recv_addr, int size)
 {
     __asm__ volatile(
