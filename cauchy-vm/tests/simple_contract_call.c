@@ -14,7 +14,7 @@ int main(void)
     return 0;
 }
 
-void _start()
-{
-    main();
-}
+// void _start()
+// {
+//     main();
+// }

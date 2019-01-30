@@ -461,5 +461,20 @@ fn test_simple_contract() {
     let result = vm.run_func(&buffer, 0, vec![]);
     println!("contract_call: {:X?}", &hex::encode(&vm.get_retbytes()));
     assert!(result.is_ok());
+    assert_eq!(result.unwrap(), 0);
+}
+
+#[test]
+fn test_simple_contract_cpp() {
+    let mut buffer = Vec::new();
+    File::open("tests/simple_contract_cpp")
+        .unwrap()
+        .read_to_end(&mut buffer)
+        .unwrap();
+
+    let mut vm = VM::new();
+    let result = vm.run_func(&buffer, 0, vec![]);
+    println!("contract_call: {:X?}", &hex::encode(&vm.get_retbytes()));
     assert_eq!(result.unwrap(), 1);
+    assert!(result.is_ok());
 }
