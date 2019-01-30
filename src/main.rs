@@ -25,7 +25,6 @@ use db::rocksdb::RocksDb;
 use db::*;
 use futures::lazy;
 use futures::sync::mpsc;
-use primitives::script::Script;
 use primitives::status::Status;
 use primitives::transaction::Transaction;
 use rand::Rng;
@@ -65,28 +64,13 @@ fn main() {
 
     let self_status = Arc::new(Status::null());
 
-    // Handshake secret
-    let secret: u64 = 32;
-    let secret_shared = Arc::new(RwLock::new(secret));
-
     // Server
     let (new_socket_tx, new_socket_rx) = mpsc::channel(1);
     let status_inner = self_status.clone();
-    let secret_shared_inner = secret_shared.clone();
-    let server_verbose = true;
-    let server = daemon::server(
-        tx_db,
-        status_inner,
-        pk,
-        sk,
-        secret_shared_inner,
-        server_verbose,
-        new_socket_rx,
-    );
+    let server = daemon::server(tx_db, status_inner, pk, sk, new_socket_rx);
 
     // RPC Server
-    let rpc_verbose = true;
-    let rpc_server = daemon::rpc_server(rpc_verbose, new_socket_tx);
+    let rpc_server = daemon::rpc_server(new_socket_tx);
 
     // Spawn servers
     thread::spawn(move || {
@@ -101,7 +85,7 @@ fn main() {
     let (sketch_send, sketch_recv) = channel::unbounded();
     thread::spawn(move || self_status.update_local(odd_sketch_bus, sketch_recv, distance_recv));
 
-    let new_tx_interval = time::Duration::from_millis(100);
+    let new_tx_interval = time::Duration::from_millis(2000);
 
     loop {
         sketch_send.send(random_tx());
@@ -110,8 +94,8 @@ fn main() {
 
     fn random_tx() -> Transaction {
         let mut rng = rand::thread_rng();
-        let my_array: [u8; 8] = rng.gen();
-        let raw_script = Bytes::from(&my_array[..]);
-        Transaction::new(0, 0, vec![Script::new(raw_script)])
+        let aux_data: [u8; 8] = rng.gen();
+        let binary: [u8; 8] = rng.gen();
+        Transaction::new(0, Bytes::from(&aux_data[..]), Bytes::from(&binary[..]))
     }
 }

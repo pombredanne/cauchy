@@ -15,3 +15,4 @@ pub const RECONCILE_HEARTBEAT_PERIOD_NANO: u32 = 0;
 pub const SERVER_PORT: u16 = 8080;
 pub const RPC_SERVER_PORT: u16 = 8332;
 pub const MINER: bool = true;
+pub const VERBOSE: bool = true;

@@ -1,18 +1,18 @@
 use bytes::{Buf, BufMut, Bytes, BytesMut, IntoBuf};
 use crypto::signatures::ecdsa::*;
 use crypto::sketches::iblt::*;
-use primitives::script::Script;
 use primitives::transaction::Transaction;
 use primitives::varint::VarInt;
 use primitives::work_site::WorkSite;
 use state::spend_state::*;
 use std::collections::HashSet;
 use utils::constants::*;
+use utils::parsing::*;
 
 pub trait TryFrom<T>: Sized {
     type Err;
     fn try_from(_: T) -> Result<Self, Self::Err>;
-} 
+}
 
 impl From<VarInt> for Bytes {
     fn from(varint: VarInt) -> Bytes {
@@ -57,17 +57,19 @@ impl From<Transaction> for Bytes {
     fn from(tx: Transaction) -> Bytes {
         let mut buf = vec![];
 
-        let var_time = VarInt::from(tx.time());
-        buf.put(&Bytes::from(var_time));
+        let vi_time = VarInt::from(*tx.get_time());
+        buf.put(&Bytes::from(vi_time));
 
-        let n_spendable = VarInt::from(tx.n_spendable());
-        buf.put(&Bytes::from(n_spendable));
+        let aux_data = tx.get_aux();
+        let vi_aux_len = VarInt::from(aux_data.len());
+        buf.put(&Bytes::from(vi_aux_len));
+        buf.put(aux_data);
 
-        for script in Vec::from(tx) {
-            let script_raw = Bytes::from(script);
-            buf.put(&Bytes::from(VarInt::from(script_raw.len())));
-            buf.put(&script_raw);
-        }
+        let binary = tx.get_binary();
+        let vi_binary_len = VarInt::from(binary.len());
+        buf.put(&Bytes::from(vi_binary_len));
+        buf.put(binary);
+
         Bytes::from(buf) // TODO: Replace with bufmut
     }
 }
@@ -76,25 +78,22 @@ impl From<Transaction> for Bytes {
 impl TryFrom<Bytes> for Transaction {
     type Err = String;
     fn try_from(raw: Bytes) -> Result<Transaction, Self::Err> {
-        let mut scripts = Vec::new();
         let mut buf = raw.into_buf();
 
         let vi_time = VarInt::parse_buf(&mut buf)?;
-        let n_spendable = VarInt::parse_buf(&mut buf)?;
 
-        while buf.has_remaining() {
-            let vi = VarInt::parse_buf(&mut buf)?;
+        let vi_aux_len = VarInt::parse_buf(&mut buf)?;
+        let mut dst_aux = vec![0; usize::from(vi_aux_len)];
+        buf.copy_to_slice(&mut dst_aux);
 
-            let len = usize::from(vi);
-            let mut dst = vec![0; len as usize];
-            buf.copy_to_slice(&mut dst);
+        let vi_bin_len = VarInt::parse_buf(&mut buf)?;
+        let mut dst_bin = vec![0; usize::from(vi_bin_len)];
+        buf.copy_to_slice(&mut dst_bin);
 
-            scripts.push(Script::new(Bytes::from(dst)));
-        }
         Ok(Transaction::new(
             u64::from(vi_time),
-            u32::from(n_spendable),
-            scripts,
+            Bytes::from(dst_aux),
+            Bytes::from(dst_bin),
         ))
     }
 }
@@ -175,7 +174,6 @@ impl From<Row> for Bytes {
         buf.put_i32_be(row.get_count());
         buf.put(&row.get_payload()[..]);
         buf.put(&row.get_checksum()[..]);
-        println!("Buf len: {}", buf.len());
         Bytes::from(buf)
     }
 }
@@ -193,6 +191,5 @@ impl From<Bytes> for Row {
             Bytes::from(&dst_payload[..]),
             Bytes::from(&dst_checksum[..]),
         )
-
     }
 }

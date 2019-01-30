@@ -11,7 +11,7 @@ where
 pub fn get_bit_pos<T>(value: &T, modulo: usize) -> (u16, usize)
 where
     T: Blk2bHashable,
-{   
+{
     let digest = value.blake2b();
     let modulo = modulo as u16;
     let pos = ((digest[0] as u16) + ((digest[1] as u16) << 8)) % (modulo * 8); // Bit position // TODO: Check

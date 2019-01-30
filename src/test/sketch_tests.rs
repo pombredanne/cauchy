@@ -1,16 +1,15 @@
 mod odd_sketch {
     use bytes::Bytes;
     use crypto::sketches::odd_sketch::*;
-    use primitives::script::Script;
     use utils::byte_ops::*;
 
     #[test]
     fn test_sketchable_permutation() {
-        let script_a = Script::new(Bytes::from(&b"hello"[..]));
-        let script_b = Script::new(Bytes::from(&b"script"[..]));
-        let script_c = Script::new(Bytes::from(&b"world!!"[..]));
-        let vec_a = vec![script_a.clone(), script_b.clone(), script_c.clone()];
-        let vec_b = vec![script_b, script_a, script_c];
+        let ele_a = Bytes::from(&b"hello"[..]);
+        let ele_b = Bytes::from(&b"script"[..]);
+        let ele_c = Bytes::from(&b"world!!"[..]);
+        let vec_a = vec![ele_a.clone(), ele_b.clone(), ele_c.clone()];
+        let vec_b = vec![ele_b, ele_a, ele_c];
         assert_eq!(
             Bytes::from(vec_a.odd_sketch()),
             Bytes::from(vec_b.odd_sketch())
@@ -19,23 +18,23 @@ mod odd_sketch {
 
     #[test]
     fn test_sketchable_size() {
-        let script_a = Script::new(Bytes::from(&b"hello"[..]));
-        let script_b = Script::new(Bytes::from(&b"script"[..]));
-        let script_c = Script::new(Bytes::from(&b"world!!"[..]));
-        let script_d = Script::new(Bytes::from(&b"extra"[..]));
-        let script_e = Script::new(Bytes::from(&b"extra2"[..]));
-        let vec_a = vec![script_a, script_b, script_c, script_d, script_e];
+        let ele_a = Bytes::from(&b"hello"[..]);
+        let ele_b = Bytes::from(&b"script"[..]);
+        let ele_c = Bytes::from(&b"world!!"[..]);
+        let ele_d = Bytes::from(&b"extra"[..]);
+        let ele_e = Bytes::from(&b"extra2"[..]);
+        let vec_a = vec![ele_a, ele_b, ele_c, ele_d, ele_e];
         let sketch_a = vec_a.odd_sketch();
         assert_eq!(sketched_size(&sketch_a), 5)
     }
 
     #[test]
     fn test_sketchable_symmetric_difference() {
-        let script_a = Script::new(Bytes::from(&b"hello"[..]));
-        let script_b = Script::new(Bytes::from(&b"script"[..]));
-        let script_c = Script::new(Bytes::from(&b"world!!"[..]));
-        let script_d = Script::new(Bytes::from(&b"extra"[..]));
-        let script_e = Script::new(Bytes::from(&b"extra2"[..]));
+        let script_a = Bytes::from(&b"hello"[..]);
+        let script_b = Bytes::from(&b"script"[..]);
+        let script_c = Bytes::from(&b"world!!"[..]);
+        let script_d = Bytes::from(&b"extra"[..]);
+        let script_e = Bytes::from(&b"extra2"[..]);
         let vec_a = vec![script_a.clone(), script_b.clone(), script_c.clone()];
         let vec_b = vec![script_b, script_a, script_d, script_e];
         let sketch_a = vec_a.odd_sketch();
@@ -50,13 +49,15 @@ mod iblt {
     use crypto::sketches::iblt::*;
     use crypto::sketches::odd_sketch::*;
     use std::collections::HashSet;
-    use utils::serialisation::*;
     use utils::constants::IBLT_PAYLOAD_LEN;
+    use utils::serialisation::*;
 
     #[test]
     fn test_iblt_single() {
         let mut iblt = IBLT::with_capacity(30, 3);
-        let val = Bytes::from(&b"hello"[..]).blake2b().slice_to(IBLT_PAYLOAD_LEN);
+        let val = Bytes::from(&b"hello"[..])
+            .blake2b()
+            .slice_to(IBLT_PAYLOAD_LEN);
         iblt.insert(val.clone());
 
         let mut left: HashSet<Bytes> = HashSet::with_capacity(30);
@@ -76,13 +77,17 @@ mod iblt {
         let mut iblt_b = IBLT::with_capacity(64, 4);
 
         for i in 0..1000 {
-            let element = Bytes::from(&[i as u8][..]).blake2b().slice_to(IBLT_PAYLOAD_LEN);
+            let element = Bytes::from(&[i as u8][..])
+                .blake2b()
+                .slice_to(IBLT_PAYLOAD_LEN);
             iblt_a.insert(element.clone());
             hashset_a.insert(element);
         }
 
         for i in 32..1000 {
-            let element = Bytes::from(&[i as u8][..]).blake2b().slice_to(IBLT_PAYLOAD_LEN);
+            let element = Bytes::from(&[i as u8][..])
+                .blake2b()
+                .slice_to(IBLT_PAYLOAD_LEN);
             iblt_b.insert(element.clone());
             hashset_b.insert(element);
         }
@@ -108,7 +113,9 @@ mod iblt {
         let mut hashset: HashSet<Bytes> = HashSet::with_capacity(64);
 
         for i in 0..8 {
-            let element = Bytes::from(&[i as u8][..]).blake2b().slice_to(IBLT_PAYLOAD_LEN);
+            let element = Bytes::from(&[i as u8][..])
+                .blake2b()
+                .slice_to(IBLT_PAYLOAD_LEN);
             iblt.insert(element.clone());
             hashset.insert(element);
         }

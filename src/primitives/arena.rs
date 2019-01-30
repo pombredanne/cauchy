@@ -6,18 +6,20 @@ use std::sync::Arc;
 use utils::byte_ops::Hamming;
 
 pub struct Arena {
+    // TODO: Individual RWLocks for each? Asyncronous hasmaps?
+    // Is it worth it given the time between arena lookups is long
+    // Probably not?
     self_pubkey: PublicKey,
-    live_peers: HashSet<PublicKey>,
+    // TODO: Combine these?
     peer_status: HashMap<PublicKey, Arc<Status>>,
     perceived_status: HashMap<PublicKey, StaticStatus>,
     order: Vec<PublicKey>,
 }
 
 impl Arena {
-    pub fn new(self_pubkey: &PublicKey, self_status: Arc<Status>) -> Arena {
+    pub fn init(self_pubkey: &PublicKey, self_status: Arc<Status>) -> Arena {
         let mut new = Arena {
             self_pubkey: *self_pubkey,
-            live_peers: HashSet::new(),
             peer_status: HashMap::new(),
             perceived_status: HashMap::new(),
             order: Vec::new(),
@@ -32,8 +34,6 @@ impl Arena {
 
         let value = self.perceived_status.remove(pubkey_a).unwrap();
         self.perceived_status.insert(*pubkey_b, value);
-        self.live_peers.remove(pubkey_a);
-        self.live_peers.insert(*pubkey_b);
     }
 
     pub fn new_peer(&mut self, pubkey: &PublicKey) {
@@ -44,11 +44,10 @@ impl Arena {
         println!("Added new peer to arena!");
         self.peer_status.insert(*pubkey, status);
         self.perceived_status.insert(*pubkey, StaticStatus::null()); // Remove for self
-        self.live_peers.insert(*pubkey);
     }
 
-    pub fn get_perception(&self, pubkey: &PublicKey) -> StaticStatus {
-        (*self.perceived_status.get(pubkey).unwrap()).clone()
+    pub fn get_perception(&self, pubkey: &PublicKey) -> Option<&StaticStatus> {
+        self.perceived_status.get(pubkey)
     }
 
     pub fn update_perception(&mut self, pubkey: &PublicKey) {
@@ -58,7 +57,7 @@ impl Arena {
         );
     }
 
-    pub fn get_peer(&self, pubkey: &PublicKey) -> Option<Arc<Status>> {
+    pub fn get_status(&self, pubkey: &PublicKey) -> Option<Arc<Status>> {
         let status = self.peer_status.get(pubkey)?;
         Some(status.clone())
     }
@@ -81,9 +80,9 @@ impl Arena {
                 (*pubkey, dist)
             })
             .collect();
-            
+
         println!("Distances: {:?}", distances.values());
-        let mut ordered: Vec<PublicKey> = self.live_peers.clone().into_iter().collect();
+        let mut ordered: Vec<PublicKey> = self.peer_status.keys().map(|key| *key).collect();
         ordered.sort_by_key(|x| distances.get(x));
         println!("Order: {:?}", ordered);
         self.order = ordered

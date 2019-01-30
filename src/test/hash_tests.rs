@@ -1,7 +1,7 @@
 mod blk2b {
     use bytes::Bytes;
     use crypto::hashes::blake2b::Blk2bHashable;
-    use primitives::{script::Script, transaction::Transaction};
+    use primitives::transaction::Transaction;
 
     #[test]
     fn test_blk2b_basic() {
@@ -12,11 +12,10 @@ mod blk2b {
 
     #[test]
     fn test_blk2b_transaction() {
-        let raw = &b"\x01\x06\x05hello\x06script\x07world!!"[..];
-        let script_a = Script::new(Bytes::from(&b"hello"[..]));
-        let script_b = Script::new(Bytes::from(&b"script"[..]));
-        let script_c = Script::new(Bytes::from(&b"world!!"[..]));
-        let tx = Transaction::new(1, 6, vec![script_a, script_b, script_c]);
+        let raw = Bytes::from(&b"\x01\x03aux\x06binary"[..]);
+        let aux = Bytes::from(&b"aux"[..]);
+        let binary = Bytes::from(&b"binary"[..]);
+        let tx = Transaction::new(1, aux, binary);
         assert_eq!(tx.blake2b(), raw.blake2b())
     }
 }

@@ -9,37 +9,6 @@ impl VarInt {
         VarInt(n)
     }
 
-    // // TODO: Change to result
-    // pub fn parse(raw: &[u8]) -> VarInt {
-    //     let mut n: u64 = 0;
-    //     let mut buf = raw.into_buf();
-    //     loop {
-    //         let k = buf.get_u8();
-    //         n = (n << 7) | u64::from(k & 0x7f);
-    //         if 0x00 != (k & 0x80) {
-    //             n += 1;
-    //         } else {
-    //             return VarInt::new(n);
-    //         }
-    //     }
-    // }
-
-    pub fn parse_buf<T: Buf>(buf: &mut T) -> Result<VarInt, String> {
-        let mut n: u64 = 0;
-        loop {
-            if buf.remaining() == 0 {
-                return Err("No remaining bytes".to_string());
-            }
-            let k = buf.get_u8();
-            n = (n << 7) | u64::from(k & 0x7f);
-            if 0x00 != (k & 0x80) {
-                n += 1;
-            } else {
-                return Ok(VarInt::new(n));
-            }
-        }
-    }
-
     pub fn len(&self) -> usize {
         let mut n = self.0;
         let mut n_ret: usize = 0;

@@ -12,6 +12,7 @@ use crypto::sketches::iblt::*;
 use primitives::transaction::*;
 use primitives::varint::VarInt;
 use utils::constants::*;
+use utils::parsing::*;
 
 pub enum Message {
     StartHandshake { secret: u64 }, // 0 || Secret VarInt
@@ -20,8 +21,8 @@ pub enum Message {
     OddSketch { sketch: Bytes },    // 3 || Sketch
     IBLT { iblt: IBLT },            // 4 || Number of Rows VarInt || IBLT
     GetTransactions { ids: HashSet<Bytes> }, // 5 || Number of Ids VarInt || Ids
-    Transactions { txs: Vec<Transaction> }, // 6 || Number of Bytes VarInt || Tx 0 Len VarInt || Tx 0 || ...
-    Reconcile,                              // 7
+    Transactions { txs: Vec<Transaction> }, // 6 || Number of Bytes VarInt || Tx ...
+    Reconcile,                      // 7
 }
 
 pub struct MessageCodec;
@@ -173,8 +174,7 @@ impl Decoder for MessageCodec {
                 };
                 let n_rows_len = n_rows_vi.len();
                 let n_rows = usize::from(n_rows_vi);
-                println!("Number of rows: {}", n_rows);
-                
+
                 let row_len = 4 + IBLT_PAYLOAD_LEN + IBLT_CHECKSUM_LEN;
                 let total_size = n_rows * row_len;
 
@@ -187,7 +187,9 @@ impl Decoder for MessageCodec {
                     buf.copy_to_slice(&mut row_dst);
                     rows.push(Row::from(Bytes::from(&row_dst[..])));
                 }
-                let msg = Message::IBLT { iblt: IBLT::from_rows(rows, IBLT_N_HASHES) };
+                let msg = Message::IBLT {
+                    iblt: IBLT::from_rows(rows, IBLT_N_HASHES),
+                };
                 src.advance(1 + n_rows_len + total_size);
                 Ok(Some(msg))
             }
@@ -233,10 +235,11 @@ impl Decoder for MessageCodec {
                     let tx_len_len = tx_len_vi.len();
                     let tx_len = usize::from(tx_len_vi.clone());
 
+                    // TODO: Optimize this a bit
                     if buf.remaining() < tx_len {
                         return Ok(None);
                     } else {
-                        match Transaction::parse_buf(&mut buf, tx_len) {
+                        match Transaction::parse_buf(&mut buf) {
                             Ok(some) => {
                                 total_size += tx_len_len + tx_len;
                                 txs.push(some)
@@ -261,7 +264,10 @@ impl Decoder for MessageCodec {
             }
             _ => {
                 // TODO: Remove malformed msgs
-                println!("Received: {}", String::from_utf8_lossy(&src.clone().freeze()));
+                println!(
+                    "Received: {}",
+                    String::from_utf8_lossy(&src.clone().freeze())
+                );
                 println!("Received: {}", String::from_utf8_lossy(&buf.bytes()));
                 Err(Error::new(ErrorKind::InvalidData, "Invalid Message"))
             }
