@@ -1,4 +1,5 @@
 use futures::sync::mpsc::Sender;
+use net::connections::ConnectionManager;
 use net::messages::Message;
 use primitives::arena::*;
 use primitives::status::*;
@@ -10,7 +11,6 @@ use tokio::io::{Error, ErrorKind};
 use tokio::prelude::*;
 use tokio::timer::Interval;
 use utils::constants::*;
-use net::connections::ConnectionManager;
 
 // TODO: Handle errors properly
 
@@ -99,15 +99,21 @@ pub fn spawn_heartbeat_reconcile(
         let arena_r = arena.read().unwrap();
         let leader_pk = arena_r.get_order()[0];
         drop(arena_r);
-        leader_pk
-    })
-    .for_each(move |leader_pk| {
+
         let connection_manager_inner = connection_manager.clone();
         let connection_manager_read = &*connection_manager_inner.read().unwrap();
-        let socket_addr = connection_manager_read.get_socket_by_pk(leader_pk).unwrap(); // TODO: This is super unsafe
+        println!("GOT HERE");
+        let socket_addr = connection_manager_read.get_socket_by_pk(leader_pk); // TODO: This is super unsafe
         let router_sender = connection_manager_read.get_router_sender();
-        router_sender.clone()
-            .send((socket_addr, Message::Reconcile))
+
+        (socket_addr, router_sender)
+    })
+    .filter(move |(socket_addr, _)| socket_addr.is_some())
+    .for_each(move |(socket_addr, router_sender)| {
+        println!("Send reconcile :o");
+        router_sender
+            .clone()
+            .send((socket_addr.unwrap(), Message::Reconcile))
             .map_err(|e| Error::new(ErrorKind::Other, "RPC addpeer channel failure"))
             .map(|_| ())
             .or_else(|e| {

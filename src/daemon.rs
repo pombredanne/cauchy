@@ -17,7 +17,6 @@ use primitives::varint::VarInt;
 use secp256k1::{PublicKey, SecretKey};
 use std::net::SocketAddr;
 use std::sync::{Arc, RwLock};
-use std::time::Duration;
 use tokio::codec::Framed;
 use tokio::io::{Error, ErrorKind};
 use tokio::net::{TcpListener, TcpStream};
@@ -49,7 +48,7 @@ pub fn rpc_server(
             let framed_sock = Framed::new(socket, RPCCodec);
             let (_, stream) = framed_sock.split();
 
-            // New TCP socket sender            
+            // New TCP socket sender
             let tcp_socket_send_inner = tcp_socket_send.clone();
 
             let send = stream
@@ -94,14 +93,14 @@ pub fn server(
     local_pk: PublicKey,
     local_sk: SecretKey,
     new_stream_recv: mpsc::Receiver<TcpStream>,
+    arena: Arc<RwLock<Arena>>,
+    connection_manager: Arc<RwLock<ConnectionManager>>,
 ) -> impl Future<Item = (), Error = ()> + Send + 'static {
     // Initialise shared tracking structures arena and connection manager
     /* Arena manages the perceived state of peers and their perception of our local state along
     with proof-of-work calculations */
     /* Connection manager forwards the messages from RPC commands, tracks misbehaviour and handles
     reconciliation/handshake messages */
-    let arena = Arc::new(RwLock::new(Arena::init(&local_pk, local_status.clone())));
-    let connection_manager = Arc::new(RwLock::new(ConnectionManager::init()));
 
     let addr = format!("0.0.0.0:{}", SERVER_PORT).to_string();
     let addr = addr.parse::<SocketAddr>().unwrap();
@@ -112,9 +111,6 @@ pub fn server(
         .incoming()
         .map_err(|e| println!("Failure accepting socket; {:?}", e))
         .select(new_stream_recv);
-
-    // Spawn reconcile heartbeat
-    tokio::spawn(spawn_heartbeat_reconcile(connection_manager.clone(), arena.clone()));
 
     let server = incoming.for_each(move |socket| {
         let socket_addr = socket.peer_addr().unwrap();
