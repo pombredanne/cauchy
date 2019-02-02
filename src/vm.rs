@@ -112,6 +112,11 @@ impl VM {
     }
 }
 
+pub trait Retbytes {
+    fn get_retbytes(&mut self) -> &Vec<u8>;
+    fn store_retbytes(&mut self, retbytes: Vec<u8>);
+}
+
 struct VMSyscalls {
     txid: Vec<u8>,
 }

@@ -1,8 +1,8 @@
-#include "vm.h"
+//#include "vm.h"
 #include "stdint.h"
-#include <cstring>
+//#include <cstring>
 #include <map>
-#include "simple_contract.h"
+//#include "simple_contract.h"
 using namespace std;
 
 int main(int argc, char *argv[])
