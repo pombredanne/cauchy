@@ -1,0 +1,11 @@
+[package]
+name = "cauchy-vm"
+version = "0.1.1"
+authors = ["Harry <hlbarber93@gmail.com>", "Chris Novick <c.r.novick@protonmail.com>"]
+edition = "2018"
+
+[dependencies]
+ckb-vm = { path = "./ckb-vm"}
+hex = "*"
+rand = "*"
+sha2 = "*"
