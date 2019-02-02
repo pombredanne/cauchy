@@ -1,5 +1,5 @@
-use bytes::{Buf, Bytes, BytesMut, IntoBuf};
-use std::net::{SocketAddr, ToSocketAddrs};
+use bytes::{Buf, BytesMut, IntoBuf};
+use std::net::SocketAddr;
 use tokio::codec::{Decoder, Encoder};
 use tokio::io::{Error, ErrorKind};
 
@@ -13,7 +13,7 @@ impl Encoder for RPCCodec {
     type Item = RPC;
     type Error = Error;
 
-    fn encode(&mut self, item: Self::Item, dst: &mut BytesMut) -> Result<(), Self::Error> {
+    fn encode(&mut self, _item: Self::Item, _dst: &mut BytesMut) -> Result<(), Self::Error> {
         Err(Error::new(
             ErrorKind::Other,
             "Daemon shouldn't send RPC messages",

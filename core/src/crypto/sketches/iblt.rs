@@ -180,22 +180,18 @@ impl IBLT {
 
         let mut decode_iblt = self.clone();
 
-        loop {
-            if let Some(row) = decode_iblt.get_pure() {
-                let payload = row.clone().payload;
-                let count = row.clone().count;
+        while let Some(row) = decode_iblt.get_pure() {
+            let payload = row.clone().payload;
+            let count = row.clone().count;
 
-                if count > 0 {
-                    left.insert(payload.clone());
-                } else {
-                    right.insert(payload.clone());
-                }
-
-                for j in (0..self.n_hashes).map(|k| get_pos(&payload, k, self.rows.len())) {
-                    decode_iblt.rows[j] -= Row::count_row(&payload, count);
-                }
+            if count > 0 {
+                left.insert(payload.clone());
             } else {
-                break;
+                right.insert(payload.clone());
+            }
+
+            for j in (0..self.n_hashes).map(|k| get_pos(&payload, k, self.rows.len())) {
+                decode_iblt.rows[j] -= Row::count_row(&payload, count);
             }
         }
 

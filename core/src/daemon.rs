@@ -184,7 +184,6 @@ pub fn server(
                     let socket_pk_read = *socket_pk.read().unwrap();
                     (*arena_write).replace_key(&socket_pk_read, &pubkey);
                     drop(arena_write);
-                    drop(socket_pk_read);
                     let mut socket_pk_write_locked = socket_pk.write().unwrap();
                     *socket_pk_write_locked = *pubkey;
                 } else {
@@ -285,20 +284,20 @@ pub fn server(
                 }
 
                 let arena_r = arena_inner.read().unwrap();
-                let socket_pk_locked = *socket_pk_inner.read().unwrap();
+                let socket_pk_read = *socket_pk_inner.read().unwrap();
 
-                let perception = match (*arena_r).get_perception(&socket_pk_locked) {
-                    Some(some) => (*some).clone(),
+                let perception = match (*arena_r).get_perception(&socket_pk_read) {
+                    Some(some) => some,
                     None => return Err("No perception found".to_string()),
                 };
                 let peer_odd_sketch = arena_r
-                    .get_status(&socket_pk_locked)
+                    .get_status(&socket_pk_read)
                     .unwrap()
                     .get_odd_sketch();
 
-                let perception_iblt: IBLT = perception.mini_sketch;
+                let perception_iblt: IBLT = perception.get_mini_sketch();
                 let (ids, _) = (perception_iblt - iblt).decode().unwrap();
-                let perception_odd_sketch = perception.odd_sketch;
+                let perception_odd_sketch = perception.get_odd_sketch();
 
                 // Check for fraud
                 if peer_odd_sketch.byte_xor(perception_odd_sketch) == ids.odd_sketch() {
@@ -315,11 +314,11 @@ pub fn server(
                 let arena_r = arena_inner.read().unwrap();
                 let socket_pk_read = *socket_pk_inner.read().unwrap();
                 let perception = match (*arena_r).get_perception(&socket_pk_read) {
-                    Some(some) => (*some).clone(),
+                    Some(some) => some,
                     None => return Err("No perception found".to_string()),
                 };
                 Ok(Message::IBLT {
-                    iblt: perception.mini_sketch,
+                    iblt: perception.get_mini_sketch(),
                 })
             }
             _ => unreachable!(),

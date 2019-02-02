@@ -14,7 +14,7 @@ where
 {
     let digest = value.blake2b();
     let modulo = modulo as u16;
-    let pos = ((digest[0] as u16) + ((digest[1] as u16) << 8)) % (modulo * 8); // Bit position // TODO: Check
+    let pos = (u16::from(digest[0]) + (u16::from(digest[1]) << 8)) % (modulo * 8); // Bit position // TODO: Check
     let shift = &pos % 8; // Position within the byte
     let index = (pos / modulo) as usize; // Position of the byte
     (shift, index)

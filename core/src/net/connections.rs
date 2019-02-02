@@ -4,7 +4,6 @@ use secp256k1::PublicKey;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::{Arc, RwLock};
-use tokio::io::{Error, ErrorKind};
 use tokio::prelude::*;
 
 pub struct ConnectionManager {
@@ -13,15 +12,18 @@ pub struct ConnectionManager {
 }
 
 impl ConnectionManager {
-    pub fn init() -> (Arc<RwLock<ConnectionManager>>, impl Future<Item = (), Error = ()> + Send + 'static) {
-        // Init connection manager
+    pub fn init() -> (
+        Arc<RwLock<ConnectionManager>>,
+        impl Future<Item = (), Error = ()> + Send + 'static,
+    ) {
+        // Initialise connection manager
         let (router_sender, router_receiver) = channel::<(SocketAddr, Message)>(128);
         let cm = Arc::new(RwLock::new(ConnectionManager {
             connections: HashMap::new(),
             router_sender,
         }));
 
-        // Init router
+        // Initialise router
         let cm_inner = cm.clone();
         let router = router_receiver
             .map(move |(socket_addr, message)| {
@@ -46,10 +48,10 @@ impl ConnectionManager {
     }
 
     pub fn get_socket_by_pk(&self, pk: PublicKey) -> Option<SocketAddr> {
-        let (socket, pk) = self
+        let (socket, _) = self
             .connections
             .iter()
-            .find(|(socket, conn_status)| pk == *conn_status.current_pk.read().unwrap())?;
+            .find(|(_, conn_status)| pk == *conn_status.current_pk.read().unwrap())?;
         Some(*socket)
     }
 
@@ -72,7 +74,7 @@ impl ConnectionManager {
         }
         let (msg_sender, msg_receiver) = channel::<Message>(1);
 
-        // Randomize secret
+        // TODO: Randomize secret
         let secret: u64 = 32;
 
         // Initiate handshake

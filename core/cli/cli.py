@@ -12,11 +12,4 @@ if cmd == "addpeer":
     ip, seperator, port = args.rpartition(':')
     ip_bytes = bytes(map(int, ip.split('.')))
     msg = b"\x00" + ip_bytes + int(port).to_bytes(2, byteorder='big')
-    s.send(msg)
-# elif cmd == "handshakepeer":
-#     ip, seperator, port = args.rpartition(':')
-#     ip_bytes = bytes(map(int, ip.split('.')))
-#     msg = b"\x00" + ip_bytes + int(port).to_bytes(2, byteorder='big')
-#     s.send(msg)
-
-    
+    s.send(msg)    

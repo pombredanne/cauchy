@@ -83,7 +83,6 @@ impl Encoder for MessageCodec {
                 dst.extend(payload);
             }
             Message::Reconcile => dst.put_u8(7),
-            _ => unreachable!(),
         }
         Ok(())
     }

@@ -14,23 +14,6 @@ use secp256k1::PublicKey;
 
 use std::sync::RwLock;
 
-#[derive(Clone)]
-pub struct StaticStatus {
-    pub nonce: u64,
-    pub odd_sketch: Bytes,
-    pub mini_sketch: IBLT,
-}
-
-impl StaticStatus {
-    pub fn null() -> StaticStatus {
-        StaticStatus {
-            nonce: 0,
-            odd_sketch: Bytes::from(&[0; SKETCH_CAPACITY][..]),
-            mini_sketch: IBLT::with_capacity(SKETCH_CAPACITY, IBLT_N_HASHES),
-        }
-    }
-}
-
 pub struct Status {
     nonce: RwLock<u64>,
     odd_sketch: RwLock<BytesMut>,
@@ -47,14 +30,6 @@ impl Status {
             nonce,
             odd_sketch,
             mini_sketch,
-        }
-    }
-
-    pub fn to_static(&self) -> StaticStatus {
-        StaticStatus {
-            nonce: self.get_nonce(),
-            odd_sketch: self.get_odd_sketch(),
-            mini_sketch: self.get_mini_sketch(),
         }
     }
 
@@ -109,7 +84,7 @@ impl Status {
 
     pub fn get_nonce(&self) -> u64 {
         let nonce_locked = self.nonce.read().unwrap();
-        (*nonce_locked).clone()
+        *nonce_locked
     }
 
     pub fn update_local(
@@ -126,14 +101,12 @@ impl Status {
                     self.add_to_mini_sketch(&tx.unwrap());
                     odd_sketch_bus.broadcast(self.get_odd_sketch());
                     best_distance = 512;
-                    //println!("Updated mini_sketch");
                 },
                 recv(distance_receive) -> pair => {
                     let (nonce, distance) = pair.unwrap();
                     if distance < best_distance {
                         self.update_nonce(nonce);
                         best_distance = distance;
-                        //println!("Updated nonce: {}", nonce);
                     }
                 }
             }
