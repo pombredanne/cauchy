@@ -1,0 +1,21 @@
+[package]
+name = "geodesic"
+version = "0.1.0"
+authors = ["Harry <hlbarber93@gmail.com>", "Chris Novick <c.r.novick@protonmail.com>"]
+
+[dependencies]
+rocksdb = "*"
+libc = "*"
+bytes = "*"
+dirs = "*"
+blake2 = "*"
+rand = "*"
+tokio = "*"
+bus = "*"
+crossbeam = "*"
+futures = "*"
+
+[dependencies.secp256k1]
+version = "*"
+default-features = false 
+features = ["rand", "serde"]
