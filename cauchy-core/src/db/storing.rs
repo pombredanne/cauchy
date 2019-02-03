@@ -7,6 +7,7 @@ use utils::serialisation::*;
 
 pub trait Storable<U> {
     fn from_db(db: Arc<RocksDb>, id: &Bytes) -> Result<Option<U>, String>;
+    fn to_db(&self, db: Arc<RocksDb>) -> Result<(), String>;
 }
 
 impl Storable<Transaction> for Transaction {
@@ -19,5 +20,11 @@ impl Storable<Transaction> for Transaction {
             Ok(None) => Ok(None),
             Err(error) => Err(error.to_string()),
         }
+    }
+
+    fn to_db(&self, db: Arc<RocksDb>) -> Result<(), String> {
+        let tx_id = self.get_tx_id();
+        db.put(&tx_id, &Bytes::from(self.clone()))?;
+        Ok(())
     }
 }
