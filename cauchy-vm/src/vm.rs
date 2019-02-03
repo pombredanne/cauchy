@@ -19,6 +19,8 @@ use std::str;
 use std::time::SystemTime;
 use std::vec::Vec;
 
+use core::primitives::transaction;
+
 use crate::vmsnapshot::VMSnapshot;
 
 pub struct VM {
@@ -128,6 +130,7 @@ impl VMSyscalls {
             Err(e) => panic!("Unable to load txid {}", txid),
             Ok(mut r) => r.read_to_end(&mut buffer).unwrap(),
         };
+        // let t = Transaction::from_id();
         buffer
     }
 }
