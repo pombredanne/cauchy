@@ -1,0 +1,38 @@
+[package]
+name = "cauchy"
+version = "0.1.0"
+authors = ["Harry <hlbarber93@gmail.com>", "Chris Novick <c.r.novick@protonmail.com>"]
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/cauchyteam/cauchy"
+
+[workspace]
+
+members = [
+  "./",
+  "./cauchy-core",
+  "./cauchy-vm",
+]
+
+
+
+[dependencies]
+rocksdb = "*"
+libc = "*"
+bytes = "*"
+dirs = "*"
+blake2 = "*"
+rand = "*"
+tokio = "*"
+bus = "*"
+crossbeam = "*"
+futures = "*"
+
+core = { package = "cauchy-core", version = "*", path = "cauchy-core" }
+vm = { package = "cauchy-vm", version = "*", path = "cauchy-vm" }
+
+
+[dependencies.secp256k1]
+version = "*"
+default-features = false 
+features = ["rand", "serde"]
