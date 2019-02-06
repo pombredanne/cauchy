@@ -19,6 +19,7 @@ use core::{
     crypto::signatures::ecdsa, db::rocksdb::RocksDb, db::*, net::connections::*,
     net::heartbeats::*, primitives::arena::*, primitives::status::Status,
     primitives::transaction::Transaction, utils::constants::*, utils::mining,
+    net::reconcile_status::ReconciliationStatus,
 };
 use futures::lazy;
 use futures::sync::mpsc;
@@ -34,7 +35,7 @@ fn main() {
 
     let (distance_send, distance_recv) = channel::unbounded();
     let mut odd_sketch_bus = Bus::new(10);
-    let n_mining_threads: u64 = 0;
+    let n_mining_threads: u64 = 1;
 
     for i in 0..n_mining_threads {
         let distance_send_c = distance_send.clone();
@@ -48,6 +49,7 @@ fn main() {
     let local_status = Arc::new(Status::null());
     let arena = Arc::new(RwLock::new(Arena::init(&local_pk, local_status.clone())));
     let (connection_manager, router) = ConnectionManager::init();
+    let recon_status = Arc::new(RwLock::new(ReconciliationStatus::new()));
 
     // Server
     let (new_socket_tx, new_socket_rx) = mpsc::channel(1);
@@ -59,11 +61,12 @@ fn main() {
         new_socket_rx,
         arena.clone(),
         connection_manager.clone(),
+        recon_status.clone()
     );
 
     // RPC Server
     let rpc_server = core::daemon::rpc_server(new_socket_tx);
-    let reconcile_heartbeat = spawn_heartbeat_reconcile(connection_manager.clone(), arena.clone());
+    let reconcile_heartbeat = spawn_heartbeat_reconcile(connection_manager.clone(), arena.clone(), recon_status);
 
     // Spawn servers
     thread::spawn(move || {

@@ -24,6 +24,8 @@ use tokio::prelude::*;
 use utils::byte_ops::*;
 use utils::constants::*;
 use utils::serialisation::*;
+use net::reconcile_status::*;
+
 
 pub fn rpc_server(
     tcp_socket_send: mpsc::Sender<TcpStream>,
@@ -95,6 +97,7 @@ pub fn server(
     new_stream_recv: mpsc::Receiver<TcpStream>,
     arena: Arc<RwLock<Arena>>,
     connection_manager: Arc<RwLock<ConnectionManager>>,
+    rec_status: Arc<RwLock<ReconciliationStatus>>
 ) -> impl Future<Item = (), Error = ()> + Send + 'static {
     // Initialise shared tracking structures arena and connection manager
     /* Arena manages the perceived state of peers and their perception of our local state along
@@ -143,6 +146,7 @@ pub fn server(
         let heartbeat_odd_sketch = heartbeat_oddsketch(
             arena.clone(),
             local_status.clone(),
+            rec_status.clone(),
             socket_pk.clone(),
             socket_addr,
         );
@@ -151,6 +155,7 @@ pub fn server(
         let heartbeat_nonce = heartbeat_nonce(
             arena.clone(),
             local_status.clone(),
+            rec_status.clone(),
             socket_pk.clone(),
             dummy_pk,
             socket_addr,
@@ -159,6 +164,7 @@ pub fn server(
         // Filter responses
         let socket_pk_inner = socket_pk.clone();
         let arena_inner = arena.clone();
+        let rec_status_inner = rec_status.clone();
         let queries = stream.filter(move |msg| match msg {
             Message::StartHandshake { .. } => {
                 if VERBOSE {
@@ -215,15 +221,14 @@ pub fn server(
                 command_peer!(arena_inner, socket_pk_locked, update_odd_sketch, sketch);
                 false
             }
-            Message::IBLT { iblt } => {
+            Message::IBLT { .. } => {
                 if VERBOSE {
                     println!("Received IBLT from {}", socket_addr);
                 }
 
-                let socket_pk_locked = *socket_pk.read().unwrap();
-                let iblt = iblt.clone();
-                command_peer!(arena_inner, socket_pk_locked, update_mini_sketch, iblt);
-                true
+                // Only response if the pk is reconciliation target
+                let socket_pk_read = *socket_pk.read().unwrap();
+                rec_status_inner.read().unwrap().eq(&socket_pk_read)
             }
             Message::GetTransactions { .. } => {
                 if VERBOSE {
@@ -296,12 +301,13 @@ pub fn server(
                     .get_odd_sketch();
 
                 let perception_iblt: IBLT = perception.get_mini_sketch();
-                let (ids, _) = (perception_iblt - iblt).decode().unwrap();
+                let (excess_actor_ids, missing_actor_ids) = (perception_iblt - iblt).decode().unwrap();
                 let perception_odd_sketch = perception.get_odd_sketch();
+                println!("Decoding resulted in {} excess and {}", excess_actor_ids.len(), missing_actor_ids.len());
 
                 // Check for fraud
-                if peer_odd_sketch.byte_xor(perception_odd_sketch) == ids.odd_sketch() {
-                    Ok(Message::GetTransactions { ids })
+                if peer_odd_sketch.byte_xor(perception_odd_sketch) == excess_actor_ids.odd_sketch().byte_xor(missing_actor_ids.odd_sketch()) {
+                    Ok(Message::GetTransactions { ids: missing_actor_ids })
                 } else {
                     println!("Fraudulent Minisketch");
                     Err("Fraudulent Minisketch provided".to_string())

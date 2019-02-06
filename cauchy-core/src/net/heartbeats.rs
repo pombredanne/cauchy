@@ -10,12 +10,12 @@ use tokio::io::{Error, ErrorKind};
 use tokio::prelude::*;
 use tokio::timer::Interval;
 use utils::constants::*;
-
-// TODO: Handle errors properly
+use net::reconcile_status::*;
 
 pub fn heartbeat_oddsketch(
     arena: Arc<RwLock<Arena>>,
     local_status: Arc<Status>,
+    rec_status: Arc<RwLock<ReconciliationStatus>>,
     socket_pk: Arc<RwLock<PublicKey>>,
     socket_addr: SocketAddr,
 ) -> impl futures::stream::Stream<Item = Message, Error = Error> {
@@ -23,6 +23,7 @@ pub fn heartbeat_oddsketch(
         ODDSKETCH_HEARTBEAT_PERIOD_SEC,
         ODDSKETCH_HEARTBEAT_PERIOD_NANO,
     ))
+    .filter(move |_| rec_status.read().unwrap().is_live()) // Wait while reconciling
     .map(move |_| {
         (
             local_status.get_odd_sketch(),
@@ -63,6 +64,7 @@ pub fn heartbeat_oddsketch(
 pub fn heartbeat_nonce(
     arena: Arc<RwLock<Arena>>,
     local_status: Arc<Status>,
+    rec_status: Arc<RwLock<ReconciliationStatus>>,
     socket_pk: Arc<RwLock<PublicKey>>,
     dummy_pk: PublicKey, // TODO: This shouldn't be the condition (it should be perceived pk)
     socket_addr: SocketAddr,
@@ -71,6 +73,7 @@ pub fn heartbeat_nonce(
         NONCE_HEARTBEAT_PERIOD_SEC,
         NONCE_HEARTBEAT_PERIOD_NANO,
     ))
+    .filter(move |_| rec_status.read().unwrap().is_live()) // Wait while reconciling
     .map(move |_| (local_status.get_nonce(), *socket_pk.read().unwrap()))
     .filter(move |(_, sock_pk)| *sock_pk != dummy_pk)
     .map(move |(current_nonce, sock_pk)| {
@@ -105,6 +108,7 @@ pub fn heartbeat_nonce(
 pub fn spawn_heartbeat_reconcile(
     connection_manager: Arc<RwLock<ConnectionManager>>,
     arena: Arc<RwLock<Arena>>,
+    rec_status: Arc<RwLock<ReconciliationStatus>>
 ) -> impl Future<Item = (), Error = ()> + Send + 'static {
     Interval::new_interval(Duration::new(
         RECONCILE_HEARTBEAT_PERIOD_SEC,
@@ -123,13 +127,23 @@ pub fn spawn_heartbeat_reconcile(
 
         let connection_manager_inner = connection_manager.clone();
         let connection_manager_read = &*connection_manager_inner.read().unwrap();
-        let socket_addr = connection_manager_read.get_socket_by_pk(leader_pk); // TODO: This is super unsafe
+        let socket_addr = connection_manager_read.get_socket_by_pk(leader_pk);
         let router_sender = connection_manager_read.get_router_sender();
 
-        (socket_addr, router_sender)
+        (socket_addr, router_sender, leader_pk)
     })
-    .filter(move |(socket_addr, _)| socket_addr.is_some())
-    .for_each(move |(socket_addr, router_sender)| {
+    .filter(move |(socket_addr, _, leader_pk)| {
+        if socket_addr.is_some() {
+            // Set reconciliation target to leader
+            println!("New reconciliation target: {}", leader_pk);
+            let mut rec_status_write_locked = rec_status.write().unwrap();
+            rec_status_write_locked.set_target(leader_pk);
+            true
+        } else {
+            println!("Leader doesn't have an associated socket");
+            false
+        } })
+    .for_each(move |(socket_addr, router_sender, _)| {
         router_sender
             .clone()
             .send((socket_addr.unwrap(), Message::Reconcile))
