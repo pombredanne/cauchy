@@ -1,10 +1,8 @@
 mod db_tests {
     use bytes::Bytes;
-    use db;
     use db::rocksdb::RocksDb;
-    use db::Database;
     use db::storing::*;
-    use utils::constants::TX_DB_PATH;
+    use db::Database;
     use primitives::transaction::*;
     use std::sync::Arc;
 
