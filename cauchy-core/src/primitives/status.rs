@@ -37,7 +37,7 @@ impl Status {
         Status {
             nonce: RwLock::new(0),
             odd_sketch: RwLock::new(BytesMut::from(&[0; SKETCH_CAPACITY][..])),
-            mini_sketch: RwLock::new(IBLT::with_capacity(SKETCH_CAPACITY, IBLT_N_HASHES)),
+            mini_sketch: RwLock::new(IBLT::with_capacity(2 * SKETCH_CAPACITY, IBLT_N_HASHES)),
         }
     }
 

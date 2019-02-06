@@ -1,10 +1,6 @@
 use bytes::Bytes;
 use crypto::hashes::blake2b::Blk2bHashable;
-use db::rocksdb::RocksDb;
-use db::*;
-use std::sync::Arc;
 use utils::constants::*;
-use utils::serialisation::*;
 
 /*
                                       v Auxillary Data               v Binary
@@ -28,15 +24,6 @@ impl Transaction {
         }
     }
 
-    pub fn from_id(tx_db: Arc<RocksDb>, tx_id: Bytes) -> Result<Option<Transaction>, String> {
-        let tx_raw_opt = tx_db.get(&tx_id)?;
-        let tx_raw = match tx_raw_opt {
-            Some(some) => some,
-            None => return Ok(None),
-        };
-        Ok(Some(Transaction::try_from(tx_raw)?))
-    }
-
     pub fn get_aux(&self) -> &Bytes {
         &self.aux_data
     }
@@ -45,7 +32,7 @@ impl Transaction {
         &self.binary
     }
 
-    pub fn tx_id(&self) -> Bytes {
+    pub fn get_tx_id(&self) -> Bytes {
         Bytes::from(&self.blake2b()[..TX_ID_LEN])
     }
 

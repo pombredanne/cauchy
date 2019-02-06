@@ -8,7 +8,6 @@ extern crate rocksdb;
 extern crate secp256k1;
 extern crate tokio;
 
-pub mod consensus;
 pub mod crypto;
 pub mod daemon;
 pub mod db;

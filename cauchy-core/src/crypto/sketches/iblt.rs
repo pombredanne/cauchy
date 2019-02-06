@@ -20,7 +20,7 @@ impl Row {
     pub fn empty_row() -> Row {
         Row {
             count: 0,
-            payload: Bytes::from(&[0; IBLT_PAYLOAD_LEN][..]),
+            payload: Bytes::from(&[0; TX_ID_LEN][..]),
             checksum: Bytes::from(&[0; IBLT_CHECKSUM_LEN][..]),
         }
     }
@@ -28,7 +28,7 @@ impl Row {
     pub fn new(count: i32, payload: Bytes, checksum: Bytes) -> Row {
         Row {
             count,
-            payload: payload.slice_to(IBLT_PAYLOAD_LEN),
+            payload: payload.slice_to(TX_ID_LEN),
             checksum: checksum.slice_to(IBLT_CHECKSUM_LEN),
         }
     }
@@ -48,7 +48,7 @@ impl Row {
     pub fn unit_row(payload: &Bytes) -> Row {
         Row {
             count: 1,
-            payload: payload.clone().slice_to(IBLT_PAYLOAD_LEN),
+            payload: payload.clone().slice_to(TX_ID_LEN),
             checksum: payload.blake2b().slice_to(IBLT_CHECKSUM_LEN),
         }
     }
@@ -56,7 +56,7 @@ impl Row {
     pub fn count_row(payload: &Bytes, count: i32) -> Row {
         Row {
             count,
-            payload: payload.clone().slice_to(IBLT_PAYLOAD_LEN),
+            payload: payload.clone().slice_to(TX_ID_LEN),
             checksum: payload.blake2b().slice_to(IBLT_CHECKSUM_LEN),
         }
     }

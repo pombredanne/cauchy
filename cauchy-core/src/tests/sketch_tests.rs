@@ -49,7 +49,7 @@ mod iblt {
     use crypto::sketches::iblt::*;
     use crypto::sketches::odd_sketch::*;
     use std::collections::HashSet;
-    use utils::constants::IBLT_PAYLOAD_LEN;
+    use utils::constants::*;
     use utils::serialisation::*;
 
     #[test]
@@ -109,10 +109,10 @@ mod iblt {
 
     #[test]
     fn test_iblt_odd_sketch_pair() {
-        let mut iblt = IBLT::with_capacity(64, 4);
-        let mut hashset: HashSet<Bytes> = HashSet::with_capacity(64);
+        let mut iblt = IBLT::with_capacity(SKETCH_CAPACITY, 4);
+        let mut hashset: HashSet<Bytes> = HashSet::with_capacity(SKETCH_CAPACITY);
 
-        for i in 0..8 {
+        for i in 0..128 {
             let element = Bytes::from(&[i as u8][..])
                 .blake2b()
                 .slice_to(IBLT_PAYLOAD_LEN);

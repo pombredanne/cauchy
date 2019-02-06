@@ -66,6 +66,7 @@ impl Encoder for MessageCodec {
                 println!("Encoding get txns");
                 dst.put_u8(5);
                 dst.extend(Bytes::from(VarInt::new(ids.len() as u64)));
+                println!("Number of txns to encode {}", ids.len());
                 for id in ids {
                     dst.extend(id);
                 }
@@ -198,10 +199,11 @@ impl Decoder for MessageCodec {
                     Ok(some) => some,
                     Err(_) => return Ok(None),
                 };
-
                 let n_tx_ids = usize::from(n_tx_ids_vi);
+                println!("Number of txns to decode {}", n_tx_ids);
                 let total_size = n_tx_ids * TX_ID_LEN;
                 let mut ids = HashSet::with_capacity(n_tx_ids);
+
                 if buf.remaining() < total_size {
                     Ok(None)
                 } else {
