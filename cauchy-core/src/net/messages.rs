@@ -54,6 +54,7 @@ impl Encoder for MessageCodec {
             }
             Message::MiniSketch { mini_sketch } => {
                 dst.put_u8(4);
+                println!("GOT HERE");
                 dst.extend(Bytes::from(mini_sketch))
             }
             Message::GetTransactions { ids } => {
@@ -194,7 +195,7 @@ impl Decoder for MessageCodec {
                         ids.insert(Bytes::from(&id_dst[..]));
                     }
                     let msg = Message::GetTransactions { ids };
-                    src.advance(1 + total_size);
+                    src.advance(1 + n_tx_ids_vi_len + total_size);
                     Ok(Some(msg))
                 }
             }

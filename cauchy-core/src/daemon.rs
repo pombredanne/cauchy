@@ -332,6 +332,7 @@ pub fn server(
                     Some(some) => some,
                     None => return Err("No perception found".to_string()),
                 };
+                println!("Got here");
                 Ok(Message::MiniSketch {
                     mini_sketch: perception.get_mini_sketch(),
                 })

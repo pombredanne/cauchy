@@ -84,7 +84,7 @@ fn main() {
     let (sketch_send, sketch_recv) = channel::unbounded();
     thread::spawn(move || local_status.update_local(odd_sketch_bus, sketch_recv, distance_recv));
 
-    let new_tx_interval = time::Duration::from_millis(2000);
+    let new_tx_interval = time::Duration::from_millis(200);
 
     loop {
         sketch_send.send(random_tx());

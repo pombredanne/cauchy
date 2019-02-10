@@ -63,17 +63,17 @@ impl Status {
 
     pub fn get_odd_sketch(&self) -> Bytes {
         let sketch_locked = self.odd_sketch.read().unwrap();
-        (*sketch_locked).clone().freeze()
+        sketch_locked.clone().freeze()
     }
 
     pub fn get_mini_sketch(&self) -> DummySketch {
         let sketch_locked = self.mini_sketch.read().unwrap();
-        (*sketch_locked).clone()
+        sketch_locked.clone()
     }
 
     pub fn add_to_mini_sketch<T: Blk2bHashable>(&self, item: &T) {
         let mut sketch_locked = self.mini_sketch.write().unwrap();
-        (*sketch_locked).insert(item.blake2b());
+        sketch_locked.insert(item.blake2b());
     }
 
     pub fn get_site_hash(&self, pubkey: PublicKey) -> Bytes {
