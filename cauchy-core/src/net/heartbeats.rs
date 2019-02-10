@@ -1,5 +1,6 @@
 use net::connections::ConnectionManager;
 use net::messages::Message;
+use net::reconcile_status::*;
 use primitives::arena::*;
 use primitives::status::*;
 use secp256k1::PublicKey;
@@ -10,7 +11,6 @@ use tokio::io::{Error, ErrorKind};
 use tokio::prelude::*;
 use tokio::timer::Interval;
 use utils::constants::*;
-use net::reconcile_status::*;
 
 pub fn heartbeat_oddsketch(
     arena: Arc<RwLock<Arena>>,
@@ -23,7 +23,7 @@ pub fn heartbeat_oddsketch(
         ODDSKETCH_HEARTBEAT_PERIOD_SEC,
         ODDSKETCH_HEARTBEAT_PERIOD_NANO,
     ))
-    .filter(move |_| rec_status.read().unwrap().is_live()) // Wait while reconciling
+    .filter(move |_| !rec_status.read().unwrap().is_live()) // Wait while reconciling
     .map(move |_| {
         (
             local_status.get_odd_sketch(),
@@ -73,7 +73,7 @@ pub fn heartbeat_nonce(
         NONCE_HEARTBEAT_PERIOD_SEC,
         NONCE_HEARTBEAT_PERIOD_NANO,
     ))
-    .filter(move |_| rec_status.read().unwrap().is_live()) // Wait while reconciling
+    .filter(move |_| !rec_status.read().unwrap().is_live()) // Wait while reconciling
     .map(move |_| (local_status.get_nonce(), *socket_pk.read().unwrap()))
     .filter(move |(_, sock_pk)| *sock_pk != dummy_pk)
     .map(move |(current_nonce, sock_pk)| {
@@ -108,7 +108,7 @@ pub fn heartbeat_nonce(
 pub fn spawn_heartbeat_reconcile(
     connection_manager: Arc<RwLock<ConnectionManager>>,
     arena: Arc<RwLock<Arena>>,
-    rec_status: Arc<RwLock<ReconciliationStatus>>
+    rec_status: Arc<RwLock<ReconciliationStatus>>,
 ) -> impl Future<Item = (), Error = ()> + Send + 'static {
     Interval::new_interval(Duration::new(
         RECONCILE_HEARTBEAT_PERIOD_SEC,
@@ -142,7 +142,8 @@ pub fn spawn_heartbeat_reconcile(
         } else {
             println!("Leader doesn't have an associated socket");
             false
-        } })
+        }
+    })
     .for_each(move |(socket_addr, router_sender, _)| {
         router_sender
             .clone()

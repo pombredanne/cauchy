@@ -17,9 +17,9 @@ use crossbeam::channel;
 
 use core::{
     crypto::signatures::ecdsa, db::rocksdb::RocksDb, db::*, net::connections::*,
-    net::heartbeats::*, primitives::arena::*, primitives::status::Status,
-    primitives::transaction::Transaction, utils::constants::*, utils::mining,
-    net::reconcile_status::ReconciliationStatus,
+    net::heartbeats::*, net::reconcile_status::ReconciliationStatus, primitives::arena::*,
+    primitives::status::Status, primitives::transaction::Transaction, utils::constants::*,
+    utils::mining,
 };
 use futures::lazy;
 use futures::sync::mpsc;
@@ -61,12 +61,13 @@ fn main() {
         new_socket_rx,
         arena.clone(),
         connection_manager.clone(),
-        recon_status.clone()
+        recon_status.clone(),
     );
 
     // RPC Server
     let rpc_server = core::daemon::rpc_server(new_socket_tx);
-    let reconcile_heartbeat = spawn_heartbeat_reconcile(connection_manager.clone(), arena.clone(), recon_status);
+    let reconcile_heartbeat =
+        spawn_heartbeat_reconcile(connection_manager.clone(), arena.clone(), recon_status);
 
     // Spawn servers
     thread::spawn(move || {

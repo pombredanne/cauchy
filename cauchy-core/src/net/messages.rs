@@ -8,7 +8,7 @@ use secp256k1::key::PublicKey;
 use secp256k1::Signature;
 
 use crypto::signatures::ecdsa::*;
-use crypto::sketches::iblt::*;
+use crypto::sketches::dummy_sketch::*;
 use primitives::transaction::*;
 use primitives::varint::VarInt;
 use utils::constants::*;
@@ -19,7 +19,7 @@ pub enum Message {
     EndHandshake { pubkey: PublicKey, sig: Signature }, // 1 || Pk || Sig
     Nonce { nonce: u64 },           // 2 || nonce VarInt
     OddSketch { sketch: Bytes },    // 3 || Sketch
-    IBLT { iblt: IBLT },            // 4 || Number of Rows VarInt || IBLT
+    MiniSketch { mini_sketch: DummySketch }, // 4 || Number of Rows VarInt || IBLT
     GetTransactions { ids: HashSet<Bytes> }, // 5 || Number of Ids VarInt || Ids
     Transactions { txs: Vec<Transaction> }, // 6 || Number of Bytes VarInt || Tx ...
     Reconcile,                      // 7
@@ -52,15 +52,9 @@ impl Encoder for MessageCodec {
                 //dst.extend(Bytes::from(VarInt::new(sketch.len() as u64)));
                 dst.extend(sketch);
             }
-            Message::IBLT { iblt } => {
+            Message::MiniSketch { mini_sketch } => {
                 dst.put_u8(4);
-                let rows = iblt.get_rows();
-                let n_rows = rows.len();
-                println!("Number of rows: {}", n_rows);
-                dst.extend(Bytes::from(VarInt::new(n_rows as u64)));
-                for row in rows {
-                    dst.extend(Bytes::from(row.clone()));
-                }
+                dst.extend(Bytes::from(mini_sketch))
             }
             Message::GetTransactions { ids } => {
                 println!("Encoding get txns");
@@ -101,12 +95,13 @@ impl Decoder for MessageCodec {
 
         match buf.get_u8() {
             0 => {
-                let preimage_vi = match VarInt::parse_buf(&mut buf) {
-                    Ok(some) => some,
-                    Err(_) => return Err(Error::new(ErrorKind::Other, "Failed to parse VarInt")),
+                let (preimage_vi, len) = match VarInt::parse_buf(&mut buf) {
+                    Ok(Some(some)) => some,
+                    Ok(None) => return Ok(None),
+                    Err(err) => return Err(Error::new(ErrorKind::Other, err)),
                 };
 
-                src.advance(1 + preimage_vi.len());
+                src.advance(1 + len);
                 let msg = Message::StartHandshake {
                     secret: u64::from(preimage_vi),
                 };
@@ -140,12 +135,13 @@ impl Decoder for MessageCodec {
                 Ok(Some(msg))
             }
             2 => {
-                let nonce_vi = match VarInt::parse_buf(&mut buf) {
-                    Ok(some) => some,
-                    Err(_) => return Err(Error::new(ErrorKind::Other, "Failed to parse VarInt")),
+                let (nonce_vi, len) = match VarInt::parse_buf(&mut buf) {
+                    Ok(Some(some)) => some,
+                    Ok(None) => return Ok(None),
+                    Err(err) => return Err(Error::new(ErrorKind::Other, err)),
                 };
 
-                src.advance(1 + nonce_vi.len());
+                src.advance(1 + len);
                 let msg = Message::Nonce {
                     nonce: u64::from(nonce_vi),
                 };
@@ -168,46 +164,31 @@ impl Decoder for MessageCodec {
                 Ok(Some(msg))
             }
             4 => {
-                let n_rows_vi = match VarInt::parse_buf(&mut buf) {
-                    Ok(some) => some,
-                    Err(_) => return Ok(None),
+                let (mini_sketch, len) = match DummySketch::parse_buf(&mut buf) {
+                    Ok(Some(some)) => some,
+                    Ok(None) => return Ok(None),
+                    Err(err) => return Err(Error::new(ErrorKind::Other, err)),
                 };
-                let n_rows_len = n_rows_vi.len();
-                let n_rows = usize::from(n_rows_vi);
-
-                let row_len = 4 + IBLT_PAYLOAD_LEN + IBLT_CHECKSUM_LEN;
-                let total_size = n_rows * row_len;
-
-                if buf.remaining() < total_size {
-                    return Ok(None);
-                }
-                let mut rows = Vec::with_capacity(n_rows);
-                for _ in 0..n_rows {
-                    let mut row_dst = vec![0; row_len];
-                    buf.copy_to_slice(&mut row_dst);
-                    rows.push(Row::from(Bytes::from(&row_dst[..])));
-                }
-                let msg = Message::IBLT {
-                    iblt: IBLT::from_rows(rows, IBLT_N_HASHES),
-                };
-                src.advance(1 + n_rows_len + total_size);
+                src.advance(1 + len);
+                let msg = Message::MiniSketch { mini_sketch };
                 Ok(Some(msg))
             }
             5 => {
                 println!("Decoding get txns");
-                let n_tx_ids_vi = match VarInt::parse_buf(&mut buf) {
-                    Ok(some) => some,
-                    Err(_) => return Ok(None),
+                let (n_tx_ids_vi, n_tx_ids_vi_len) = match VarInt::parse_buf(&mut buf) {
+                    Ok(Some(some)) => some,
+                    Ok(None) => return Ok(None),
+                    Err(err) => return Err(Error::new(ErrorKind::Other, err)),
                 };
-                let n_tx_ids = usize::from(n_tx_ids_vi);
-                println!("Number of txns to decode {}", n_tx_ids);
-                let total_size = n_tx_ids * TX_ID_LEN;
-                let mut ids = HashSet::with_capacity(n_tx_ids);
+                let us_n_tx_ids = usize::from(n_tx_ids_vi);
+                println!("Number of txns to decode {}", us_n_tx_ids);
+                let total_size = us_n_tx_ids * TX_ID_LEN;
+                let mut ids = HashSet::with_capacity(us_n_tx_ids);
 
                 if buf.remaining() < total_size {
                     Ok(None)
                 } else {
-                    for _i in 0..n_tx_ids {
+                    for _ in 0..us_n_tx_ids {
                         let mut id_dst = [0; TX_ID_LEN];
                         buf.copy_to_slice(&mut id_dst);
                         ids.insert(Bytes::from(&id_dst[..]));
@@ -218,45 +199,26 @@ impl Decoder for MessageCodec {
                 }
             }
             6 => {
-                let n_tx_vi = match VarInt::parse_buf(&mut buf) {
-                    Ok(some) => some,
-                    Err(_) => return Ok(None),
+                let (n_tx_vi, n_tx_vi_len) = match VarInt::parse_buf(&mut buf) {
+                    Ok(Some(some)) => some,
+                    Ok(None) => return Ok(None),
+                    Err(err) => return Err(Error::new(ErrorKind::Other, err)),
                 };
-                let mut total_size = n_tx_vi.len();
                 let n_tx = usize::from(n_tx_vi);
 
+                let mut total_size: usize = 0;
                 let mut txs = Vec::with_capacity(n_tx);
                 for _i in 0..n_tx {
-                    let tx_len_vi = match VarInt::parse_buf(&mut buf) {
-                        Ok(some) => some,
-                        Err(_) => {
-                            return Err(Error::new(ErrorKind::Other, "Failed to parse VarInt"));
-                        }
+                    let (tx, tx_len) = match Transaction::parse_buf(&mut buf) {
+                        Ok(Some(some)) => some,
+                        Ok(None) => return Ok(None),
+                        Err(err) => return Err(Error::new(ErrorKind::Other, err)),
                     };
-                    let tx_len_len = tx_len_vi.len();
-                    let tx_len = usize::from(tx_len_vi.clone());
-
-                    // TODO: Optimize this a bit
-                    if buf.remaining() < tx_len {
-                        return Ok(None);
-                    } else {
-                        match Transaction::parse_buf(&mut buf) {
-                            Ok(some) => {
-                                total_size += tx_len_len + tx_len;
-                                txs.push(some)
-                            }
-                            Err(_) => {
-                                // TODO: Remove malformed msgs
-                                return Err(Error::new(
-                                    ErrorKind::InvalidData,
-                                    "Invalid Transaction",
-                                ));
-                            }
-                        }
-                    }
+                    txs.push(tx);
+                    total_size += tx_len;
                 }
                 let msg = Message::Transactions { txs };
-                src.advance(total_size);
+                src.advance(1 + n_tx_vi_len + total_size);
                 Ok(Some(msg))
             }
             7 => {

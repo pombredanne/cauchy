@@ -1,9 +1,9 @@
-use secp256k1::PublicKey;
 use crypto::signatures::ecdsa::generate_dummy_pubkey;
+use secp256k1::PublicKey;
 
 pub struct ReconciliationStatus {
     live: bool,
-    target: PublicKey
+    target: PublicKey,
 }
 
 impl ReconciliationStatus {
@@ -11,7 +11,7 @@ impl ReconciliationStatus {
         let dummy_pk = generate_dummy_pubkey();
         ReconciliationStatus {
             live: false,
-            target: dummy_pk
+            target: dummy_pk,
         }
     }
 

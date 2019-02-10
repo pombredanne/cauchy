@@ -4,7 +4,7 @@ use crossbeam::channel::select;
 use crossbeam::channel::Receiver;
 
 use crypto::hashes::blake2b::Blk2bHashable;
-use crypto::sketches::iblt::*;
+use crypto::sketches::dummy_sketch::*;
 use crypto::sketches::odd_sketch::*;
 use primitives::transaction::Transaction;
 use primitives::work_site::WorkSite;
@@ -17,14 +17,14 @@ use std::sync::RwLock;
 pub struct Status {
     nonce: RwLock<u64>,
     odd_sketch: RwLock<BytesMut>,
-    mini_sketch: RwLock<IBLT>,
+    mini_sketch: RwLock<DummySketch>,
 }
 
 impl Status {
     pub fn new(
         nonce: RwLock<u64>,
         odd_sketch: RwLock<BytesMut>,
-        mini_sketch: RwLock<IBLT>,
+        mini_sketch: RwLock<DummySketch>,
     ) -> Status {
         Status {
             nonce,
@@ -37,7 +37,7 @@ impl Status {
         Status {
             nonce: RwLock::new(0),
             odd_sketch: RwLock::new(BytesMut::from(&[0; SKETCH_CAPACITY][..])),
-            mini_sketch: RwLock::new(IBLT::with_capacity(2 * SKETCH_CAPACITY, IBLT_N_HASHES)),
+            mini_sketch: RwLock::new(DummySketch::with_capacity(2 * SKETCH_CAPACITY)),
         }
     }
 
@@ -51,7 +51,7 @@ impl Status {
         *sketch_locked = BytesMut::from(mini_sketch);
     }
 
-    pub fn update_mini_sketch(&self, mini_sketch: IBLT) {
+    pub fn update_mini_sketch(&self, mini_sketch: DummySketch) {
         let mut sketch_locked = self.mini_sketch.write().unwrap();
         *sketch_locked = mini_sketch;
     }
@@ -66,7 +66,7 @@ impl Status {
         (*sketch_locked).clone().freeze()
     }
 
-    pub fn get_mini_sketch(&self) -> IBLT {
+    pub fn get_mini_sketch(&self) -> DummySketch {
         let sketch_locked = self.mini_sketch.read().unwrap();
         (*sketch_locked).clone()
     }

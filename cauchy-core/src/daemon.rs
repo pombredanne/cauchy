@@ -1,6 +1,6 @@
 use bytes::Bytes;
 use crypto::signatures::ecdsa;
-use crypto::sketches::iblt::*;
+use crypto::sketches::dummy_sketch::*;
 use crypto::sketches::odd_sketch::*;
 use db::rocksdb::RocksDb;
 use db::*;
@@ -9,6 +9,7 @@ use futures::Future;
 use net::connections::*;
 use net::heartbeats::*;
 use net::messages::*;
+use net::reconcile_status::*;
 use net::rpc_messages::*;
 use primitives::arena::Arena;
 use primitives::status::Status;
@@ -24,8 +25,6 @@ use tokio::prelude::*;
 use utils::byte_ops::*;
 use utils::constants::*;
 use utils::serialisation::*;
-use net::reconcile_status::*;
-
 
 pub fn rpc_server(
     tcp_socket_send: mpsc::Sender<TcpStream>,
@@ -97,7 +96,7 @@ pub fn server(
     new_stream_recv: mpsc::Receiver<TcpStream>,
     arena: Arc<RwLock<Arena>>,
     connection_manager: Arc<RwLock<ConnectionManager>>,
-    rec_status: Arc<RwLock<ReconciliationStatus>>
+    rec_status: Arc<RwLock<ReconciliationStatus>>,
 ) -> impl Future<Item = (), Error = ()> + Send + 'static {
     // Initialise shared tracking structures arena and connection manager
     /* Arena manages the perceived state of peers and their perception of our local state along
@@ -214,14 +213,13 @@ pub fn server(
                 if VERBOSE {
                     println!("Received odd sketch from {}", socket_addr);
                 }
-
                 // Update state sketch
                 let socket_pk_locked = *socket_pk.read().unwrap();
                 let sketch = sketch.clone();
                 command_peer!(arena_inner, socket_pk_locked, update_odd_sketch, sketch);
                 false
             }
-            Message::IBLT { .. } => {
+            Message::MiniSketch { .. } => {
                 if VERBOSE {
                     println!("Received IBLT from {}", socket_addr);
                 }
@@ -283,7 +281,7 @@ pub fn server(
                 }
                 Ok(Message::Transactions { txs })
             }
-            Message::IBLT { iblt } => {
+            Message::MiniSketch { mini_sketch } => {
                 if VERBOSE {
                     println!("Sending transactions request to {}", socket_addr);
                 }
@@ -300,14 +298,25 @@ pub fn server(
                     .unwrap()
                     .get_odd_sketch();
 
-                let perception_iblt: IBLT = perception.get_mini_sketch();
-                let (excess_actor_ids, missing_actor_ids) = (perception_iblt - iblt).decode().unwrap();
+                let perception_sketch = perception.get_mini_sketch();
+                let (excess_actor_ids, missing_actor_ids) =
+                    (perception_sketch - mini_sketch).decode().unwrap();
                 let perception_odd_sketch = perception.get_odd_sketch();
-                println!("Decoding resulted in {} excess and {}", excess_actor_ids.len(), missing_actor_ids.len());
+                println!(
+                    "Decoding resulted in {} excess and {} missing",
+                    excess_actor_ids.len(),
+                    missing_actor_ids.len()
+                );
 
                 // Check for fraud
-                if peer_odd_sketch.byte_xor(perception_odd_sketch) == excess_actor_ids.odd_sketch().byte_xor(missing_actor_ids.odd_sketch()) {
-                    Ok(Message::GetTransactions { ids: missing_actor_ids })
+                if peer_odd_sketch.byte_xor(perception_odd_sketch)
+                    == excess_actor_ids
+                        .odd_sketch()
+                        .byte_xor(missing_actor_ids.odd_sketch())
+                {
+                    Ok(Message::GetTransactions {
+                        ids: missing_actor_ids,
+                    })
                 } else {
                     println!("Fraudulent Minisketch");
                     Err("Fraudulent Minisketch provided".to_string())
@@ -323,8 +332,8 @@ pub fn server(
                     Some(some) => some,
                     None => return Err("No perception found".to_string()),
                 };
-                Ok(Message::IBLT {
-                    iblt: perception.get_mini_sketch(),
+                Ok(Message::MiniSketch {
+                    mini_sketch: perception.get_mini_sketch(),
                 })
             }
             _ => unreachable!(),

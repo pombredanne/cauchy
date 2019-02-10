@@ -1,6 +1,6 @@
 use bytes::{Buf, BufMut, Bytes, BytesMut, IntoBuf};
 use crypto::signatures::ecdsa::*;
-use crypto::sketches::iblt::*;
+use crypto::sketches::dummy_sketch::*;
 use primitives::transaction::Transaction;
 use primitives::varint::VarInt;
 use primitives::work_site::WorkSite;
@@ -80,13 +80,25 @@ impl TryFrom<Bytes> for Transaction {
     fn try_from(raw: Bytes) -> Result<Transaction, Self::Err> {
         let mut buf = raw.into_buf();
 
-        let vi_time = VarInt::parse_buf(&mut buf)?;
+        let (vi_time, _) = match VarInt::parse_buf(&mut buf) {
+            Ok(None) => return Err("VarInt too short".to_string()),
+            Err(err) => return Err(err),
+            Ok(Some(some)) => some
+        };
 
-        let vi_aux_len = VarInt::parse_buf(&mut buf)?;
+        let (vi_aux_len, _) = match VarInt::parse_buf(&mut buf) {
+            Ok(None) => return Err("VarInt too short".to_string()),
+            Err(err) => return Err(err),
+            Ok(Some(some)) => some
+        };
         let mut dst_aux = vec![0; usize::from(vi_aux_len)];
         buf.copy_to_slice(&mut dst_aux);
 
-        let vi_bin_len = VarInt::parse_buf(&mut buf)?;
+        let (vi_bin_len, _) = match VarInt::parse_buf(&mut buf) {
+            Ok(None) => return Err("VarInt too short".to_string()),
+            Err(err) => return Err(err),
+            Ok(Some(some)) => some
+        };
         let mut dst_bin = vec![0; usize::from(vi_bin_len)];
         buf.copy_to_slice(&mut dst_bin);
 
@@ -131,65 +143,23 @@ impl From<WorkSite> for Bytes {
     }
 }
 
-impl From<IBLT> for Bytes {
-    fn from(iblt: IBLT) -> Bytes {
-        let n_rows = iblt.get_rows().len();
-        let total_size = n_rows * (IBLT_CHECKSUM_LEN + IBLT_PAYLOAD_LEN + 8) + 8;
-        let mut buf = BytesMut::with_capacity(total_size);
-        buf.put_u32_be(n_rows as u32);
-        for row in iblt.get_rows() {
-            buf.put_i32_be(row.get_count());
-            buf.extend_from_slice(&row.get_payload()[..]);
-            buf.extend_from_slice(&row.get_checksum()[..]);
+impl From<DummySketch> for Bytes {
+    fn from(dummy_sketch: DummySketch) -> Bytes {
+        let pos_len = dummy_sketch.pos_len();
+        let neg_len = dummy_sketch.neg_len();
+        let vi_pos_len = VarInt::from(pos_len);
+        let vi_neg_len = VarInt::from(neg_len);
+        let mut buf =
+            BytesMut::with_capacity(pos_len + pos_len + vi_pos_len.len() + vi_neg_len.len());
+
+        buf.put(&Bytes::from(vi_pos_len));
+        for item in dummy_sketch.get_pos() {
+            buf.put(item)
+        }
+        buf.put(&Bytes::from(vi_neg_len));
+        for item in dummy_sketch.get_neg() {
+            buf.put(item)
         }
         buf.freeze()
-    }
-}
-
-impl From<Bytes> for IBLT {
-    fn from(raw: Bytes) -> IBLT {
-        let mut buf = raw.into_buf();
-        let n_rows = buf.get_u32_be() as usize;
-        let mut rows = Vec::with_capacity(n_rows);
-        for _ in 0..n_rows {
-            let count = buf.get_i32_be();
-            let mut dst_payload = vec![0; IBLT_PAYLOAD_LEN];
-            buf.copy_to_slice(&mut dst_payload);
-            let mut dst_checksum = vec![0; IBLT_CHECKSUM_LEN];
-            buf.copy_to_slice(&mut dst_checksum);
-            rows.push(Row::new(
-                count,
-                Bytes::from(&dst_payload[..]),
-                Bytes::from(&dst_checksum[..]),
-            ));
-        }
-
-        IBLT::from_rows(rows, IBLT_N_HASHES)
-    }
-}
-
-impl From<Row> for Bytes {
-    fn from(row: Row) -> Bytes {
-        let mut buf = BytesMut::with_capacity(4 + IBLT_CHECKSUM_LEN + IBLT_PAYLOAD_LEN);
-        buf.put_i32_be(row.get_count());
-        buf.put(&row.get_payload()[..]);
-        buf.put(&row.get_checksum()[..]);
-        Bytes::from(buf)
-    }
-}
-
-impl From<Bytes> for Row {
-    fn from(raw: Bytes) -> Row {
-        let mut buf = raw.into_buf();
-        let count = buf.get_i32_be();
-        let mut dst_payload = vec![0; IBLT_PAYLOAD_LEN];
-        buf.copy_to_slice(&mut dst_payload);
-        let mut dst_checksum = vec![0; IBLT_CHECKSUM_LEN];
-        buf.copy_to_slice(&mut dst_checksum);
-        Row::new(
-            count,
-            Bytes::from(&dst_payload[..]),
-            Bytes::from(&dst_checksum[..]),
-        )
     }
 }
