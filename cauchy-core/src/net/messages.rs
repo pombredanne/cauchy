@@ -165,6 +165,7 @@ impl Decoder for MessageCodec {
                 Ok(Some(msg))
             }
             4 => {
+                println!("Decoding MiniSketch");
                 let (mini_sketch, len) = match DummySketch::parse_buf(&mut buf) {
                     Ok(Some(some)) => some,
                     Ok(None) => return Ok(None),

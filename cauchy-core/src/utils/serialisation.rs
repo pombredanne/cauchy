@@ -83,13 +83,13 @@ impl TryFrom<Bytes> for Transaction {
         let (vi_time, _) = match VarInt::parse_buf(&mut buf) {
             Ok(None) => return Err("VarInt too short".to_string()),
             Err(err) => return Err(err),
-            Ok(Some(some)) => some
+            Ok(Some(some)) => some,
         };
 
         let (vi_aux_len, _) = match VarInt::parse_buf(&mut buf) {
             Ok(None) => return Err("VarInt too short".to_string()),
             Err(err) => return Err(err),
-            Ok(Some(some)) => some
+            Ok(Some(some)) => some,
         };
         let mut dst_aux = vec![0; usize::from(vi_aux_len)];
         buf.copy_to_slice(&mut dst_aux);
@@ -97,7 +97,7 @@ impl TryFrom<Bytes> for Transaction {
         let (vi_bin_len, _) = match VarInt::parse_buf(&mut buf) {
             Ok(None) => return Err("VarInt too short".to_string()),
             Err(err) => return Err(err),
-            Ok(Some(some)) => some
+            Ok(Some(some)) => some,
         };
         let mut dst_bin = vec![0; usize::from(vi_bin_len)];
         buf.copy_to_slice(&mut dst_bin);

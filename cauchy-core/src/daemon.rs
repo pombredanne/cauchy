@@ -130,7 +130,7 @@ pub fn server(
 
         // Pair socket in connection manager
         let mut connection_manager_write_locked = connection_manager.write().unwrap();
-        let (secret, msg_receiver) = (*connection_manager_write_locked)
+        let (secret, msg_receiver) = connection_manager_write_locked
             .add(&socket_addr, socket_pk.clone())
             .unwrap();
         drop(connection_manager_write_locked);
@@ -289,7 +289,7 @@ pub fn server(
                 let arena_r = arena_inner.read().unwrap();
                 let socket_pk_read = *socket_pk_inner.read().unwrap();
 
-                let perception = match (*arena_r).get_perception(&socket_pk_read) {
+                let perception = match arena_r.get_perception(&socket_pk_read) {
                     Some(some) => some,
                     None => return Err("No perception found".to_string()),
                 };
@@ -328,7 +328,7 @@ pub fn server(
                 }
                 let arena_r = arena_inner.read().unwrap();
                 let socket_pk_read = *socket_pk_inner.read().unwrap();
-                let perception = match (*arena_r).get_perception(&socket_pk_read) {
+                let perception = match arena_r.get_perception(&socket_pk_read) {
                     Some(some) => some,
                     None => return Err("No perception found".to_string()),
                 };
