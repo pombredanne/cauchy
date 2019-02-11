@@ -152,13 +152,13 @@ impl From<DummySketch> for Bytes {
         let mut buf =
             BytesMut::with_capacity(pos_len + pos_len + vi_pos_len.len() + vi_neg_len.len());
 
-        buf.put(&Bytes::from(vi_pos_len));
+        buf.extend(&Bytes::from(vi_pos_len));
         for item in dummy_sketch.get_pos() {
-            buf.put(item)
+            buf.extend(item)
         }
-        buf.put(&Bytes::from(vi_neg_len));
+        buf.extend(&Bytes::from(vi_neg_len));
         for item in dummy_sketch.get_neg() {
-            buf.put(item)
+            buf.extend(item)
         }
         buf.freeze()
     }
