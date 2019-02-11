@@ -78,6 +78,9 @@ impl Parsable<DummySketch> for DummySketch {
         let us_pos_len = usize::from(vi_pos_len);
         let mut pos_set = HashSet::with_capacity(us_pos_len);
         for i in 0..us_pos_len {
+            if buf.remaining() < TX_ID_LEN {
+                return Ok(None)
+            }
             let mut dst_aux = vec![0; TX_ID_LEN];
             buf.copy_to_slice(&mut dst_aux);
             pos_set.insert(Bytes::from(dst_aux));
@@ -90,6 +93,9 @@ impl Parsable<DummySketch> for DummySketch {
         let us_neg_len = usize::from(vi_neg_len);
         let mut neg_set = HashSet::with_capacity(us_neg_len);
         for i in 0..us_neg_len {
+            if buf.remaining() < TX_ID_LEN {
+                return Ok(None)
+            }
             let mut dst_aux = vec![0; TX_ID_LEN];
             buf.copy_to_slice(&mut dst_aux);
             neg_set.insert(Bytes::from(dst_aux));
