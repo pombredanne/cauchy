@@ -2,7 +2,7 @@ use bytes::Bytes;
 use bytes::{Buf, BufMut, BytesMut, IntoBuf};
 use std::collections::HashSet;
 use tokio::codec::{Decoder, Encoder};
-use tokio::io::{Error, ErrorKind};
+// use tokio::io::{Error, ErrorKind};
 
 use secp256k1::key::PublicKey;
 use secp256k1::Signature;
@@ -13,6 +13,9 @@ use primitives::transaction::*;
 use primitives::varint::VarInt;
 use utils::constants::*;
 use utils::parsing::*;
+
+use utils::errors::MalformedMessageError;
+use failure::Error;
 
 pub enum Message {
     StartHandshake { secret: u64 }, // 0 || Secret VarInt
@@ -33,6 +36,7 @@ impl Encoder for MessageCodec {
 
     fn encode(&mut self, item: Self::Item, dst: &mut BytesMut) -> Result<(), Self::Error> {
         // TODO: Manage capacity better
+        dst.reserve(1);
         match item {
             Message::StartHandshake { secret } => {
                 dst.put_u8(0);
@@ -96,10 +100,9 @@ impl Decoder for MessageCodec {
 
         match buf.get_u8() {
             0 => {
-                let (preimage_vi, len) = match VarInt::parse_buf(&mut buf) {
-                    Ok(Some(some)) => some,
-                    Ok(None) => return Ok(None),
-                    Err(err) => return Err(Error::new(ErrorKind::Other, err)),
+                let (preimage_vi, len) = match VarInt::parse_buf(&mut buf)? {
+                    Some(some) => some,
+                    None => return Ok(None),
                 };
 
                 src.advance(1 + len);
@@ -114,32 +117,20 @@ impl Decoder for MessageCodec {
                 }
                 let mut pubkey_dst = [0; PUBKEY_LEN];
                 buf.copy_to_slice(&mut pubkey_dst);
-                let pubkey = match pubkey_from_bytes(Bytes::from(&pubkey_dst[..])) {
-                    Ok(some) => some,
-                    Err(_) => {
-                        // TODO: Remove malformed msgs
-                        return Err(Error::new(ErrorKind::InvalidData, "Invalid Pubkey"));
-                    }
-                };
+                let pubkey = pubkey_from_bytes(Bytes::from(&pubkey_dst[..]))?;
 
                 let mut sig_dst = [0; SIG_LEN];
                 buf.copy_to_slice(&mut sig_dst);
-                let sig = match sig_from_bytes(Bytes::from(&sig_dst[..])) {
-                    Ok(some) => some,
-                    Err(_) => {
-                        // TODO: Remove malformed msgs
-                        return Err(Error::new(ErrorKind::InvalidData, "Invalid Signature"));
-                    }
-                };
+                let sig = sig_from_bytes(Bytes::from(&sig_dst[..]))?;
                 src.advance(1 + PUBKEY_LEN + SIG_LEN);
                 let msg = Message::EndHandshake { pubkey, sig };
                 Ok(Some(msg))
             }
             2 => {
-                let (nonce_vi, len) = match VarInt::parse_buf(&mut buf) {
-                    Ok(Some(some)) => some,
-                    Ok(None) => return Ok(None),
-                    Err(err) => return Err(Error::new(ErrorKind::Other, err)),
+                println!("Decoding Nonce");
+                let (nonce_vi, len) = match VarInt::parse_buf(&mut buf)? {
+                    Some(some) => some,
+                    None => return Ok(None),
                 };
 
                 src.advance(1 + len);
@@ -153,6 +144,7 @@ impl Decoder for MessageCodec {
                 //     Ok(some) => some,
                 //     Err(_) => return Ok(None),
                 // };
+                println!("Decoding OddSketch");
                 if buf.remaining() < SKETCH_CAPACITY {
                     return Ok(None);
                 }
@@ -166,10 +158,9 @@ impl Decoder for MessageCodec {
             }
             4 => {
                 println!("Decoding MiniSketch");
-                let (mini_sketch, len) = match DummySketch::parse_buf(&mut buf) {
-                    Ok(Some(some)) => some,
-                    Ok(None) => return Ok(None),
-                    Err(err) => return Err(Error::new(ErrorKind::Other, err)),
+                let (mini_sketch, len) = match DummySketch::parse_buf(&mut buf)? {
+                    Some(some) => some,
+                    None => return Ok(None),
                 };
                 src.advance(1 + len);
                 let msg = Message::MiniSketch { mini_sketch };
@@ -177,10 +168,9 @@ impl Decoder for MessageCodec {
             }
             5 => {
                 println!("Decoding get txns");
-                let (n_tx_ids_vi, n_tx_ids_vi_len) = match VarInt::parse_buf(&mut buf) {
-                    Ok(Some(some)) => some,
-                    Ok(None) => return Ok(None),
-                    Err(err) => return Err(Error::new(ErrorKind::Other, err)),
+                let (n_tx_ids_vi, n_tx_ids_vi_len) = match VarInt::parse_buf(&mut buf)? {
+                    Some(some) => some,
+                    None => return Ok(None)
                 };
                 let us_n_tx_ids = usize::from(n_tx_ids_vi);
                 println!("Number of txns to decode {}", us_n_tx_ids);
@@ -201,20 +191,18 @@ impl Decoder for MessageCodec {
                 }
             }
             6 => {
-                let (n_tx_vi, n_tx_vi_len) = match VarInt::parse_buf(&mut buf) {
-                    Ok(Some(some)) => some,
-                    Ok(None) => return Ok(None),
-                    Err(err) => return Err(Error::new(ErrorKind::Other, err)),
-                };
+                let (n_tx_vi, n_tx_vi_len) = match VarInt::parse_buf(&mut buf)? {
+                    Some(some) => some,
+                    None => return Ok(None)
+                    };
                 let n_tx = usize::from(n_tx_vi);
 
                 let mut total_size: usize = 0;
                 let mut txs = Vec::with_capacity(n_tx);
                 for _i in 0..n_tx {
-                    let (tx, tx_len) = match Transaction::parse_buf(&mut buf) {
-                        Ok(Some(some)) => some,
-                        Ok(None) => return Ok(None),
-                        Err(err) => return Err(Error::new(ErrorKind::Other, err)),
+                    let (tx, tx_len) = match Transaction::parse_buf(&mut buf)? {
+                        Some(some) => some,
+                        None => return Ok(None),
                     };
                     txs.push(tx);
                     total_size += tx_len;
@@ -230,11 +218,10 @@ impl Decoder for MessageCodec {
             _ => {
                 // TODO: Remove malformed msgs
                 println!(
-                    "Received: {}",
+                    "Received malformed: {}",
                     String::from_utf8_lossy(&src.clone().freeze())
                 );
-                println!("Received: {}", String::from_utf8_lossy(&buf.bytes()));
-                Err(Error::new(ErrorKind::InvalidData, "Invalid Message"))
+                Err(MalformedMessageError.into())
             }
         }
     }

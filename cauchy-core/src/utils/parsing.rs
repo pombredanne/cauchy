@@ -5,34 +5,43 @@ use primitives::varint::*;
 use std::collections::HashSet;
 use utils::constants::*;
 
+use utils::errors::VarIntParseError;
+use failure::Error;
+
 pub trait Parsable<U> {
-    fn parse_buf<T: Buf>(buf: &mut T) -> Result<Option<(U, usize)>, String>;
+    type ParseError;
+    fn parse_buf<T: Buf>(buf: &mut T) -> Result<Option<(U, usize)>, Self::ParseError>;
 }
 
 impl Parsable<Transaction> for Transaction {
-    fn parse_buf<T: Buf>(buf: &mut T) -> Result<Option<(Transaction, usize)>, String> {
-        // TODO: Catch errors
+    type ParseError = Error;
+    fn parse_buf<T: Buf>(
+        buf: &mut T,
+    ) -> Result<Option<(Transaction, usize)>, Error> {
         let (vi_time, vi_time_len) = match VarInt::parse_buf(buf)? {
             Some(some) => some,
             None => return Ok(None),
         };
-
         let (vi_aux_len, vi_aux_len_len) = match VarInt::parse_buf(buf)? {
             Some(some) => some,
             None => return Ok(None),
         };
         let us_aux_len = usize::from(vi_aux_len);
+        if buf.remaining() < us_aux_len {
+            return Ok(None);
+        }
         let mut dst_aux = vec![0; us_aux_len];
         buf.copy_to_slice(&mut dst_aux);
-
         let (vi_bin_len, vi_bin_len_len) = match VarInt::parse_buf(buf)? {
             Some(some) => some,
             None => return Ok(None),
         };
         let us_bin_len = usize::from(vi_bin_len);
+        if buf.remaining() < us_bin_len {
+            return Ok(None);
+        }
         let mut dst_bin = vec![0; us_bin_len];
         buf.copy_to_slice(&mut dst_bin);
-
         Ok(Some((
             Transaction::new(
                 u64::from(vi_time),
@@ -45,7 +54,8 @@ impl Parsable<Transaction> for Transaction {
 }
 
 impl Parsable<VarInt> for VarInt {
-    fn parse_buf<T: Buf>(buf: &mut T) -> Result<Option<(VarInt, usize)>, String> {
+    type ParseError = VarIntParseError;
+    fn parse_buf<T: Buf>(buf: &mut T) -> Result<Option<(VarInt, usize)>, VarIntParseError> {
         let mut n: u64 = 0;
         let mut len = 0;
         loop {
@@ -53,7 +63,7 @@ impl Parsable<VarInt> for VarInt {
                 if len < 8 {
                     return Ok(None);
                 } else {
-                    return Err("No remaining bytes".to_string());
+                    return Err(VarIntParseError { len });
                 }
             }
             let k = buf.get_u8();
@@ -69,7 +79,10 @@ impl Parsable<VarInt> for VarInt {
 }
 
 impl Parsable<DummySketch> for DummySketch {
-    fn parse_buf<T: Buf>(buf: &mut T) -> Result<Option<(DummySketch, usize)>, String> {
+    type ParseError = Error;
+    fn parse_buf<T: Buf>(
+        buf: &mut T,
+    ) -> Result<Option<(DummySketch, usize)>, Error> {
         // TODO: Catch errors
         let (vi_pos_len, vi_pos_len_len) = match VarInt::parse_buf(buf)? {
             Some(some) => some,
@@ -79,7 +92,7 @@ impl Parsable<DummySketch> for DummySketch {
         let mut pos_set = HashSet::with_capacity(us_pos_len);
         for i in 0..us_pos_len {
             if buf.remaining() < TX_ID_LEN {
-                return Ok(None)
+                return Ok(None);
             }
             let mut dst_aux = vec![0; TX_ID_LEN];
             buf.copy_to_slice(&mut dst_aux);
@@ -94,7 +107,7 @@ impl Parsable<DummySketch> for DummySketch {
         let mut neg_set = HashSet::with_capacity(us_neg_len);
         for i in 0..us_neg_len {
             if buf.remaining() < TX_ID_LEN {
-                return Ok(None)
+                return Ok(None);
             }
             let mut dst_aux = vec![0; TX_ID_LEN];
             buf.copy_to_slice(&mut dst_aux);

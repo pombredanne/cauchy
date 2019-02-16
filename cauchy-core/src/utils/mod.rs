@@ -4,3 +4,4 @@ pub mod mining;
 pub mod parsing;
 pub mod serialisation;
 pub mod timing;
+pub mod errors;

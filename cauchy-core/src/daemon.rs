@@ -38,7 +38,7 @@ pub fn rpc_server(
 
     let server = listener
         .incoming()
-        .map_err(|e| println!("Error accepting socket; error = {:?}", e))
+        .map_err(|e| println!("error accepting socket; error = {:?}", e))
         .for_each(move |socket| {
             let socket_addr = socket.peer_addr().unwrap();
             if VERBOSE {
@@ -103,7 +103,6 @@ pub fn server(
     with proof-of-work calculations */
     /* Connection manager forwards the messages from RPC commands, tracks misbehaviour and handles
     reconciliation/handshake messages */
-
     let addr = format!("0.0.0.0:{}", SERVER_PORT).to_string();
     let addr = addr.parse::<SocketAddr>().unwrap();
     let listener = TcpListener::bind(&addr)
@@ -130,19 +129,17 @@ pub fn server(
 
         // Pair socket in connection manager
         let mut connection_manager_write_locked = connection_manager.write().unwrap();
-        let (secret, msg_receiver) = connection_manager_write_locked
+        let (secret, impulse_stream) = connection_manager_write_locked
             .add(&socket_addr, socket_pk.clone())
             .unwrap();
         drop(connection_manager_write_locked);
 
         // Frame the socket
         let framed_sock = Framed::new(socket, MessageCodec);
-        let (sink, stream) = framed_sock.split();
-
-        let tx_db_inner = tx_db.clone();
+        let (sink, received_stream) = framed_sock.split();
 
         // Heartbeat OddSketch
-        let heartbeat_odd_sketch = heartbeat_oddsketch(
+        let odd_sketch_stream = heartbeat_oddsketch(
             arena.clone(),
             local_status.clone(),
             rec_status.clone(),
@@ -151,7 +148,7 @@ pub fn server(
         );
 
         // Heartbeat Nonce
-        let heartbeat_nonce = heartbeat_nonce(
+        let nonce_stream = heartbeat_nonce(
             arena.clone(),
             local_status.clone(),
             rec_status.clone(),
@@ -160,11 +157,11 @@ pub fn server(
             socket_addr,
         );
 
-        // Filter responses
+        // Filter through received messages
         let socket_pk_inner = socket_pk.clone();
         let arena_inner = arena.clone();
         let rec_status_inner = rec_status.clone();
-        let queries = stream.filter(move |msg| match msg {
+        let received_stream = received_stream.filter(move |msg| match msg {
             Message::StartHandshake { .. } => {
                 if VERBOSE {
                     println!("Received handshake initialisation from {}", socket_addr);
@@ -232,27 +229,26 @@ pub fn server(
                 if VERBOSE {
                     println!("Received transaction request from {}", socket_addr);
                 }
-
                 true
             }
             Message::Transactions { .. } => {
                 if VERBOSE {
                     println!("Received transactions from {}", socket_addr);
                 }
-
                 false
             }
             Message::Reconcile => {
                 if VERBOSE {
                     println!("Received reconcile from {}", socket_addr);
                 }
-
                 true
             }
         });
 
+        // Construct responses
         let arena_inner = arena.clone();
-        let responses = queries.map(move |msg| match msg {
+        let tx_db_inner = tx_db.clone();
+        let response_stream = received_stream.map(move |msg| match msg {
             Message::StartHandshake { secret } => {
                 if VERBOSE {
                     println!("Sending handshake finalisation to {}", socket_addr);
@@ -341,16 +337,14 @@ pub fn server(
         });
 
         // Remove failed responses and merge with heartbeats
-        let msg_receiver =
-            msg_receiver.map_err(|e| Error::new(ErrorKind::Other, "Message channel failure"));
 
-        let responses = responses.filter(|x| x.is_ok()).map(|x| x.unwrap());
-        let out_msgs = responses
-            .select(heartbeat_odd_sketch)
-            .select(heartbeat_nonce)
-            .select(msg_receiver);
+        let response_stream = response_stream.filter(|x| x.is_ok()).map(|x| x.unwrap());
+        let out_stream = response_stream
+            .select(odd_sketch_stream)
+            .select(nonce_stream)
+            .select(impulse_stream);
 
-        let send = sink.send_all(out_msgs).map(|_| ()).or_else(|e| {
+        let send = sink.send_all(out_stream).map(|_| ()).or_else(|e| {
             println!("error = {:?}", e);
             Ok(())
         });

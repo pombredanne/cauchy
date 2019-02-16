@@ -9,6 +9,10 @@ use std::collections::HashSet;
 use utils::constants::*;
 use utils::parsing::*;
 
+use failure::Error;
+
+use utils::errors::{TransactionDeserialisationError, VarIntDeserialisationError};
+
 pub trait TryFrom<T>: Sized {
     type Err;
     fn try_from(_: T) -> Result<Self, Self::Err>;
@@ -34,13 +38,13 @@ impl From<VarInt> for Bytes {
 }
 
 impl TryFrom<Bytes> for VarInt {
-    type Err = String;
+    type Err = Error;
     fn try_from(raw: Bytes) -> Result<VarInt, Self::Err> {
         let mut n: u64 = 0;
         let mut buf = raw.into_buf();
         loop {
             if buf.remaining() == 0 {
-                return Err("No remaining bytes".to_string());
+                return Err(VarIntDeserialisationError.into());
             }
             let k = buf.get_u8();
             n = (n << 7) | u64::from(k & 0x7f);
@@ -76,30 +80,38 @@ impl From<Transaction> for Bytes {
 
 // TODO: Catch errors
 impl TryFrom<Bytes> for Transaction {
-    type Err = String;
+    type Err = Error;
     fn try_from(raw: Bytes) -> Result<Transaction, Self::Err> {
         let mut buf = raw.into_buf();
 
         let (vi_time, _) = match VarInt::parse_buf(&mut buf) {
-            Ok(None) => return Err("VarInt too short".to_string()),
-            Err(err) => return Err(err),
+            Ok(None) => return Err(TransactionDeserialisationError::TimeVarInt.into()),
+            Err(err) => return Err(TransactionDeserialisationError::TimeVarInt.into()),
             Ok(Some(some)) => some,
         };
 
         let (vi_aux_len, _) = match VarInt::parse_buf(&mut buf) {
-            Ok(None) => return Err("VarInt too short".to_string()),
-            Err(err) => return Err(err),
+            Ok(None) => return Err(TransactionDeserialisationError::AuxVarInt.into()),
+            Err(err) => return Err(TransactionDeserialisationError::AuxVarInt.into()),
             Ok(Some(some)) => some,
         };
-        let mut dst_aux = vec![0; usize::from(vi_aux_len)];
+        let us_aux_len = usize::from(vi_aux_len);
+        if buf.remaining() < us_aux_len {
+            return Err(TransactionDeserialisationError::AuxTooShort.into());
+        }
+        let mut dst_aux = vec![0; us_aux_len];
         buf.copy_to_slice(&mut dst_aux);
 
         let (vi_bin_len, _) = match VarInt::parse_buf(&mut buf) {
-            Ok(None) => return Err("VarInt too short".to_string()),
-            Err(err) => return Err(err),
+            Ok(None) => return Err(TransactionDeserialisationError::BinaryVarInt.into()),
+            Err(err) => return Err(TransactionDeserialisationError::BinaryVarInt.into()),
             Ok(Some(some)) => some,
         };
-        let mut dst_bin = vec![0; usize::from(vi_bin_len)];
+        let us_bin_len = usize::from(vi_bin_len);
+        if buf.remaining() < us_bin_len {
+            return Err(TransactionDeserialisationError::BinaryTooShort.into());
+        }
+        let mut dst_bin = vec![0; us_bin_len];
         buf.copy_to_slice(&mut dst_bin);
 
         Ok(Transaction::new(

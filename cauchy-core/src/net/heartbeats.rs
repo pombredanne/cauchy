@@ -7,10 +7,12 @@ use secp256k1::PublicKey;
 use std::net::SocketAddr;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
-use tokio::io::{Error, ErrorKind};
 use tokio::prelude::*;
 use tokio::timer::Interval;
 use utils::constants::*;
+
+use utils::errors::{HeartBeatOddSketchError, HeartBeatNonceError, ImpulseSendError};
+use failure::Error;
 
 pub fn heartbeat_oddsketch(
     arena: Arc<RwLock<Arena>>,
@@ -58,7 +60,7 @@ pub fn heartbeat_oddsketch(
             }
         },
     )
-    .map_err(|_| Error::new(ErrorKind::Other, "Odd sketch heart failure"))
+    .map_err(|_| HeartBeatOddSketchError.into())
 }
 
 pub fn heartbeat_nonce(
@@ -100,7 +102,7 @@ pub fn heartbeat_nonce(
             nonce: current_nonce,
         }
     })
-    .map_err(|_| Error::new(ErrorKind::Other, "Nonce heart failure"))
+    .map_err(|_| HeartBeatNonceError.into())
 }
 
 // TODO: How does this thread die?
@@ -144,11 +146,11 @@ pub fn spawn_heartbeat_reconcile(
             false
         }
     })
-    .for_each(move |(socket_addr, router_sender, _)| {
-        router_sender
+    .for_each(move |(socket_addr, impulse_sender, _)| {
+        impulse_sender
             .clone()
             .send((socket_addr.unwrap(), Message::Reconcile))
-            .map_err(|e| Error::new(ErrorKind::Other, "RPC addpeer channel failure"))
+            .map_err(|e| ImpulseSendError) // TODO: Capture cause?
             .map(|_| ())
             .or_else(|e| {
                 println!("error = {:?}", e);

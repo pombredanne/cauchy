@@ -4,6 +4,9 @@ use secp256k1::key::{PublicKey, SecretKey, ONE_KEY};
 use secp256k1::rand::OsRng;
 use secp256k1::{Message, Secp256k1, Signature};
 
+use failure::Error;
+use utils::errors::{InvalidSignature, InvalidPubkey};
+
 pub fn generate_keypair() -> (SecretKey, PublicKey) {
     let secp = Secp256k1::new();
     let mut rng = OsRng::new().expect("OsRng");
@@ -26,10 +29,10 @@ pub fn bytes_from_pubkey(key: PublicKey) -> Bytes {
     Bytes::from(&key.serialize()[..])
 }
 
-pub fn pubkey_from_bytes(raw: Bytes) -> Result<PublicKey, String> {
+pub fn pubkey_from_bytes(raw: Bytes) -> Result<PublicKey, Error> {
     match PublicKey::from_slice(&raw) {
         Ok(some) => Ok(some),
-        Err(_) => Err("Incorrect pubkey format".to_string()),
+        Err(_) => Err(InvalidPubkey.into()),
     }
 }
 
@@ -37,10 +40,10 @@ pub fn bytes_from_sig(sig: Signature) -> Bytes {
     Bytes::from(&sig.serialize_compact()[..])
 }
 
-pub fn sig_from_bytes(raw: Bytes) -> Result<Signature, String> {
+pub fn sig_from_bytes(raw: Bytes) -> Result<Signature, Error> {
     match Signature::from_compact(&raw) {
         Ok(sig) => Ok(sig),
-        Err(_) => Err("Invalid signature".to_string()),
+        Err(_) => Err(InvalidSignature.into()),
     }
 }
 

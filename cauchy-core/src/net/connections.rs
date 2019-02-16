@@ -6,6 +6,9 @@ use std::net::SocketAddr;
 use std::sync::{Arc, RwLock};
 use tokio::prelude::*;
 
+use utils::errors::{ConnectionAddError, ImpulseReceiveError};
+use failure::Error;
+
 pub struct ConnectionManager {
     connections: HashMap<SocketAddr, ConnectionStatus>,
     router_sender: Sender<(SocketAddr, Message)>,
@@ -28,7 +31,7 @@ impl ConnectionManager {
         let router = router_receiver
             .map(move |(socket_addr, message)| {
                 let cm_read = &*cm_inner.read().unwrap();
-                let msg_sender = cm_read.get_msg_sender(&socket_addr).unwrap();
+                let msg_sender = cm_read.get_impulse_sender(&socket_addr).unwrap();
                 let routed_send = msg_sender.clone().send(message).then(|tx| match tx {
                     Ok(_tx) => {
                         println!("Sink flushed");
@@ -55,7 +58,7 @@ impl ConnectionManager {
         Some(*socket)
     }
 
-    pub fn get_msg_sender(&self, socket_addr: &SocketAddr) -> Option<Sender<Message>> {
+    pub fn get_impulse_sender(&self, socket_addr: &SocketAddr) -> Option<Sender<Message>> {
         let connection = self.connections.get(&socket_addr)?;
         Some(connection.msg_sender.clone())
     }
@@ -68,34 +71,35 @@ impl ConnectionManager {
         &mut self,
         addr: &SocketAddr,
         pk: Arc<RwLock<PublicKey>>,
-    ) -> Result<(u64, Receiver<Message>), String> {
+    ) -> Result<(u64, impl futures::stream::Stream<Item = Message, Error = Error>), ConnectionAddError> {
         if self.connections.contains_key(addr) {
-            return Err("Connection already managed".to_string());
+            return Err(ConnectionAddError);
         }
-        let (msg_sender, msg_receiver) = channel::<Message>(1);
+        let (impulse_sender, impulse_receiver) = channel::<Message>(1);
 
         // TODO: Randomize secret
         let secret: u64 = 32;
 
         // Initiate handshake
-        let handshake_send = msg_sender
+        let handshake_impulse = impulse_sender
             .clone()
             .send(Message::StartHandshake { secret })
             .then(|tx| match tx {
                 Ok(_tx) => {
-                    println!("Sink flushed");
+                    println!("Handshake impulse sent");
                     Ok(())
                 }
                 Err(e) => {
-                    println!("Sink failed! {:?}", e);
+                    println!("Handshake failed to send! {:?}", e);
                     Err(())
                 }
             });
         self.connections
-            .insert(*addr, ConnectionStatus::new(secret, msg_sender.clone(), pk));
-        tokio::spawn(handshake_send);
+            .insert(*addr, ConnectionStatus::new(secret, impulse_sender.clone(), pk));
+        tokio::spawn(handshake_impulse);
 
-        Ok((secret, msg_receiver))
+        let impulse_receiver = impulse_receiver.map_err(|_| ImpulseReceiveError.into());
+        Ok((secret, impulse_receiver))
     }
 }
 

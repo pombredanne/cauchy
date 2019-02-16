@@ -14,8 +14,6 @@ members = [
   "./cauchy-vm",
 ]
 
-
-
 [dependencies]
 rocksdb = "*"
 libc = "*"
