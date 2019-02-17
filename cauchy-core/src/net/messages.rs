@@ -174,14 +174,14 @@ impl Decoder for MessageCodec {
                 };
                 let us_n_tx_ids = usize::from(n_tx_ids_vi);
                 println!("Number of txns to decode {}", us_n_tx_ids);
-                let total_size = us_n_tx_ids * TX_ID_LEN;
+                let total_size = us_n_tx_ids * HASH_LEN;
                 let mut ids = HashSet::with_capacity(us_n_tx_ids);
 
                 if buf.remaining() < total_size {
                     Ok(None)
                 } else {
                     for _ in 0..us_n_tx_ids {
-                        let mut id_dst = [0; TX_ID_LEN];
+                        let mut id_dst = [0; HASH_LEN];
                         buf.copy_to_slice(&mut id_dst);
                         ids.insert(Bytes::from(&id_dst[..]));
                     }

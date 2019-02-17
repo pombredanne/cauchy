@@ -33,7 +33,7 @@ impl Transaction {
     }
 
     pub fn get_tx_id(&self) -> Bytes {
-        Bytes::from(&self.blake2b()[..TX_ID_LEN])
+        self.blake2b()
     }
 
     pub fn get_time(&self) -> &u64 {
@@ -41,6 +41,6 @@ impl Transaction {
     }
 
     pub fn get_binary_hash(&self) -> Bytes {
-        Bytes::from(&self.binary.blake2b()[..TX_ID_LEN])
+        self.binary.blake2b()
     }
 }

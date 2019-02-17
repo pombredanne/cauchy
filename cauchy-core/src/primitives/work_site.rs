@@ -3,7 +3,7 @@ use crypto::hashes::blake2b::Blk2bHashable;
 use secp256k1::PublicKey;
 use std::cell::Cell;
 use utils::byte_ops::Hamming;
-use utils::constants::TX_ID_LEN;
+use utils::constants::HASH_LEN;
 
 #[derive(Debug, Clone)]
 pub struct WorkSite {
@@ -36,7 +36,7 @@ impl WorkSite {
     }
 
     pub fn get_site_hash(&self) -> Bytes {
-        Bytes::from(&self.blake2b().blake2b()[..TX_ID_LEN])
+        self.blake2b().blake2b()
     }
 
     pub fn mine(&self, state_sketch: &Bytes) -> u16 {
