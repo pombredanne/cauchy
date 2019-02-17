@@ -4,7 +4,6 @@ use crypto::sketches::dummy_sketch::*;
 use primitives::transaction::Transaction;
 use primitives::varint::VarInt;
 use primitives::work_site::WorkSite;
-use state::spend_state::*;
 use std::collections::HashSet;
 use utils::constants::*;
 use utils::parsing::*;
@@ -119,29 +118,6 @@ impl TryFrom<Bytes> for Transaction {
             Bytes::from(dst_aux),
             Bytes::from(dst_bin),
         ))
-    }
-}
-
-impl From<Bytes> for SpendState {
-    fn from(raw: Bytes) -> SpendState {
-        let mut buf = raw.into_buf();
-
-        let mut hash_set: HashSet<u32> = HashSet::new();
-        while buf.has_remaining() {
-            hash_set.insert(buf.get_u32_be());
-        }
-
-        SpendState::new(hash_set)
-    }
-}
-
-impl From<SpendState> for Bytes {
-    fn from(tx_state: SpendState) -> Bytes {
-        let mut buf = vec![];
-        for val in tx_state.iter() {
-            buf.put_u32_be(*val);
-        }
-        Bytes::from(buf) // TODO: Replace with bufmut
     }
 }
 

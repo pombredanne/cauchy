@@ -14,7 +14,6 @@ pub mod daemon;
 pub mod db;
 pub mod net;
 pub mod primitives;
-pub mod state;
 pub mod utils;
 
 #[cfg(test)]
