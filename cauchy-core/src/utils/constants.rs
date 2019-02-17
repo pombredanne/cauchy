@@ -16,3 +16,4 @@ pub const SERVER_PORT: u16 = 8080;
 pub const RPC_SERVER_PORT: u16 = 8332;
 pub const MINER: bool = true;
 pub const VERBOSE: bool = true;
+pub const PARSING_VERBOSE: bool = true;

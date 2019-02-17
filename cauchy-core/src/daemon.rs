@@ -248,6 +248,7 @@ pub fn server(
         // Construct responses
         let arena_inner = arena.clone();
         let tx_db_inner = tx_db.clone();
+        let rec_status_inner = rec_status.clone();
         let response_stream = received_stream.map(move |msg| match msg {
             Message::StartHandshake { secret } => {
                 if VERBOSE {
