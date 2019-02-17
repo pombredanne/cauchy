@@ -4,7 +4,7 @@ use secp256k1::PublicKey;
 use std::collections::HashMap;
 use std::sync::Arc;
 use utils::byte_ops::Hamming;
-use utils::constants::VERBOSE;
+use utils::constants::ARENA_VERBOSE;
 
 pub struct Arena {
     // TODO: Individual RWLocks for each? Asyncronous hasmaps?
@@ -44,7 +44,7 @@ impl Arena {
     }
 
     pub fn add_peer(&mut self, pubkey: &PublicKey, status: Arc<Status>) {
-        if VERBOSE {
+        if ARENA_VERBOSE {
             println!("Added new peer to arena!");
         }
         self.peer_status.insert(*pubkey, status);
@@ -86,7 +86,7 @@ impl Arena {
         let mut ordered: Vec<PublicKey> = self.peer_status.keys().cloned().collect();
         ordered.sort_by_key(|x| {
             let d = &distances[x];
-            if VERBOSE {
+            if ARENA_VERBOSE {
                 println!("Key: {} \n Distance: {}", x, d)
             }
             d

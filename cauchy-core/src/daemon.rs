@@ -41,7 +41,7 @@ pub fn rpc_server(
         .map_err(|e| println!("error accepting socket; error = {:?}", e))
         .for_each(move |socket| {
             let socket_addr = socket.peer_addr().unwrap();
-            if VERBOSE {
+            if DAEMON_VERBOSE {
                 println!("New RPC server socket to {}", socket_addr);
             }
 
@@ -55,7 +55,7 @@ pub fn rpc_server(
             let send = stream
                 .for_each(move |msg| match msg {
                     RPC::AddPeer { addr } => {
-                        if VERBOSE {
+                        if DAEMON_VERBOSE {
                             println!("Received addpeer {} message from {}", addr, socket_addr);
                         }
                         let tcp_socket_send_inner = tcp_socket_send_inner.clone();
@@ -115,7 +115,7 @@ pub fn server(
 
     let server = incoming.for_each(move |socket| {
         let socket_addr = socket.peer_addr().unwrap();
-        if VERBOSE {
+        if DAEMON_VERBOSE {
             println!("New server socket to {}", socket_addr);
         }
 
@@ -163,13 +163,13 @@ pub fn server(
         let rec_status_inner = rec_status.clone();
         let received_stream = received_stream.filter(move |msg| match msg {
             Message::StartHandshake { .. } => {
-                if VERBOSE {
+                if DAEMON_VERBOSE {
                     println!("Received handshake initialisation from {}", socket_addr);
                 }
                 true
             }
             Message::EndHandshake { pubkey, sig } => {
-                if VERBOSE {
+                if DAEMON_VERBOSE {
                     println!("Received handshake finalisation from {}", socket_addr);
                 }
 
@@ -177,7 +177,7 @@ pub fn server(
                 let secret_msg = ecdsa::message_from_preimage(Bytes::from(VarInt::new(secret)));
                 if ecdsa::verify(&secret_msg, sig, pubkey).unwrap() {
                     // If peer correctly signs our secret we upgrade them from a dummy pk
-                    if VERBOSE {
+                    if DAEMON_VERBOSE {
                         println!("Handshake completed with {}", socket_addr);
                     }
                     let arena_inner = arena_inner.clone();
@@ -189,14 +189,14 @@ pub fn server(
                     let mut socket_pk_write_locked = socket_pk.write().unwrap();
                     *socket_pk_write_locked = *pubkey;
                 } else {
-                    if VERBOSE {
+                    if DAEMON_VERBOSE {
                         println!("Handshake failed with {}", socket_addr);
                     }
                 }
                 false
             }
             Message::Nonce { nonce } => {
-                if VERBOSE {
+                if DAEMON_VERBOSE {
                     println!("Received nonce from {}", socket_addr);
                 }
 
@@ -207,7 +207,7 @@ pub fn server(
                 false
             }
             Message::OddSketch { sketch } => {
-                if VERBOSE {
+                if DAEMON_VERBOSE {
                     println!("Received odd sketch from {}", socket_addr);
                 }
                 // Update state sketch
@@ -217,7 +217,7 @@ pub fn server(
                 false
             }
             Message::MiniSketch { .. } => {
-                if VERBOSE {
+                if DAEMON_VERBOSE {
                     println!("Received MiniSketch from {}", socket_addr);
                 }
 
@@ -226,19 +226,19 @@ pub fn server(
                 rec_status_inner.read().unwrap().equiv(&socket_pk_read)
             }
             Message::GetTransactions { .. } => {
-                if VERBOSE {
+                if DAEMON_VERBOSE {
                     println!("Received transaction request from {}", socket_addr);
                 }
                 true
             }
             Message::Transactions { .. } => {
-                if VERBOSE {
+                if DAEMON_VERBOSE {
                     println!("Received transactions from {}", socket_addr);
                 }
                 false
             }
             Message::Reconcile => {
-                if VERBOSE {
+                if DAEMON_VERBOSE {
                     println!("Received reconcile from {}", socket_addr);
                 }
                 true
@@ -251,7 +251,7 @@ pub fn server(
         let rec_status_inner = rec_status.clone();
         let response_stream = received_stream.map(move |msg| match msg {
             Message::StartHandshake { secret } => {
-                if VERBOSE {
+                if DAEMON_VERBOSE {
                     println!("Sending handshake finalisation to {}", socket_addr);
                 }
 
@@ -264,7 +264,7 @@ pub fn server(
                 })
             }
             Message::GetTransactions { ids } => {
-                if VERBOSE {
+                if DAEMON_VERBOSE {
                     println!("Received {} ids", ids.len());
                     println!("Sending transactions to {}", socket_addr);
                 }
@@ -279,7 +279,7 @@ pub fn server(
                 Ok(Message::Transactions { txs })
             }
             Message::MiniSketch { mini_sketch } => {
-                if VERBOSE {
+                if DAEMON_VERBOSE {
                     println!("Sending transactions request to {}", socket_addr);
                 }
 
@@ -299,33 +299,35 @@ pub fn server(
                 let (excess_actor_ids, missing_actor_ids) =
                     (perception_sketch - mini_sketch).decode().unwrap();
                 let perception_odd_sketch = perception.get_odd_sketch();
-                println!(
-                    "Decoding resulted in {} excess and {} missing",
-                    excess_actor_ids.len(),
-                    missing_actor_ids.len()
-                );
+                
+                if DAEMON_VERBOSE {
+                    println!(
+                        "Decoding resulted in {} excess and {} missing",
+                        excess_actor_ids.len(),
+                        missing_actor_ids.len()
+                    );
+                }
 
                 // Check for fraud
-                println!("Peer odd sketch {:?}", peer_odd_sketch);
+                // TODO: Compact, splayed out like this for debugging
                 let xor_result = peer_odd_sketch.byte_xor(perception_odd_sketch);
-                println!("Peer odd sketch xor perception odd sketch {:?}", xor_result);
                 let xor_result = xor_result.byte_xor(excess_actor_ids.odd_sketch());
-                println!("... xor excess actors {:?}", xor_result);
                 let xor_result = xor_result.byte_xor(missing_actor_ids.odd_sketch());
-                println!("... xor missing actors {:?}", xor_result);
                 if xor_result == Bytes::from(&[0; SKETCH_CAPACITY][..]) {
                     Ok(Message::GetTransactions {
                         ids: missing_actor_ids,
                     })
                 } else {
-                    println!("Fraudulent Minisketch");
+                    if DAEMON_VERBOSE {
+                        println!("Fraudulent Minisketch");
+                    }
                     // Stop reconciliation
                     rec_status_inner.write().unwrap().stop();
                     return Err("Fraudulent Minisketch provided".to_string());
                 }
             }
             Message::Reconcile => {
-                if VERBOSE {
+                if DAEMON_VERBOSE {
                     println!("Sending MiniSketch to {}", socket_addr);
                 }
                 let arena_r = arena_inner.read().unwrap();
@@ -334,7 +336,6 @@ pub fn server(
                     Some(some) => some,
                     None => return Err("No perception found".to_string()),
                 };
-                println!("Got here");
                 Ok(Message::MiniSketch {
                     mini_sketch: perception.get_mini_sketch(),
                 })
@@ -343,7 +344,6 @@ pub fn server(
         });
 
         // Remove failed responses and merge with heartbeats
-
         let response_stream = response_stream.filter(|x| x.is_ok()).map(|x| x.unwrap());
         let out_stream = response_stream
             .select(odd_sketch_stream)

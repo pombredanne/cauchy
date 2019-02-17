@@ -48,7 +48,7 @@ pub fn heartbeat_oddsketch(
     })
     .map(
         move |(current_odd_sketch, current_mini_sketch, perception)| {
-            if VERBOSE {
+            if HEARTBEAT_VERBOSE {
                 println!("Sending odd sketch to {}", socket_addr);
             }
             // Update perception and send msg
@@ -92,7 +92,7 @@ pub fn heartbeat_nonce(
         }
     })
     .map(move |(current_nonce, perception)| {
-        if VERBOSE {
+        if HEARTBEAT_VERBOSE {
             println!("Sending nonce to {}", socket_addr);
         }
 
@@ -137,12 +137,16 @@ pub fn spawn_heartbeat_reconcile(
     .filter(move |(socket_addr, _, leader_pk)| {
         if socket_addr.is_some() {
             // Set reconciliation target to leader
-            println!("New reconciliation target: {}", leader_pk);
+            if HEARTBEAT_VERBOSE {
+                println!("New reconciliation target: {}", leader_pk);
+            }
             let mut rec_status_write_locked = rec_status.write().unwrap();
             rec_status_write_locked.set_target(leader_pk);
             true
         } else {
-            println!("Leader doesn't have an associated socket");
+            if HEARTBEAT_VERBOSE {
+                println!("Leader doesn't have an associated socket");
+            }
             false
         }
     })
