@@ -158,18 +158,12 @@ impl From<WorkSite> for Bytes {
 impl From<DummySketch> for Bytes {
     fn from(dummy_sketch: DummySketch) -> Bytes {
         let pos_len = dummy_sketch.pos_len();
-        let neg_len = dummy_sketch.neg_len();
         let vi_pos_len = VarInt::from(pos_len);
-        let vi_neg_len = VarInt::from(neg_len);
         let mut buf =
-            BytesMut::with_capacity(pos_len + pos_len + vi_pos_len.len() + vi_neg_len.len());
+            BytesMut::with_capacity(pos_len + vi_pos_len.len() );
 
         buf.extend(&Bytes::from(vi_pos_len));
         for item in dummy_sketch.get_pos() {
-            buf.extend(item)
-        }
-        buf.extend(&Bytes::from(vi_neg_len));
-        for item in dummy_sketch.get_neg() {
             buf.extend(item)
         }
         buf.freeze()

@@ -218,7 +218,7 @@ pub fn server(
             }
             Message::MiniSketch { .. } => {
                 if VERBOSE {
-                    println!("Received IBLT from {}", socket_addr);
+                    println!("Received MiniSketch from {}", socket_addr);
                 }
 
                 // Only response if the pk is reconciliation target
@@ -315,12 +315,14 @@ pub fn server(
                     })
                 } else {
                     println!("Fraudulent Minisketch");
-                    Err("Fraudulent Minisketch provided".to_string())
+                    // Stop reconciliation
+                    rec_status_inner.write().unwrap().stop();
+                    return Err("Fraudulent Minisketch provided".to_string())
                 }
             }
             Message::Reconcile => {
                 if VERBOSE {
-                    println!("Sending IBLT to {}", socket_addr);
+                    println!("Sending MiniSketch to {}", socket_addr);
                 }
                 let arena_r = arena_inner.read().unwrap();
                 let socket_pk_read = *socket_pk_inner.read().unwrap();

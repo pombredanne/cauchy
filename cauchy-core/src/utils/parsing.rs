@@ -99,24 +99,9 @@ impl Parsable<DummySketch> for DummySketch {
             pos_set.insert(Bytes::from(dst_aux));
         }
 
-        let (vi_neg_len, vi_neg_len_len) = match VarInt::parse_buf(buf)? {
-            Some(some) => some,
-            None => return Ok(None),
-        };
-        let us_neg_len = usize::from(vi_neg_len);
-        let mut neg_set = HashSet::with_capacity(us_neg_len);
-        for i in 0..us_neg_len {
-            if buf.remaining() < HASH_LEN {
-                return Ok(None);
-            }
-            let mut dst_aux = vec![0; HASH_LEN];
-            buf.copy_to_slice(&mut dst_aux);
-            neg_set.insert(Bytes::from(dst_aux));
-        }
-
         Ok(Some((
-            DummySketch::new(pos_set, neg_set),
-            vi_pos_len_len + vi_neg_len_len + (us_pos_len + us_neg_len) * HASH_LEN,
+            DummySketch::new(pos_set, HashSet::new()),
+            vi_pos_len_len + us_pos_len * HASH_LEN,
         )))
     }
 }
