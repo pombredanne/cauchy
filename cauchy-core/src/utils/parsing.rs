@@ -69,7 +69,7 @@ impl Parsable<VarInt> for VarInt {
                 if len < 8 {
                     return Ok(None);
                 } else {
-                    return Err(VarIntParseError { len });
+                    return Err(VarIntParseError { len }.into());
                 }
             }
             let k = buf.get_u8();

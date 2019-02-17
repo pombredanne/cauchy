@@ -306,11 +306,14 @@ pub fn server(
                 );
 
                 // Check for fraud
-                if peer_odd_sketch.byte_xor(perception_odd_sketch)
-                    == excess_actor_ids
-                        .odd_sketch()
-                        .byte_xor(missing_actor_ids.odd_sketch())
-                {
+                println!("Peer odd sketch {:?}", peer_odd_sketch);
+                let xor_result = peer_odd_sketch.byte_xor(perception_odd_sketch);
+                println!("Peer odd sketch xor perception odd sketch {:?}", xor_result);
+                let xor_result = xor_result.byte_xor(excess_actor_ids.odd_sketch());
+                println!("... xor excess actors {:?}", xor_result);
+                let xor_result = xor_result.byte_xor(missing_actor_ids.odd_sketch());
+                println!("... xor missing actors {:?}", xor_result);
+                if xor_result == Bytes::from(&[0; SKETCH_CAPACITY][..]) {
                     Ok(Message::GetTransactions {
                         ids: missing_actor_ids,
                     })
