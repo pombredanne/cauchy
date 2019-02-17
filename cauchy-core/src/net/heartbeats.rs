@@ -11,8 +11,8 @@ use tokio::prelude::*;
 use tokio::timer::Interval;
 use utils::constants::*;
 
-use utils::errors::{HeartBeatOddSketchError, HeartBeatNonceError, ImpulseSendError};
 use failure::Error;
+use utils::errors::{HeartBeatNonceError, HeartBeatOddSketchError, ImpulseSendError};
 
 pub fn heartbeat_oddsketch(
     arena: Arc<RwLock<Arena>>,

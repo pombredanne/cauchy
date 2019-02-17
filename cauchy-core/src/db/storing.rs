@@ -1,10 +1,10 @@
 use bytes::Bytes;
 use db::rocksdb::*;
 use db::*;
+use failure::Error;
 use primitives::transaction::*;
 use std::sync::Arc;
 use utils::serialisation::*;
-use failure::Error;
 
 pub trait Storable<U> {
     fn from_db(db: Arc<RocksDb>, id: &Bytes) -> Result<Option<U>, Error>;
@@ -19,7 +19,7 @@ impl Storable<Transaction> for Transaction {
                 Ok(Some(tx))
             }
             Ok(None) => Ok(None),
-            Err(err) => Err(err.into()),
+            Err(err) => Err(err),
         }
     }
 

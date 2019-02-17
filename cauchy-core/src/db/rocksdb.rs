@@ -1,8 +1,8 @@
 use bytes::Bytes;
 use db::Database;
+use failure::Error;
 use rocksdb::DB;
 use utils::errors::DatabaseError;
-use failure::Error;
 
 pub struct RocksDb(DB);
 
@@ -15,7 +15,7 @@ impl Database<RocksDb> for RocksDb {
         path.push(folder);
         match DB::open_default(path) {
             Ok(some) => Ok(RocksDb(some)),
-            Err(error) => Err(DatabaseError::Open.into()),
+            Err(err) => Err(DatabaseError::Open.into()),
         }
     }
 
@@ -23,14 +23,14 @@ impl Database<RocksDb> for RocksDb {
         match self.0.get(key) {
             Ok(Some(some)) => Ok(Some(Bytes::from(&*some))),
             Ok(None) => Ok(None),
-            Err(error) => Err(DatabaseError::Open.into()),
+            Err(err) => Err(DatabaseError::Open.into()),
         }
     }
 
     fn put(&self, key: &Bytes, value: &Bytes) -> Result<(), Error> {
         match self.0.put(key, value) {
             Ok(_) => Ok(()),
-            Err(error) => Err(DatabaseError::Put.into()),
+            Err(err) => Err(DatabaseError::Put.into()),
         }
     }
 }

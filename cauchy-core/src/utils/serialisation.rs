@@ -4,7 +4,6 @@ use crypto::sketches::dummy_sketch::*;
 use primitives::transaction::Transaction;
 use primitives::varint::VarInt;
 use primitives::work_site::WorkSite;
-use std::collections::HashSet;
 use utils::constants::*;
 use utils::parsing::*;
 
@@ -135,8 +134,7 @@ impl From<DummySketch> for Bytes {
     fn from(dummy_sketch: DummySketch) -> Bytes {
         let pos_len = dummy_sketch.pos_len();
         let vi_pos_len = VarInt::from(pos_len);
-        let mut buf =
-            BytesMut::with_capacity(pos_len + vi_pos_len.len() );
+        let mut buf = BytesMut::with_capacity(pos_len + vi_pos_len.len());
 
         buf.extend(&Bytes::from(vi_pos_len));
         for item in dummy_sketch.get_pos() {

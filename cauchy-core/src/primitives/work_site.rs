@@ -3,7 +3,6 @@ use crypto::hashes::blake2b::Blk2bHashable;
 use secp256k1::PublicKey;
 use std::cell::Cell;
 use utils::byte_ops::Hamming;
-use utils::constants::HASH_LEN;
 
 #[derive(Debug, Clone)]
 pub struct WorkSite {

@@ -28,7 +28,7 @@ impl ReconciliationStatus {
         self.target = *new_target;
     }
 
-    pub fn eq(&self, other: &PublicKey) -> bool {
+    pub fn equiv(&self, other: &PublicKey) -> bool {
         self.target == *other
     }
 }

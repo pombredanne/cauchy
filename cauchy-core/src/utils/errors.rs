@@ -36,7 +36,7 @@ pub enum DecodingError {
     GetTransactionsError,
     TransactionsError,
     InvalidMessage,
-    IOError
+    IOError,
 }
 
 // Serialisation Errors
@@ -81,7 +81,7 @@ pub enum TransactionStorageError {
     #[fail(display = "tx deserialisation error")]
     DeserialisationError,
     #[fail(display = "database error")]
-    DatabaseError
+    DatabaseError,
 }
 
 #[derive(Debug, Fail)]
@@ -93,7 +93,7 @@ pub enum DatabaseError {
     #[fail(display = "failed to get item db")]
     Get,
     #[fail(display = "failed to put item db")]
-    Put
+    Put,
 }
 
 // Connection Errors

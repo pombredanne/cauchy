@@ -5,7 +5,7 @@ use secp256k1::rand::OsRng;
 use secp256k1::{Message, Secp256k1, Signature};
 
 use failure::Error;
-use utils::errors::{InvalidSignature, InvalidPubkey};
+use utils::errors::{InvalidPubkey, InvalidSignature};
 
 pub fn generate_keypair() -> (SecretKey, PublicKey) {
     let secp = Secp256k1::new();

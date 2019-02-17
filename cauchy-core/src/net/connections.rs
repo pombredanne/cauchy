@@ -6,8 +6,8 @@ use std::net::SocketAddr;
 use std::sync::{Arc, RwLock};
 use tokio::prelude::*;
 
-use utils::errors::{ConnectionAddError, ImpulseReceiveError};
 use failure::Error;
+use utils::errors::{ConnectionAddError, ImpulseReceiveError};
 
 pub struct ConnectionManager {
     connections: HashMap<SocketAddr, ConnectionStatus>,
@@ -71,7 +71,13 @@ impl ConnectionManager {
         &mut self,
         addr: &SocketAddr,
         pk: Arc<RwLock<PublicKey>>,
-    ) -> Result<(u64, impl futures::stream::Stream<Item = Message, Error = Error>), ConnectionAddError> {
+    ) -> Result<
+        (
+            u64,
+            impl futures::stream::Stream<Item = Message, Error = Error>,
+        ),
+        ConnectionAddError,
+    > {
         if self.connections.contains_key(addr) {
             return Err(ConnectionAddError);
         }
@@ -94,8 +100,10 @@ impl ConnectionManager {
                     Err(())
                 }
             });
-        self.connections
-            .insert(*addr, ConnectionStatus::new(secret, impulse_sender.clone(), pk));
+        self.connections.insert(
+            *addr,
+            ConnectionStatus::new(secret, impulse_sender.clone(), pk),
+        );
         tokio::spawn(handshake_impulse);
 
         let impulse_receiver = impulse_receiver.map_err(|_| ImpulseReceiveError.into());

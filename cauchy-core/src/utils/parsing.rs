@@ -5,17 +5,15 @@ use primitives::varint::*;
 use std::collections::HashSet;
 use utils::constants::*;
 
-use utils::errors::VarIntParseError;
 use failure::Error;
+use utils::errors::VarIntParseError;
 
 pub trait Parsable<U> {
     fn parse_buf<T: Buf>(buf: &mut T) -> Result<Option<(U, usize)>, Error>;
 }
 
 impl Parsable<Transaction> for Transaction {
-    fn parse_buf<T: Buf>(
-        buf: &mut T,
-    ) -> Result<Option<(Transaction, usize)>, Error> {
+    fn parse_buf<T: Buf>(buf: &mut T) -> Result<Option<(Transaction, usize)>, Error> {
         if PARSING_VERBOSE {
             println!("Begin Transaction parsing");
         }
@@ -88,9 +86,7 @@ impl Parsable<VarInt> for VarInt {
 }
 
 impl Parsable<DummySketch> for DummySketch {
-    fn parse_buf<T: Buf>(
-        buf: &mut T,
-    ) -> Result<Option<(DummySketch, usize)>, Error> {
+    fn parse_buf<T: Buf>(buf: &mut T) -> Result<Option<(DummySketch, usize)>, Error> {
         // TODO: Catch errors
         if PARSING_VERBOSE {
             println!("Begin DummySketch parsing");

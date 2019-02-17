@@ -33,11 +33,10 @@ where
     U: Clone,
 {
     fn odd_sketch(&self) -> Bytes {
-        let mut sketch: [u8; SKETCH_CAPACITY] = [0; SKETCH_CAPACITY];
+        let mut sketch = BytesMut::from(&[0; SKETCH_CAPACITY][..]);
         for item in self.clone().into_iter() {
-            let (shift, index) = util::get_bit_pos(&item, SKETCH_CAPACITY);
-            sketch[index] ^= 1 << shift;
+            add_to_bin(&mut sketch, &item);
         }
-        Bytes::from(&sketch[..])
+        sketch.freeze()
     }
 }

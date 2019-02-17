@@ -14,8 +14,8 @@ use primitives::varint::VarInt;
 use utils::constants::*;
 use utils::parsing::*;
 
-use utils::errors::MalformedMessageError;
 use failure::Error;
+use utils::errors::MalformedMessageError;
 
 pub enum Message {
     StartHandshake { secret: u64 }, // 0 || Secret VarInt
@@ -170,7 +170,7 @@ impl Decoder for MessageCodec {
                 println!("Decoding get txns");
                 let (n_tx_ids_vi, n_tx_ids_vi_len) = match VarInt::parse_buf(&mut buf)? {
                     Some(some) => some,
-                    None => return Ok(None)
+                    None => return Ok(None),
                 };
                 let us_n_tx_ids = usize::from(n_tx_ids_vi);
                 println!("Number of txns to decode {}", us_n_tx_ids);
@@ -193,8 +193,8 @@ impl Decoder for MessageCodec {
             6 => {
                 let (n_tx_vi, n_tx_vi_len) = match VarInt::parse_buf(&mut buf)? {
                     Some(some) => some,
-                    None => return Ok(None)
-                    };
+                    None => return Ok(None),
+                };
                 let n_tx = usize::from(n_tx_vi);
 
                 let mut total_size: usize = 0;

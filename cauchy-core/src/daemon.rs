@@ -223,7 +223,7 @@ pub fn server(
 
                 // Only response if the pk is reconciliation target
                 let socket_pk_read = *socket_pk.read().unwrap();
-                rec_status_inner.read().unwrap().eq(&socket_pk_read)
+                rec_status_inner.read().unwrap().equiv(&socket_pk_read)
             }
             Message::GetTransactions { .. } => {
                 if VERBOSE {
@@ -321,7 +321,7 @@ pub fn server(
                     println!("Fraudulent Minisketch");
                     // Stop reconciliation
                     rec_status_inner.write().unwrap().stop();
-                    return Err("Fraudulent Minisketch provided".to_string())
+                    return Err("Fraudulent Minisketch provided".to_string());
                 }
             }
             Message::Reconcile => {

@@ -7,7 +7,8 @@ extern crate rand;
 extern crate rocksdb;
 extern crate secp256k1;
 extern crate tokio;
-#[macro_use] extern crate failure;
+#[macro_use]
+extern crate failure;
 
 pub mod crypto;
 pub mod daemon;
@@ -23,7 +24,6 @@ mod tests {
     mod hash_tests;
     mod signature_tests;
     mod sketch_tests;
-    mod transaction_state_tests;
     mod transaction_tests;
     mod varint_tests;
 }

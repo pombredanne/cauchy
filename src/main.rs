@@ -87,7 +87,7 @@ fn main() {
     let new_tx_interval = time::Duration::from_millis(200);
 
     loop {
-        sketch_send.send(random_tx());
+        // sketch_send.send(random_tx());
         thread::sleep(new_tx_interval);
     }
 
