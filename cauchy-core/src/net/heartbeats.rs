@@ -29,7 +29,7 @@ pub fn heartbeat_oddsketch(
     .map(move |_| {
         (
             local_status.get_odd_sketch(),
-            local_status.get_mini_sketch(),
+            local_status.get_mini_sketch(), // TODO: This is not garaunteed to be ¬ to the odd sketch
             *socket_pk.read().unwrap(),
         )
     })

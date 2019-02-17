@@ -43,7 +43,7 @@ impl Status {
 
     pub fn add_to_odd_sketch<T: Blk2bHashable>(&self, item: &T) {
         let mut sketch_locked = self.odd_sketch.write().unwrap();
-        add_to_bin(&mut *sketch_locked, item);
+        add_to_bin(&mut *sketch_locked, &item.blake2b());
     }
 
     pub fn update_odd_sketch(&self, mini_sketch: Bytes) {
