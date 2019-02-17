@@ -7,7 +7,7 @@ use crypto::hashes::blake2b::Blk2bHashable;
        ^UTC            ^ Length of Aux data           ^ Length of Binary
 */
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)] // TODO: Check if this hash is secure, can this be exploited?
 pub struct Transaction {
     time: u64,
     aux_data: Bytes,
@@ -31,8 +31,8 @@ impl Transaction {
         &self.binary
     }
 
-    pub fn get_tx_id(&self) -> Bytes {
-        self.blake2b()
+    pub fn get_id(&self) -> Bytes {
+        self.blake2b().blake2b()
     }
 
     pub fn get_time(&self) -> &u64 {

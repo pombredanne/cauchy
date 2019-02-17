@@ -24,7 +24,7 @@ pub enum Message {
     OddSketch { sketch: Bytes },    // 3 || Sketch
     MiniSketch { mini_sketch: DummySketch }, // 4 || Number of Rows VarInt || IBLT
     GetTransactions { ids: HashSet<Bytes> }, // 5 || Number of Ids VarInt || Ids
-    Transactions { txs: Vec<Transaction> }, // 6 || Number of Bytes VarInt || Tx ...
+    Transactions { txs: HashSet<Transaction> }, // 6 || Number of Bytes VarInt || Tx ...
     Reconcile,                      // 7
 }
 
@@ -73,7 +73,7 @@ impl Encoder for MessageCodec {
             Message::Transactions { txs } => {
                 dst.put_u8(6);
                 let mut payload = BytesMut::new();
-                for tx in txs {
+                for tx in txs.into_iter() {
                     let raw = Bytes::from(tx);
                     payload.extend(Bytes::from(VarInt::new(raw.len() as u64)));
                     payload.extend(raw);
@@ -198,13 +198,13 @@ impl Decoder for MessageCodec {
                 let n_tx = usize::from(n_tx_vi);
 
                 let mut total_size: usize = 0;
-                let mut txs = Vec::with_capacity(n_tx);
+                let mut txs = HashSet::with_capacity(n_tx);
                 for _i in 0..n_tx {
                     let (tx, tx_len) = match Transaction::parse_buf(&mut buf)? {
                         Some(some) => some,
                         None => return Ok(None),
                     };
-                    txs.push(tx);
+                    txs.insert(tx);
                     total_size += tx_len;
                 }
                 let msg = Message::Transactions { txs };

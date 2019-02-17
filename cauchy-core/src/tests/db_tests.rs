@@ -21,7 +21,7 @@ mod db_tests {
         let binary = Bytes::from(&b"binary"[..]);
         let tx = Transaction::new(1, aux, binary);
         let db = Arc::new(RocksDb::open_db(".geodesic/tests/db_b/").unwrap());
-        let tx_id = tx.get_tx_id();
+        let tx_id = tx.get_id();
         tx.to_db(db.clone()).unwrap();
         let tx_retrieved = Transaction::from_db(db, &tx_id).unwrap().unwrap();
         assert_eq!(tx, tx_retrieved);

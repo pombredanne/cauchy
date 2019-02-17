@@ -25,6 +25,8 @@ use tokio::prelude::*;
 use utils::byte_ops::*;
 use utils::constants::*;
 use utils::serialisation::*;
+use std::collections::HashSet;
+use crypto::hashes::*;
 
 pub fn rpc_server(
     tcp_socket_send: mpsc::Sender<TcpStream>,
@@ -223,7 +225,7 @@ pub fn server(
 
                 // Only response if the pk is reconciliation target
                 let socket_pk_read = *socket_pk.read().unwrap();
-                rec_status_inner.read().unwrap().equiv(&socket_pk_read)
+                rec_status_inner.read().unwrap().target_eq(&socket_pk_read)
             }
             Message::GetTransactions { .. } => {
                 if DAEMON_VERBOSE {
@@ -231,9 +233,33 @@ pub fn server(
                 }
                 true
             }
-            Message::Transactions { .. } => {
+            Message::Transactions { txs } => {
                 if DAEMON_VERBOSE {
                     println!("Received transactions from {}", socket_addr);
+                }
+                // If received txs from reconciliation target check the payload matches reported
+                // TODO: IDs should be calculated before we read to reduce unnecesarry concurrency on rec_status?
+                let socket_pk_read = *socket_pk.read().unwrap();
+                let rec_status_read = rec_status_inner.read().unwrap(); 
+                if rec_status_read.target_eq(&socket_pk_read) {
+                    if DAEMON_VERBOSE {
+                        println!("Checking IDs match requested");
+                    }
+                    if rec_status_read.ids_eq(&txs) {
+                        if DAEMON_VERBOSE {
+                            println!("Payload is valid.");
+                        }
+                        // TODO: Send frontstage
+                    } else {
+                        if DAEMON_VERBOSE {
+                            println!("Payload is invalid.");
+                        }
+                        // TODO: Increment banscore
+                    }
+                    drop(rec_status_read);
+                    rec_status_inner.write().unwrap().stop();
+                } else {
+                    // TODO: Send backstage
                 }
                 false
             }
@@ -269,10 +295,12 @@ pub fn server(
                     println!("Sending transactions to {}", socket_addr);
                 }
 
-                let mut txs = Vec::with_capacity(ids.len());
+                let mut txs = HashSet::with_capacity(ids.len());
                 for id in ids {
                     match tx_db_inner.get(&id) {
-                        Ok(Some(tx_raw)) => txs.push(Transaction::try_from(tx_raw).unwrap()),
+                        Ok(Some(tx_raw)) => {
+                            txs.insert(Transaction::try_from(tx_raw).unwrap());
+                            },
                         _ => return Err("Couldn't find transaction requested".to_string()),
                     }
                 }
