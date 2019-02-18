@@ -1,14 +1,14 @@
+use bytes::Bytes;
+use crypto::hashes::blake2b::*;
 use crypto::signatures::ecdsa::generate_dummy_pubkey;
+use primitives::transaction::*;
 use secp256k1::PublicKey;
 use std::collections::HashSet;
-use bytes::Bytes;
-use primitives::transaction::*;
-use crypto::hashes::blake2b::*;
 
 pub struct ReconciliationStatus {
     live: bool,
     target: PublicKey,
-    payload_ids: HashSet<Bytes>
+    payload_ids: HashSet<Bytes>,
 }
 
 impl ReconciliationStatus {

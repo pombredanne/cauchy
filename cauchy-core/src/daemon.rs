@@ -1,4 +1,5 @@
 use bytes::Bytes;
+use crypto::hashes::*;
 use crypto::signatures::ecdsa;
 use crypto::sketches::dummy_sketch::*;
 use crypto::sketches::odd_sketch::*;
@@ -16,6 +17,7 @@ use primitives::status::Status;
 use primitives::transaction::Transaction;
 use primitives::varint::VarInt;
 use secp256k1::{PublicKey, SecretKey};
+use std::collections::HashSet;
 use std::net::SocketAddr;
 use std::sync::{Arc, RwLock};
 use tokio::codec::Framed;
@@ -25,8 +27,6 @@ use tokio::prelude::*;
 use utils::byte_ops::*;
 use utils::constants::*;
 use utils::serialisation::*;
-use std::collections::HashSet;
-use crypto::hashes::*;
 
 pub fn rpc_server(
     tcp_socket_send: mpsc::Sender<TcpStream>,
@@ -131,7 +131,7 @@ pub fn server(
 
         // Pair socket in connection manager
         let mut connection_manager_write_locked = connection_manager.write().unwrap();
-        let (secret, impulse_stream) = connection_manager_write_locked
+        let (secret, impulse_recv) = connection_manager_write_locked
             .add(&socket_addr, socket_pk.clone())
             .unwrap();
         drop(connection_manager_write_locked);
@@ -240,16 +240,16 @@ pub fn server(
                 // If received txs from reconciliation target check the payload matches reported
                 // TODO: IDs should be calculated before we read to reduce unnecesarry concurrency on rec_status?
                 let socket_pk_read = *socket_pk.read().unwrap();
-                let rec_status_read = rec_status_inner.read().unwrap(); 
+                let rec_status_read = rec_status_inner.read().unwrap();
                 if rec_status_read.target_eq(&socket_pk_read) {
                     if DAEMON_VERBOSE {
-                        println!("Checking IDs match requested");
+                        println!("Checking payload IDs match requested");
                     }
                     if rec_status_read.ids_eq(&txs) {
                         if DAEMON_VERBOSE {
                             println!("Payload is valid.");
                         }
-                        // TODO: Send frontstage
+                    // TODO: Send frontstage
                     } else {
                         if DAEMON_VERBOSE {
                             println!("Payload is invalid.");
@@ -300,7 +300,7 @@ pub fn server(
                     match tx_db_inner.get(&id) {
                         Ok(Some(tx_raw)) => {
                             txs.insert(Transaction::try_from(tx_raw).unwrap());
-                            },
+                        }
                         _ => return Err("Couldn't find transaction requested".to_string()),
                     }
                 }
@@ -327,7 +327,7 @@ pub fn server(
                 let (excess_actor_ids, missing_actor_ids) =
                     (perception_sketch - mini_sketch).decode().unwrap();
                 let perception_odd_sketch = perception.get_odd_sketch();
-                
+
                 if DAEMON_VERBOSE {
                     println!(
                         "Decoding resulted in {} excess and {} missing",
@@ -376,7 +376,7 @@ pub fn server(
         let out_stream = response_stream
             .select(odd_sketch_stream)
             .select(nonce_stream)
-            .select(impulse_stream);
+            .select(impulse_recv);
 
         let send = sink.send_all(out_stream).map(|_| ()).or_else(|e| {
             println!("error = {:?}", e);

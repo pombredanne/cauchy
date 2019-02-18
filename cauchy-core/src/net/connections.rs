@@ -28,25 +28,27 @@ impl ConnectionManager {
 
         // Initialise router
         let cm_inner = cm.clone();
-        let router = router_receiver
-            .map(move |(socket_addr, message)| {
-                let cm_read = &*cm_inner.read().unwrap();
-                let msg_sender = cm_read.get_impulse_sender(&socket_addr).unwrap();
-                let routed_send = msg_sender.clone().send(message).then(|tx| match tx {
-                    Ok(_tx) => {
-                        println!("Sink flushed");
-                        Ok(())
-                    }
-                    Err(e) => {
-                        println!("Sink failed! {:?}", e);
-                        Err(())
-                    }
-                });
-                tokio::spawn(routed_send)
-            })
-            .into_future()
-            .map(|_| ())
-            .map_err(|_| ());
+        let router = router_receiver.for_each(move |(socket_addr, message)| {
+            // Fetch appropriate impulse sender from connection manager
+            let impulse_sender = cm_inner
+                .read()
+                .unwrap()
+                .get_impulse_sender(&socket_addr)
+                .unwrap();
+
+            // Route message to impulse sender
+            let routed_send = impulse_sender.clone().send(message).then(|tx| match tx {
+                Ok(_tx) => {
+                    println!("Impulse sent");
+                    Ok(())
+                }
+                Err(e) => {
+                    println!("Impulse failed to send! {:?}", e);
+                    Err(())
+                }
+            });
+            tokio::spawn(routed_send)
+        });
         (cm, router)
     }
 
@@ -60,7 +62,7 @@ impl ConnectionManager {
 
     pub fn get_impulse_sender(&self, socket_addr: &SocketAddr) -> Option<Sender<Message>> {
         let connection = self.connections.get(&socket_addr)?;
-        Some(connection.msg_sender.clone())
+        Some(connection.impulse_sender.clone())
     }
 
     pub fn get_router_sender(&self) -> Sender<(SocketAddr, Message)> {
@@ -113,19 +115,19 @@ impl ConnectionManager {
 
 struct ConnectionStatus {
     pub secret: u64,
-    pub msg_sender: Sender<Message>,
+    pub impulse_sender: Sender<Message>,
     pub current_pk: Arc<RwLock<PublicKey>>, // TODO: Misbehaviour history etc
 }
 
 impl ConnectionStatus {
     pub fn new(
         secret: u64,
-        msg_sender: Sender<Message>,
+        impulse_sender: Sender<Message>,
         current_pk: Arc<RwLock<PublicKey>>,
     ) -> ConnectionStatus {
         ConnectionStatus {
             secret,
-            msg_sender,
+            impulse_sender,
             current_pk,
         }
     }

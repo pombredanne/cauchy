@@ -2,7 +2,6 @@ use bytes::Bytes;
 use bytes::{Buf, BufMut, BytesMut, IntoBuf};
 use std::collections::HashSet;
 use tokio::codec::{Decoder, Encoder};
-// use tokio::io::{Error, ErrorKind};
 
 use secp256k1::key::PublicKey;
 use secp256k1::Signature;
@@ -39,38 +38,57 @@ impl Encoder for MessageCodec {
         dst.reserve(1);
         match item {
             Message::StartHandshake { secret } => {
+                if ENCODING_VERBOSE {
+                    println!("Encoding StartHandshake");
+                }
                 dst.put_u8(0);
                 dst.extend(Bytes::from(VarInt::new(secret)));
             }
             Message::EndHandshake { pubkey, sig } => {
+                if ENCODING_VERBOSE {
+                    println!("Encoding EndHandshake");
+                }
                 dst.put_u8(1);
                 dst.extend(bytes_from_pubkey(pubkey));
                 dst.extend(bytes_from_sig(sig));
             }
             Message::Nonce { nonce } => {
+                if ENCODING_VERBOSE {
+                    println!("Encoding Nonce");
+                }
                 dst.put_u8(2);
                 dst.extend(Bytes::from(VarInt::new(nonce)));
             }
             Message::OddSketch { sketch } => {
+                if ENCODING_VERBOSE {
+                    println!("Encoding OddSketch");
+                }
                 dst.put_u8(3);
+                // TODO: Variable length
                 //dst.extend(Bytes::from(VarInt::new(sketch.len() as u64)));
                 dst.extend(sketch);
             }
             Message::MiniSketch { mini_sketch } => {
+                if ENCODING_VERBOSE {
+                    println!("Encoding MiniSketch");
+                }
                 dst.put_u8(4);
-                println!("GOT HERE");
                 dst.extend(Bytes::from(mini_sketch))
             }
             Message::GetTransactions { ids } => {
-                println!("Encoding get txns");
+                if ENCODING_VERBOSE {
+                    println!("Encoding tx request");
+                }
                 dst.put_u8(5);
                 dst.extend(Bytes::from(VarInt::new(ids.len() as u64)));
-                println!("Number of txns to encode {}", ids.len());
                 for id in ids {
                     dst.extend(id);
                 }
             }
             Message::Transactions { txs } => {
+                if ENCODING_VERBOSE {
+                    println!("Encoding txs");
+                }
                 dst.put_u8(6);
                 let mut payload = BytesMut::new();
                 for tx in txs.into_iter() {
@@ -127,7 +145,9 @@ impl Decoder for MessageCodec {
                 Ok(Some(msg))
             }
             2 => {
-                println!("Decoding Nonce");
+                if DECODING_VERBOSE {
+                    println!("Decoding Nonce");
+                }
                 let (nonce_vi, len) = match VarInt::parse_buf(&mut buf)? {
                     Some(some) => some,
                     None => return Ok(None),
@@ -140,11 +160,9 @@ impl Decoder for MessageCodec {
                 Ok(Some(msg))
             }
             3 => {
-                // let msg_len_vi = match VarInt::parse_buf(&mut buf) {
-                //     Ok(some) => some,
-                //     Err(_) => return Ok(None),
-                // };
-                println!("Decoding OddSketch");
+                if DECODING_VERBOSE {
+                    println!("Decoding OddSketch");
+                }
                 if buf.remaining() < SKETCH_CAPACITY {
                     return Ok(None);
                 }
@@ -157,7 +175,9 @@ impl Decoder for MessageCodec {
                 Ok(Some(msg))
             }
             4 => {
-                println!("Decoding MiniSketch");
+                if DECODING_VERBOSE {
+                    println!("Decoding MiniSketch");
+                }
                 let (mini_sketch, len) = match DummySketch::parse_buf(&mut buf)? {
                     Some(some) => some,
                     None => return Ok(None),
@@ -167,7 +187,9 @@ impl Decoder for MessageCodec {
                 Ok(Some(msg))
             }
             5 => {
-                println!("Decoding get txns");
+                if DECODING_VERBOSE {
+                    println!("Decoding transaction request");
+                }
                 let (n_tx_ids_vi, n_tx_ids_vi_len) = match VarInt::parse_buf(&mut buf)? {
                     Some(some) => some,
                     None => return Ok(None),
@@ -191,6 +213,9 @@ impl Decoder for MessageCodec {
                 }
             }
             6 => {
+                if DECODING_VERBOSE {
+                    println!("Decoding transactions");
+                }
                 let (n_tx_vi, n_tx_vi_len) = match VarInt::parse_buf(&mut buf)? {
                     Some(some) => some,
                     None => return Ok(None),
@@ -212,6 +237,9 @@ impl Decoder for MessageCodec {
                 Ok(Some(msg))
             }
             7 => {
+                if DECODING_VERBOSE {
+                    println!("Decoding transactions");
+                }
                 src.advance(1);
                 Ok(Some(Message::Reconcile))
             }

@@ -154,10 +154,10 @@ pub fn spawn_heartbeat_reconcile(
         impulse_sender
             .clone()
             .send((socket_addr.unwrap(), Message::Reconcile))
-            .map_err(|e| ImpulseSendError) // TODO: Capture cause?
+            // .map_err(|e| ImpulseSendError) // TODO: Capture cause?
             .map(|_| ())
             .or_else(|e| {
-                println!("error = {:?}", e);
+                println!("impulse error = {:?}", e);
                 Ok(())
             })
     })
