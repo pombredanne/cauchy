@@ -298,6 +298,9 @@ pub fn server(
                 let mut txs = HashSet::with_capacity(ids.len());
                 for id in ids {
                     match tx_db_inner.get(&id) {
+                        if DAEMON_VERBOSE {
+                            println!("Searching for transaction {:?}", id);
+                        }
                         Ok(Some(tx_raw)) => {
                             txs.insert(Transaction::try_from(tx_raw).unwrap());
                         }

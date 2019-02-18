@@ -195,7 +195,9 @@ impl Decoder for MessageCodec {
                     None => return Ok(None),
                 };
                 let us_n_tx_ids = usize::from(n_tx_ids_vi);
-                println!("Number of txns to decode {}", us_n_tx_ids);
+                if DECODING_VERBOSE {
+                    println!("Number of txns to decode {}", us_n_tx_ids);
+                }
                 let total_size = us_n_tx_ids * HASH_LEN;
                 let mut ids = HashSet::with_capacity(us_n_tx_ids);
 
