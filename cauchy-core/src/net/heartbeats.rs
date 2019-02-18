@@ -25,7 +25,11 @@ pub fn heartbeat_oddsketch(
         ODDSKETCH_HEARTBEAT_PERIOD_SEC,
         ODDSKETCH_HEARTBEAT_PERIOD_NANO,
     ))
-    .filter(move |_| !rec_status.read().unwrap().is_live()) // Wait while reconciling
+    .filter(move |_| {
+        let liveness = !rec_status.read().unwrap().is_live();
+        println!("Liveness: {}", liveness);
+        liveness
+    }) // Wait while reconciling
     .map(move |_| {
         (
             local_status.get_odd_sketch(),
@@ -112,10 +116,12 @@ pub fn spawn_heartbeat_reconcile(
     arena: Arc<RwLock<Arena>>,
     rec_status: Arc<RwLock<ReconciliationStatus>>,
 ) -> impl Future<Item = (), Error = ()> + Send + 'static {
+    let rec_status_inner = rec_status.clone();
     Interval::new_interval(Duration::new(
         RECONCILE_HEARTBEAT_PERIOD_SEC,
         RECONCILE_HEARTBEAT_PERIOD_NANO,
     ))
+    .filter(move |_| !rec_status_inner.read().unwrap().is_live()) // Wait while reconciling
     .map(move |_| {
         // Update order
         let mut arena_r = arena.write().unwrap();

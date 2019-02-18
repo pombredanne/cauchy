@@ -1,7 +1,5 @@
 use bytes::Bytes;
-use crypto::hashes::*;
 use crypto::signatures::ecdsa;
-use crypto::sketches::dummy_sketch::*;
 use crypto::sketches::odd_sketch::*;
 use db::rocksdb::RocksDb;
 use db::*;
@@ -297,10 +295,10 @@ pub fn server(
 
                 let mut txs = HashSet::with_capacity(ids.len());
                 for id in ids {
+                    if DAEMON_VERBOSE {
+                        println!("Searching for transaction {:?}", id);
+                    }
                     match tx_db_inner.get(&id) {
-                        if DAEMON_VERBOSE {
-                            println!("Searching for transaction {:?}", id);
-                        }
                         Ok(Some(tx_raw)) => {
                             txs.insert(Transaction::try_from(tx_raw).unwrap());
                         }

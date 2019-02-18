@@ -1,5 +1,4 @@
 use bytes::Bytes;
-use crypto::hashes::blake2b::*;
 use crypto::signatures::ecdsa::generate_dummy_pubkey;
 use primitives::transaction::*;
 use secp256k1::PublicKey;

@@ -1,4 +1,4 @@
-use futures::sync::mpsc::{channel, Receiver, Sender};
+use futures::sync::mpsc::{channel, Sender};
 use net::messages::Message;
 use secp256k1::PublicKey;
 use std::collections::HashMap;
