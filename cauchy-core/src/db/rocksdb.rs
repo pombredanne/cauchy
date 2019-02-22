@@ -2,7 +2,7 @@ use bytes::Bytes;
 use db::Database;
 use failure::Error;
 use rocksdb::DB;
-use utils::errors::DatabaseError;
+use utils::errors::SystemError;
 
 pub struct RocksDb(DB);
 
@@ -10,27 +10,20 @@ impl Database<RocksDb> for RocksDb {
     fn open_db(folder: &str) -> Result<RocksDb, Error> {
         let mut path = match dirs::home_dir() {
             Some(some) => some,
-            None => return Err(DatabaseError::DbPath.into()),
+            None => return Err(SystemError::InvalidPath.into()),
         };
         path.push(folder);
-        match DB::open_default(path) {
-            Ok(some) => Ok(RocksDb(some)),
-            Err(err) => Err(DatabaseError::Open.into()),
-        }
+        Ok(RocksDb(DB::open_default(path)?))
     }
 
     fn get(&self, key: &Bytes) -> Result<Option<Bytes>, Error> {
-        match self.0.get(key) {
-            Ok(Some(some)) => Ok(Some(Bytes::from(&*some))),
-            Ok(None) => Ok(None),
-            Err(err) => Err(DatabaseError::Open.into()),
+        match self.0.get(key)? {
+            Some(some) => Ok(Some(Bytes::from(&*some))),
+            None => Ok(None),
         }
     }
 
     fn put(&self, key: &Bytes, value: &Bytes) -> Result<(), Error> {
-        match self.0.put(key, value) {
-            Ok(_) => Ok(()),
-            Err(err) => Err(DatabaseError::Put.into()),
-        }
+        Ok(self.0.put(key, value)?)
     }
 }

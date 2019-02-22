@@ -27,18 +27,6 @@ pub enum CryptoDecodingError {
 #[fail(display = "malformed message")]
 pub struct MalformedMessageError;
 
-#[derive(Debug)]
-pub enum DecodingError {
-    StartHandshakeError,
-    EndHandshakeError,
-    NonceError,
-    MiniSketchError,
-    GetTransactionsError,
-    TransactionsError,
-    InvalidMessage,
-    IOError,
-}
-
 // Serialisation Errors
 #[derive(Debug, Fail)]
 pub enum TransactionDeserialisationError {
@@ -85,17 +73,27 @@ pub enum TransactionStorageError {
 }
 
 #[derive(Debug, Fail)]
-pub enum DatabaseError {
+pub enum SystemError {
     #[fail(display = "invalid path")]
-    DbPath,
-    #[fail(display = "failed to open db")]
-    Open,
-    #[fail(display = "failed to get item db")]
-    Get,
-    #[fail(display = "failed to put item db")]
-    Put,
+    InvalidPath,
 }
 
 // Connection Errors
 #[derive(Debug)]
 pub struct ConnectionAddError;
+
+#[derive(Debug, Fail)]
+pub enum DaemonError {
+    #[fail(display = "socket binding failure")]
+    BindFailure,
+    #[fail(display = "socket binding failure: {}", err)]
+    SocketAcceptanceFailure { err: std::io::Error },
+    #[fail(display = "new peer stream error: {}", err)]
+    NewSocketError { err: std::io::Error },
+    #[fail(display = "no perception found")]
+    Perceptionless,
+    #[fail(display = "missing transaction")]
+    MissingTransaction,
+    #[fail(display = "unreachable")]
+    Unreachable,
+}

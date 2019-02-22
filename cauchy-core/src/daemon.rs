@@ -2,7 +2,9 @@ use bytes::Bytes;
 use crypto::signatures::ecdsa;
 use crypto::sketches::odd_sketch::*;
 use db::rocksdb::RocksDb;
+use db::storing::Storable;
 use db::*;
+use failure::Error;
 use futures::sync::mpsc;
 use futures::Future;
 use net::connections::*;
@@ -19,12 +21,11 @@ use std::collections::HashSet;
 use std::net::SocketAddr;
 use std::sync::{Arc, RwLock};
 use tokio::codec::Framed;
-use tokio::io::{Error, ErrorKind};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::prelude::*;
 use utils::byte_ops::*;
 use utils::constants::*;
-use utils::serialisation::*;
+use utils::errors::DaemonError;
 
 pub fn rpc_server(
     tcp_socket_send: mpsc::Sender<TcpStream>,
@@ -33,7 +34,7 @@ pub fn rpc_server(
     let addr = addr.parse::<SocketAddr>().unwrap();
 
     let listener = TcpListener::bind(&addr)
-        .map_err(|_| "failed to bind")
+        .map_err(|_| DaemonError::BindFailure)
         .unwrap();
 
     let server = listener
@@ -62,7 +63,10 @@ pub fn rpc_server(
                         TcpStream::connect(&addr)
                             .and_then(move |sock| {
                                 tcp_socket_send_inner.send(sock).map_err(|e| {
-                                    Error::new(ErrorKind::Other, "RPC addpeer channel failure")
+                                    std::io::Error::new(
+                                        std::io::ErrorKind::Other,
+                                        "RPC addpeer channel failure",
+                                    )
                                 })
                             })
                             .map(|_| ())
@@ -106,12 +110,13 @@ pub fn server(
     let addr = format!("0.0.0.0:{}", SERVER_PORT).to_string();
     let addr = addr.parse::<SocketAddr>().unwrap();
     let listener = TcpListener::bind(&addr)
-        .map_err(|_| "Failed to bind")
+        .map_err(|_| DaemonError::BindFailure)
         .unwrap();
     let incoming = listener
         .incoming()
-        .map_err(|e| println!("Failure accepting socket; {:?}", e))
-        .select(new_stream_recv);
+        .map_err(|err| Error::from(DaemonError::SocketAcceptanceFailure { err }))
+        .select(new_stream_recv.map_err(|err| Error::from(DaemonError::Unreachable)))
+        .map_err(|e| println!("error accepting socket; error = {:?}", e));
 
     let server = incoming.for_each(move |socket| {
         let socket_addr = socket.peer_addr().unwrap();
@@ -298,11 +303,13 @@ pub fn server(
                     if DAEMON_VERBOSE {
                         println!("Searching for transaction {:?}", id);
                     }
-                    match tx_db_inner.get(&id) {
-                        Ok(Some(tx_raw)) => {
-                            txs.insert(Transaction::try_from(tx_raw).unwrap());
+                    let tx_db_inner = tx_db_inner.clone();
+                    match Transaction::from_db(tx_db_inner, &id) {
+                        Ok(Some(tx)) => {
+                            txs.insert(tx);
                         }
-                        _ => return Err("Couldn't find transaction requested".to_string()),
+                        Err(err) => return Err(err),
+                        Ok(None) => return Err(DaemonError::MissingTransaction.into()),
                     }
                 }
                 Ok(Message::Transactions { txs })
@@ -317,7 +324,7 @@ pub fn server(
 
                 let perception = match arena_r.get_perception(&socket_pk_read) {
                     Some(some) => some,
-                    None => return Err("No perception found".to_string()),
+                    None => return Err(DaemonError::Perceptionless.into()),
                 };
                 let peer_odd_sketch = arena_r
                     .get_status(&socket_pk_read)
@@ -352,7 +359,7 @@ pub fn server(
                     }
                     // Stop reconciliation
                     rec_status_inner.write().unwrap().stop();
-                    return Err("Fraudulent Minisketch provided".to_string());
+                    return Err(DaemonError::Perceptionless.into());
                 }
             }
             Message::Reconcile => {
@@ -363,7 +370,7 @@ pub fn server(
                 let socket_pk_read = *socket_pk_inner.read().unwrap();
                 let perception = match arena_r.get_perception(&socket_pk_read) {
                     Some(some) => some,
-                    None => return Err("No perception found".to_string()),
+                    None => return Err(DaemonError::Perceptionless.into()),
                 };
                 Ok(Message::MiniSketch {
                     mini_sketch: perception.get_mini_sketch(),
