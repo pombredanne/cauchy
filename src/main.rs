@@ -19,7 +19,7 @@ use core::{
     crypto::signatures::ecdsa, db::rocksdb::RocksDb, db::*, net::connections::*,
     net::heartbeats::*, net::reconcile_status::ReconciliationStatus, primitives::arena::*,
     primitives::status::Status, primitives::transaction::Transaction, utils::constants::*,
-    utils::mining,
+    utils::mining, db::storing::Storable,
 };
 use futures::lazy;
 use futures::sync::mpsc;
@@ -27,8 +27,12 @@ use rand::Rng;
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time;
+use rocksdb::{DB, Options};
 
 fn main() {
+    let mut opts = Options::default();
+    DB::destroy(&opts, ".geodesic/tests/db_a/");
+
     let tx_db = Arc::new(RocksDb::open_db(TX_DB_PATH).unwrap());
 
     let (local_sk, local_pk) = ecdsa::generate_keypair();
@@ -54,7 +58,7 @@ fn main() {
     // Server
     let (new_socket_tx, new_socket_rx) = mpsc::channel(1);
     let server = core::daemon::server(
-        tx_db,
+        tx_db.clone(),
         local_status.clone(),
         local_pk,
         local_sk,
@@ -88,7 +92,7 @@ fn main() {
 
     loop {
         let new_random_tx = random_tx();
-        // new_random_tx.
+        new_random_tx.to_db(tx_db.clone()).unwrap();
         sketch_send.send(random_tx());
         thread::sleep(new_tx_interval);
     }

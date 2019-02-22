@@ -26,6 +26,7 @@ use tokio::prelude::*;
 use utils::byte_ops::*;
 use utils::constants::*;
 use utils::errors::DaemonError;
+use crypto::hashes::blake2b::Blk2bHashable;
 
 pub fn rpc_server(
     tcp_socket_send: mpsc::Sender<TcpStream>,
@@ -306,10 +307,23 @@ pub fn server(
                     let tx_db_inner = tx_db_inner.clone();
                     match Transaction::from_db(tx_db_inner, &id) {
                         Ok(Some(tx)) => {
+                            if DAEMON_VERBOSE {
+                                println!("Found {:?}", id);
+                            }
                             txs.insert(tx);
                         }
-                        Err(err) => return Err(err),
-                        Ok(None) => return Err(DaemonError::MissingTransaction.into()),
+                        Err(err) => {
+                            if DAEMON_VERBOSE {
+                                println!("Database error {:?}", err);
+                            }                            
+                            return Err(err)
+                            },
+                        Ok(None) => {
+                            if DAEMON_VERBOSE {
+                                println!("Transaction {:?} not found", id);
+                            }  
+                            return Err(DaemonError::MissingTransaction.into())
+                            },
                     }
                 }
                 Ok(Message::Transactions { txs })

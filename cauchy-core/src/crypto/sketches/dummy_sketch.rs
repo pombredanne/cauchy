@@ -3,6 +3,7 @@
 use bytes::Bytes;
 use std::collections::HashSet;
 use std::ops::Sub;
+use crypto::hashes::blake2b::*;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct DummySketch {
@@ -41,8 +42,8 @@ impl DummySketch {
         self.pos_set.len()
     }
 
-    pub fn insert(&mut self, payload: Bytes) {
-        self.pos_set.insert(payload);
+    pub fn insert<T: Blk2bHashable>(&mut self, item: &T) {
+        self.pos_set.insert(item.blake2b().blake2b());
     }
 
     pub fn get_pos(&self) -> &HashSet<Bytes> {

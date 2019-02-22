@@ -24,7 +24,9 @@ impl Storable<Transaction> for Transaction {
     }
 
     fn to_db(&self, db: Arc<RocksDb>) -> Result<(), Error> {
+        // println!("Single hashed {:?}", self.clone().blake2b());
         let tx_id = self.get_id();
+        println!("Putting {:?} to db", tx_id);
         db.put(&tx_id, &Bytes::from(self.clone()))?;
         Ok(())
     }

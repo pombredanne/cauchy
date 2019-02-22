@@ -73,7 +73,7 @@ impl Status {
 
     pub fn add_to_mini_sketch<T: Blk2bHashable>(&self, item: &T) {
         let mut sketch_locked = self.mini_sketch.write().unwrap();
-        sketch_locked.insert(item.blake2b());
+        sketch_locked.insert(item);
     }
 
     pub fn get_site_hash(&self, pubkey: PublicKey) -> Bytes {
