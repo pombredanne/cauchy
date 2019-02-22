@@ -3,6 +3,7 @@ use crypto::hashes::blake2b::Blk2bHashable;
 use secp256k1::PublicKey;
 use std::cell::Cell;
 use utils::byte_ops::Hamming;
+use crypto::sketches::odd_sketch::*;
 
 #[derive(Debug, Clone)]
 pub struct WorkSite {
@@ -38,7 +39,7 @@ impl WorkSite {
         self.blake2b().blake2b()
     }
 
-    pub fn mine(&self, state_sketch: &Bytes) -> u16 {
-        Bytes::hamming_distance(&self.get_site_hash(), state_sketch)
+    pub fn mine(&self, state_sketch: &OddSketch) -> u16 {
+        Bytes::hamming_distance(&self.get_site_hash(), &Bytes::from(state_sketch.clone())) // TODO: Clunky, fix
     }
 }

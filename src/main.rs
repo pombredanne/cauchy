@@ -16,18 +16,18 @@ use bytes::Bytes;
 use crossbeam::channel;
 
 use core::{
-    crypto::signatures::ecdsa, db::rocksdb::RocksDb, db::*, net::connections::*,
-    net::heartbeats::*, net::reconcile_status::ReconciliationStatus, primitives::arena::*,
-    primitives::status::Status, primitives::transaction::Transaction, utils::constants::*,
-    utils::mining, db::storing::Storable,
+    crypto::signatures::ecdsa, db::rocksdb::RocksDb, db::storing::Storable, db::*,
+    net::connections::*, net::heartbeats::*, net::reconcile_status::ReconciliationStatus,
+    primitives::arena::*, primitives::status::Status, primitives::transaction::Transaction,
+    utils::constants::*, utils::mining,
 };
 use futures::lazy;
 use futures::sync::mpsc;
 use rand::Rng;
+use rocksdb::{Options, DB};
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time;
-use rocksdb::{DB, Options};
 
 fn main() {
     let mut opts = Options::default();

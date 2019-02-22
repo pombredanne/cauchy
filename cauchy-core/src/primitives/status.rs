@@ -16,14 +16,14 @@ use std::sync::RwLock;
 
 pub struct Status {
     nonce: RwLock<u64>,
-    odd_sketch: RwLock<BytesMut>,
+    odd_sketch: RwLock<OddSketch>,
     mini_sketch: RwLock<DummySketch>,
 }
 
 impl Status {
     pub fn new(
         nonce: RwLock<u64>,
-        odd_sketch: RwLock<BytesMut>,
+        odd_sketch: RwLock<OddSketch>,
         mini_sketch: RwLock<DummySketch>,
     ) -> Status {
         Status {
@@ -36,19 +36,19 @@ impl Status {
     pub fn null() -> Status {
         Status {
             nonce: RwLock::new(0),
-            odd_sketch: RwLock::new(BytesMut::from(&[0; SKETCH_CAPACITY][..])),
+            odd_sketch: RwLock::new(OddSketch::new()),
             mini_sketch: RwLock::new(DummySketch::with_capacity(2 * SKETCH_CAPACITY)),
         }
     }
 
     pub fn add_to_odd_sketch<T: Blk2bHashable>(&self, item: &T) {
         let mut sketch_locked = self.odd_sketch.write().unwrap();
-        add_to_bin(&mut *sketch_locked, &item.blake2b());
+        sketch_locked.add_to_bin(item);
     }
 
-    pub fn update_odd_sketch(&self, mini_sketch: Bytes) {
+    pub fn update_odd_sketch(&self, odd_sketch: OddSketch) {
         let mut sketch_locked = self.odd_sketch.write().unwrap();
-        *sketch_locked = BytesMut::from(mini_sketch);
+        *sketch_locked = odd_sketch;
     }
 
     pub fn update_mini_sketch(&self, mini_sketch: DummySketch) {
@@ -61,9 +61,9 @@ impl Status {
         *nonce_locked = nonce;
     }
 
-    pub fn get_odd_sketch(&self) -> Bytes {
-        let sketch_locked = self.odd_sketch.read().unwrap();
-        sketch_locked.clone().freeze()
+    pub fn get_odd_sketch(&self) -> OddSketch {
+        let sketch_read = self.odd_sketch.read().unwrap();
+        sketch_read.clone()
     }
 
     pub fn get_mini_sketch(&self) -> DummySketch {
@@ -89,7 +89,7 @@ impl Status {
 
     pub fn update_local(
         &self,
-        mut odd_sketch_bus: Bus<Bytes>,
+        mut odd_sketch_bus: Bus<OddSketch>,
         tx_receive: Receiver<Transaction>,
         distance_receive: Receiver<(u64, u16)>,
     ) {

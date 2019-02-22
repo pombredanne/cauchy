@@ -1,9 +1,9 @@
 // TODO: Eventually replace this with minisketch and do optimizations
 
 use bytes::Bytes;
+use crypto::hashes::blake2b::*;
 use std::collections::HashSet;
 use std::ops::Sub;
-use crypto::hashes::blake2b::*;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct DummySketch {

@@ -1,4 +1,5 @@
 use bytes::Bytes;
+use crypto::hashes::blake2b::Blk2bHashable;
 use crypto::signatures::ecdsa;
 use crypto::sketches::odd_sketch::*;
 use db::rocksdb::RocksDb;
@@ -26,7 +27,6 @@ use tokio::prelude::*;
 use utils::byte_ops::*;
 use utils::constants::*;
 use utils::errors::DaemonError;
-use crypto::hashes::blake2b::Blk2bHashable;
 
 pub fn rpc_server(
     tcp_socket_send: mpsc::Sender<TcpStream>,
@@ -315,15 +315,15 @@ pub fn server(
                         Err(err) => {
                             if DAEMON_VERBOSE {
                                 println!("Database error {:?}", err);
-                            }                            
-                            return Err(err)
-                            },
+                            }
+                            return Err(err);
+                        }
                         Ok(None) => {
                             if DAEMON_VERBOSE {
                                 println!("Transaction {:?} not found", id);
-                            }  
-                            return Err(DaemonError::MissingTransaction.into())
-                            },
+                            }
+                            return Err(DaemonError::MissingTransaction.into());
+                        }
                     }
                 }
                 Ok(Message::Transactions { txs })
@@ -360,10 +360,10 @@ pub fn server(
 
                 // Check for fraud
                 // TODO: Compact, splayed out like this for debugging
-                let xor_result = peer_odd_sketch.byte_xor(perception_odd_sketch);
-                let xor_result = xor_result.byte_xor(excess_actor_ids.odd_sketch());
-                let xor_result = xor_result.byte_xor(missing_actor_ids.odd_sketch());
-                if xor_result == Bytes::from(&[0; SKETCH_CAPACITY][..]) {
+                let xor_result = peer_odd_sketch.xor(&perception_odd_sketch);
+                let xor_result = xor_result.xor(&OddSketch::sketch_from_ids(&excess_actor_ids));
+                let xor_result = xor_result.xor(&OddSketch::sketch_from_ids(&missing_actor_ids));
+                if xor_result == OddSketch::new() {
                     Ok(Message::GetTransactions {
                         ids: missing_actor_ids,
                     })

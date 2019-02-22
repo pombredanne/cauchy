@@ -3,6 +3,7 @@ use bytes::Bytes;
 use crossbeam::channel::Sender;
 
 use std::time;
+use crypto::sketches::odd_sketch::*;
 
 use secp256k1::PublicKey;
 
@@ -10,7 +11,7 @@ use primitives::work_site::WorkSite;
 
 pub fn mine(
     public_key: PublicKey,
-    mut sketch_rx: BusReader<Bytes>,
+    mut sketch_rx: BusReader<OddSketch>,
     record_sender: Sender<(u64, u16)>,
     start_nonce: u64,
     step: u64,
@@ -24,7 +25,7 @@ pub fn mine(
     let pk = work_site.get_public_key();
 
     let mut current_distance: u16;
-    let mut current_sketch: Bytes = sketch_rx.recv().unwrap();
+    let mut current_sketch: OddSketch = sketch_rx.recv().unwrap();
 
     loop {
         {

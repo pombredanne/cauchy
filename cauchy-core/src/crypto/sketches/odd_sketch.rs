@@ -5,38 +5,77 @@ use std::iter::IntoIterator;
 use utils::byte_ops::*;
 use utils::constants::SKETCH_CAPACITY;
 
-pub trait Sketchable {
-    fn odd_sketch(&self) -> Bytes;
-}
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct OddSketch(BytesMut);
 
-pub fn add_to_bin<T>(sketch: &mut BytesMut, item: &T)
-where
-    T: Blk2bHashable,
-{
-    let (shift, index) = util::get_bit_pos(item, SKETCH_CAPACITY);
-    sketch[index] ^= 1 << shift;
-}
+impl OddSketch {
+    pub fn new() -> OddSketch {
+        OddSketch(BytesMut::from(&[0; SKETCH_CAPACITY][..]))
+    }
 
-pub fn sketched_size(raw: &Bytes) -> u32 {
-    let n = 8 * raw.len() as u32;
-    let z = raw.hamming_weight();
-    let n = f64::from(n);
-    let z = f64::from(z);
-    //(-  f64::ln(1. - 2. * z / n) / 2) as u32
+    pub fn add_to_bin<T>(&mut self, item: &T)
+    where
+        T: Blk2bHashable,
+    {
+        let (shift, index) = util::get_bit_pos(item, SKETCH_CAPACITY);
+        self.0[index] ^= 1 << shift;
+    }
 
-    (f64::ln(1. - 2. * z / n) / f64::ln(1. - 2. / n)) as u32
-}
+    pub fn add_id_to_bin(&mut self, item: &Bytes)
+    {
+        let (shift, index) = util::get_bit_pos(item, SKETCH_CAPACITY);
+        self.0[index] ^= 1 << shift;
+    }
 
-impl<T: Blk2bHashable, U> Sketchable for U
-where
-    U: IntoIterator<Item = T>,
-    U: Clone,
-{
-    fn odd_sketch(&self) -> Bytes {
-        let mut sketch = BytesMut::from(&[0; SKETCH_CAPACITY][..]);
-        for item in self.clone().into_iter() {
-            add_to_bin(&mut sketch, &item);
+    pub fn size(&self) -> u32 {
+        let n = 8 * self.0.len() as u32;
+        let z = self.0.clone().freeze().hamming_weight();
+        let n = f64::from(n);
+        let z = f64::from(z);
+        //(-  f64::ln(1. - 2. * z / n) / 2) as u32
+
+        (f64::ln(1. - 2. * z / n) / f64::ln(1. - 2. / n)) as u32
+    }
+
+    pub fn sketch<T: Blk2bHashable, U>(items: &U) -> OddSketch
+    where
+        U: IntoIterator<Item = T>,
+        U: Clone,
+    {
+        let mut sketch = OddSketch::new();
+        for item in items.clone().into_iter() {
+            sketch.add_to_bin(&item);
         }
-        sketch.freeze()
+        sketch
+    }
+
+    pub fn sketch_from_ids<U>(items: &U) -> OddSketch 
+    where
+        U: IntoIterator<Item = Bytes>,
+        U: Clone,
+    {
+        let mut sketch = OddSketch::new();
+        for item in items.clone().into_iter() {
+            sketch.add_id_to_bin(&item);
+        }
+        sketch
+    }
+
+    pub fn xor(&self, other: &OddSketch) -> OddSketch {
+        OddSketch(BytesMut::from(Bytes::from(self.0.clone()).byte_xor(Bytes::from(other.0.clone()))))
+    } // TODO: This is super clunky, rework byte ops
+}
+
+impl From<OddSketch> for Bytes {
+    fn from(sketch: OddSketch) -> Bytes {
+        sketch.0.freeze()
+    }
+}
+
+impl<T> From<T> for OddSketch
+where T: Into<BytesMut>
+{
+    fn from(raw: T) -> OddSketch {
+        OddSketch(raw.into())
     }
 }

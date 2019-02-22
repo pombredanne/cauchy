@@ -8,6 +8,7 @@ use secp256k1::Signature;
 
 use crypto::signatures::ecdsa::*;
 use crypto::sketches::dummy_sketch::*;
+use crypto::sketches::odd_sketch::*;
 use primitives::transaction::*;
 use primitives::varint::VarInt;
 use utils::constants::*;
@@ -20,7 +21,7 @@ pub enum Message {
     StartHandshake { secret: u64 }, // 0 || Secret VarInt
     EndHandshake { pubkey: PublicKey, sig: Signature }, // 1 || Pk || Sig
     Nonce { nonce: u64 },           // 2 || nonce VarInt
-    OddSketch { sketch: Bytes },    // 3 || Sketch
+    OddSketch { sketch: OddSketch },    // 3 || Sketch
     MiniSketch { mini_sketch: DummySketch }, // 4 || Number of Rows VarInt || IBLT
     GetTransactions { ids: HashSet<Bytes> }, // 5 || Number of Ids VarInt || Ids
     Transactions { txs: HashSet<Transaction> }, // 6 || Number of Bytes VarInt || Tx ...
@@ -66,7 +67,7 @@ impl Encoder for MessageCodec {
                 dst.put_u8(3);
                 // TODO: Variable length
                 //dst.extend(Bytes::from(VarInt::new(sketch.len() as u64)));
-                dst.extend(sketch);
+                dst.extend(Bytes::from(sketch));
             }
             Message::MiniSketch { mini_sketch } => {
                 if ENCODING_VERBOSE {
@@ -169,7 +170,7 @@ impl Decoder for MessageCodec {
                 let mut sketch_dst = [0; SKETCH_CAPACITY];
                 buf.copy_to_slice(&mut sketch_dst);
                 let msg = Message::OddSketch {
-                    sketch: Bytes::from(&sketch_dst[..]),
+                    sketch: OddSketch::from(&sketch_dst[..]),
                 };
                 src.advance(1 + SKETCH_CAPACITY);
                 Ok(Some(msg))
