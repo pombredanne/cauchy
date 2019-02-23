@@ -28,10 +28,9 @@ pub fn heartbeat_oddsketch(
     .map(move |_| *socket_pk.read().unwrap())
     .filter(move |sock_pk| {
         let rec_status_read = rec_status.read().unwrap();
-        let liveness = !rec_status_read.is_live();
-        println!("Liveness: {}", liveness);
-        liveness && !rec_status_read.target_eq(sock_pk)
-    }) // Wait while reconciling
+        let live = rec_status_read.is_live();
+        !live && !rec_status_read.is_reconcilee(sock_pk)
+    }) // Wait while reconciling or while reconcilee
     .map(move |sock_pk| {
         (
             local_status.get_odd_sketch(),

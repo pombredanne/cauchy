@@ -8,6 +8,7 @@ pub struct ReconciliationStatus {
     live: bool,
     target: PublicKey,
     payload_ids: HashSet<Bytes>,
+    reconcilees: HashSet<PublicKey>
 }
 
 impl ReconciliationStatus {
@@ -17,6 +18,7 @@ impl ReconciliationStatus {
             live: false,
             target: dummy_pk,
             payload_ids: HashSet::new(),
+            reconcilees: HashSet::new()
         }
     }
 
@@ -34,11 +36,23 @@ impl ReconciliationStatus {
     }
 
     pub fn target_eq(&self, other: &PublicKey) -> bool {
-        self.target == *other
+        self.target == *other && self.live
     }
 
     pub fn ids_eq(&self, other: &HashSet<Transaction>) -> bool {
         let received_tx_ids: HashSet<Bytes> = other.iter().map(move |tx| tx.get_id()).collect();
         self.payload_ids == received_tx_ids
+    }
+
+    pub fn add_reconcilee(&mut self, pubkey: &PublicKey) {
+        self.reconcilees.insert(*pubkey);
+    }
+
+    pub fn remove_reconcilee(&mut self, pubkey: &PublicKey) {
+        self.reconcilees.remove(pubkey);
+    }
+
+    pub fn is_reconcilee(&self, pubkey: &PublicKey) -> bool {
+        self.reconcilees.contains(pubkey)
     }
 }

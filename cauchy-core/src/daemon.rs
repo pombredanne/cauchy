@@ -230,6 +230,7 @@ pub fn server(
                 rec_status_inner.read().unwrap().target_eq(&socket_pk_read)
             }
             Message::GetTransactions { .. } => {
+                // TODO: Check if reconcilee?
                 if DAEMON_VERBOSE {
                     println!("Received transaction request from {}", socket_addr);
                 }
@@ -296,6 +297,10 @@ pub fn server(
                     println!("Received {} ids", ids.len());
                     println!("Sending transactions to {}", socket_addr);
                 }
+
+                // Remove to reconcilee
+                let socket_pk_read = *socket_pk_inner.read().unwrap();
+                rec_status_inner.write().unwrap().remove_reconcilee(&socket_pk_read);
 
                 let mut txs = HashSet::with_capacity(ids.len());
                 for id in ids {
@@ -377,6 +382,12 @@ pub fn server(
                 if DAEMON_VERBOSE {
                     println!("Sending MiniSketch to {}", socket_addr);
                 }
+
+                // Add to reconcilee
+                let socket_pk_read = *socket_pk_inner.read().unwrap();
+                rec_status_inner.write().unwrap().add_reconcilee(&socket_pk_read);
+
+                // Send the perceived minisketch
                 let arena_r = arena_inner.read().unwrap();
                 let socket_pk_read = *socket_pk_inner.read().unwrap();
                 let perception = match arena_r.get_perception(&socket_pk_read) {
