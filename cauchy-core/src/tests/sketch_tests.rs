@@ -10,10 +10,7 @@ mod odd_sketch {
         let ele_c = Bytes::from(&b"world!!"[..]);
         let vec_a = vec![ele_a.clone(), ele_b.clone(), ele_c.clone()];
         let vec_b = vec![ele_b, ele_a, ele_c];
-        assert_eq!(
-            OddSketch::sketch(&vec_a),
-            OddSketch::sketch(&vec_b)
-        )
+        assert_eq!(OddSketch::sketch(&vec_a), OddSketch::sketch(&vec_b))
     }
 
     #[test]
@@ -46,9 +43,9 @@ mod odd_sketch {
 
 mod sketch_interaction {
     use bytes::Bytes;
+    use crypto::sketches::dummy_sketch::*;
     use crypto::sketches::odd_sketch::*;
     use crypto::sketches::*;
-    use crypto::sketches::dummy_sketch::*;
     use crypto::sketches::*;
 
     #[test]
@@ -59,9 +56,30 @@ mod sketch_interaction {
         let vec_a = vec![script_a, script_b, script_c];
         let sketch_a = OddSketch::sketch(&vec_a);
         let sketch_b = DummySketch::sketch(&vec_a);
-    
+
         let decoded_a = &sketch_b.decode().unwrap().0;
         assert_eq!(OddSketch::sketch_ids(decoded_a), sketch_a)
     }
+
+    #[test]
+    fn test_xor_decode_equivalence() {
+        let script_a = Bytes::from(&b"hello"[..]);
+        let script_b = Bytes::from(&b"script"[..]);
+        let script_c = Bytes::from(&b"world!!"[..]);
+        let script_d = Bytes::from(&b"lets"[..]);
+        let script_e = Bytes::from(&b"xor"[..]);
+        let vec_a = vec![script_a.clone(), script_b, script_c.clone(), script_e];
+        let vec_b = vec![script_a, script_c, script_d];
+        // let vec_c = vec![script_a, script_c, script_d];
+        let odd_sketch_a = OddSketch::sketch(&vec_a);
+        let odd_sketch_b = OddSketch::sketch(&vec_b);
+        let dummy_sketch_a = DummySketch::sketch(&vec_a);
+        let dummy_sketch_b = DummySketch::sketch(&vec_b);
+
+        let (excess, missing) = (dummy_sketch_a - dummy_sketch_b).decode().unwrap();
+        assert_eq!(
+            OddSketch::sketch_ids(&excess).xor(&OddSketch::sketch_ids(&missing)),
+            odd_sketch_a.xor(&odd_sketch_b)
+        )
+    }
 }
-    

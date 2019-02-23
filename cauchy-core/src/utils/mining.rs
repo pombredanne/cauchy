@@ -2,8 +2,8 @@ use bus::BusReader;
 use bytes::Bytes;
 use crossbeam::channel::Sender;
 
-use std::time;
 use crypto::sketches::odd_sketch::*;
+use std::time;
 
 use secp256k1::PublicKey;
 

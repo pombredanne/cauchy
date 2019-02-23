@@ -1,6 +1,7 @@
 use bytes::Bytes;
 use crypto::signatures::ecdsa;
 use crypto::sketches::odd_sketch::*;
+use crypto::sketches::*;
 use db::rocksdb::RocksDb;
 use db::storing::Storable;
 use failure::Error;
@@ -24,7 +25,6 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::prelude::*;
 use utils::constants::*;
 use utils::errors::DaemonError;
-use crypto::sketches::*;
 
 pub fn rpc_server(
     tcp_socket_send: mpsc::Sender<TcpStream>,
@@ -357,14 +357,10 @@ pub fn server(
                 }
 
                 // Check for fraud
-                // TODO: Compact, splayed out like this for debugging
-                let xor_result = peer_odd_sketch.xor(&perception_odd_sketch);
-                println!("A {:?}", xor_result.0);
-                let xor_result = xor_result.xor(&OddSketch::sketch_ids(&excess_actor_ids));
-                println!("b {:?}", xor_result.0);
-                let xor_result = xor_result.xor(&OddSketch::sketch_ids(&missing_actor_ids));
-                println!("c {:?}", xor_result.0);
-                if xor_result == OddSketch::new() {
+                if OddSketch::sketch_ids(&excess_actor_ids)
+                    .xor(&OddSketch::sketch_ids(&missing_actor_ids))
+                    == perception_odd_sketch.xor(&peer_odd_sketch)
+                {
                     Ok(Message::GetTransactions {
                         ids: missing_actor_ids,
                     })

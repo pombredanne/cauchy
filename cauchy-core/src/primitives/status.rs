@@ -4,9 +4,9 @@ use crossbeam::channel::select;
 use crossbeam::channel::Receiver;
 
 use crypto::hashes::blake2b::Blk2bHashable;
-use crypto::sketches::*;
 use crypto::sketches::dummy_sketch::*;
 use crypto::sketches::odd_sketch::*;
+use crypto::sketches::*;
 use primitives::transaction::Transaction;
 use primitives::work_site::WorkSite;
 use utils::constants::*;

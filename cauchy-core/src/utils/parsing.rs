@@ -1,6 +1,6 @@
 use bytes::{Buf, Bytes};
-use crypto::sketches::*;
 use crypto::sketches::dummy_sketch::*;
+use crypto::sketches::*;
 use primitives::transaction::*;
 use primitives::varint::*;
 use std::collections::HashSet;

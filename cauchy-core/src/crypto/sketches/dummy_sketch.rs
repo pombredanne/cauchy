@@ -2,9 +2,9 @@
 
 use bytes::Bytes;
 use crypto::hashes::blake2b::*;
+use crypto::sketches::*;
 use std::collections::HashSet;
 use std::ops::Sub;
-use crypto::sketches::*;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct DummySketch {
@@ -25,7 +25,10 @@ impl Sub for DummySketch {
 
 impl SketchInsertable for DummySketch {
     fn new() -> DummySketch {
-        DummySketch { pos_set: HashSet::new(), neg_set: HashSet::new() }
+        DummySketch {
+            pos_set: HashSet::new(),
+            neg_set: HashSet::new(),
+        }
     }
 
     fn insert<T: Blk2bHashable>(&mut self, item: &T) {
@@ -38,7 +41,6 @@ impl SketchInsertable for DummySketch {
 }
 
 impl DummySketch {
-
     pub fn pos_len(&self) -> usize {
         self.pos_set.len()
     }

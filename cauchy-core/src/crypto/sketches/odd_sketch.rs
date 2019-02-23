@@ -1,9 +1,9 @@
 use bytes::{Bytes, BytesMut};
 use crypto::hashes::blake2b::Blk2bHashable;
+use crypto::sketches::*;
 use crypto::util;
 use utils::byte_ops::*;
 use utils::constants::SKETCH_CAPACITY;
-use crypto::sketches::*;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct OddSketch(pub BytesMut);
@@ -20,12 +20,10 @@ impl SketchInsertable for OddSketch {
         self.0[index] ^= 1 << shift;
     }
 
-    fn insert_id(&mut self, item: &Bytes)
-    {
+    fn insert_id(&mut self, item: &Bytes) {
         let (shift, index) = util::get_id_bit_pos(item, SKETCH_CAPACITY);
         self.0[index] ^= 1 << shift;
     }
-
 }
 
 impl OddSketch {
@@ -40,7 +38,9 @@ impl OddSketch {
     }
 
     pub fn xor(&self, other: &OddSketch) -> OddSketch {
-        OddSketch(BytesMut::from(Bytes::from(self.0.clone()).byte_xor(Bytes::from(other.0.clone()))))
+        OddSketch(BytesMut::from(
+            Bytes::from(self.0.clone()).byte_xor(Bytes::from(other.0.clone())),
+        ))
     } // TODO: This is super clunky, rework byte ops
 }
 
@@ -51,7 +51,8 @@ impl From<OddSketch> for Bytes {
 }
 
 impl<T> From<T> for OddSketch
-where T: Into<BytesMut>
+where
+    T: Into<BytesMut>,
 {
     fn from(raw: T) -> OddSketch {
         OddSketch(raw.into())

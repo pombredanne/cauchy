@@ -21,7 +21,7 @@ pub enum Message {
     StartHandshake { secret: u64 }, // 0 || Secret VarInt
     EndHandshake { pubkey: PublicKey, sig: Signature }, // 1 || Pk || Sig
     Nonce { nonce: u64 },           // 2 || nonce VarInt
-    OddSketch { sketch: OddSketch },    // 3 || Sketch
+    OddSketch { sketch: OddSketch }, // 3 || Sketch
     MiniSketch { mini_sketch: DummySketch }, // 4 || Number of Rows VarInt || IBLT
     GetTransactions { ids: HashSet<Bytes> }, // 5 || Number of Ids VarInt || Ids
     Transactions { txs: HashSet<Transaction> }, // 6 || Number of Bytes VarInt || Tx ...
