@@ -180,10 +180,10 @@ pub fn server(
                 // Add peer to arena
                 let secret_msg = ecdsa::message_from_preimage(Bytes::from(VarInt::new(secret)));
                 if ecdsa::verify(&secret_msg, sig, pubkey).unwrap() {
-                    // If peer correctly signs our secret we upgrade them from a dummy pk
                     if DAEMON_VERBOSE {
                         println!("Handshake completed with {}", socket_addr);
                     }
+                    // If peer correctly signs our secret we upgrade them from a dummy pk
                     let arena_inner = arena_inner.clone();
 
                     let mut arena_write = arena_inner.write().unwrap();
@@ -350,6 +350,7 @@ pub fn server(
                     .unwrap()
                     .get_odd_sketch();
 
+                // Decode difference
                 let perception_sketch = perception.get_mini_sketch();
                 let (excess_actor_ids, missing_actor_ids) =
                     (perception_sketch - mini_sketch).decode().unwrap();
@@ -368,7 +369,9 @@ pub fn server(
                     .xor(&OddSketch::sketch_ids(&missing_actor_ids))
                     == perception_odd_sketch.xor(&peer_odd_sketch)
                 {
+                    // Set expected IDs
                     rec_status_inner.write().unwrap().set_ids(&missing_actor_ids);
+                    
                     Ok(Message::GetTransactions {
                         ids: missing_actor_ids,
                     })
@@ -411,6 +414,7 @@ pub fn server(
             .select(nonce_stream)
             .select(impulse_recv);
 
+        // Send responses
         let send = sink.send_all(out_stream).map(|_| ()).or_else(|e| {
             println!("error = {:?}", e);
             Ok(())
