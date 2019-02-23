@@ -32,7 +32,9 @@ impl SketchInsertable for DummySketch {
     }
 
     fn insert<T: Blk2bHashable>(&mut self, item: &T) {
-        self.pos_set.insert(item.blake2b().blake2b());
+        let digest = item.blake2b().blake2b();
+        println!("Dummy Insert {:?}", digest);
+        self.pos_set.insert(digest);
     }
 
     fn insert_id(&mut self, item: &Bytes) {

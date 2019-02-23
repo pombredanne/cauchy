@@ -12,7 +12,7 @@ use tokio::timer::Interval;
 use utils::constants::*;
 
 use failure::Error;
-use utils::errors::{HeartBeatNonceError, HeartBeatOddSketchError, ImpulseSendError};
+use utils::errors::{HeartBeatNonceError, HeartBeatOddSketchError};
 
 pub fn heartbeat_oddsketch(
     arena: Arc<RwLock<Arena>>,
@@ -25,16 +25,18 @@ pub fn heartbeat_oddsketch(
         ODDSKETCH_HEARTBEAT_PERIOD_SEC,
         ODDSKETCH_HEARTBEAT_PERIOD_NANO,
     ))
-    .filter(move |_| {
-        let liveness = !rec_status.read().unwrap().is_live();
+    .map(move |_| *socket_pk.read().unwrap())
+    .filter(move |sock_pk| {
+        let rec_status_read = rec_status.read().unwrap();
+        let liveness = !rec_status_read.is_live();
         println!("Liveness: {}", liveness);
-        liveness
+        liveness && !rec_status_read.target_eq(sock_pk)
     }) // Wait while reconciling
-    .map(move |_| {
+    .map(move |sock_pk| {
         (
             local_status.get_odd_sketch(),
-            local_status.get_mini_sketch(), // TODO: This is not garaunteed to be ¬ to the odd sketch
-            *socket_pk.read().unwrap(),
+            local_status.get_mini_sketch(), // TODO: This is not garaunteed to be ~ to the odd sketch?
+            sock_pk,
         )
     })
     .map(move |(current_odd_sketch, current_mini_sketch, sock_pk)| {
