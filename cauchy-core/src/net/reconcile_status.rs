@@ -8,7 +8,7 @@ use crypto::hashes::*;
 pub struct ReconciliationStatus {
     live: bool,
     target: PublicKey,
-    payload_ids: HashSet<Bytes>,
+    expected_ids: HashSet<Bytes>,
     reconcilees: HashSet<PublicKey>
 }
 
@@ -18,7 +18,7 @@ impl ReconciliationStatus {
         ReconciliationStatus {
             live: false,
             target: dummy_pk,
-            payload_ids: HashSet::new(),
+            expected_ids: HashSet::new(),
             reconcilees: HashSet::new()
         }
     }
@@ -40,9 +40,13 @@ impl ReconciliationStatus {
         self.target == *other && self.live
     }
 
+    pub fn set_ids(&mut self, ids: &HashSet<Bytes>) {
+        self.expected_ids = ids.clone()
+    }
+
     pub fn ids_eq(&self, other: &HashSet<Transaction>) -> bool {
         let received_tx_ids: HashSet<Bytes> = other.iter().map(move |tx| tx.get_id()).collect();
-        self.payload_ids == received_tx_ids
+        self.expected_ids == received_tx_ids
     }
 
     pub fn add_reconcilee(&mut self, pubkey: &PublicKey) {

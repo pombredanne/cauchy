@@ -368,6 +368,7 @@ pub fn server(
                     .xor(&OddSketch::sketch_ids(&missing_actor_ids))
                     == perception_odd_sketch.xor(&peer_odd_sketch)
                 {
+                    rec_status_inner.write().unwrap().set_ids(&missing_actor_ids);
                     Ok(Message::GetTransactions {
                         ids: missing_actor_ids,
                     })
