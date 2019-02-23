@@ -3,6 +3,7 @@ use crypto::signatures::ecdsa::generate_dummy_pubkey;
 use primitives::transaction::*;
 use secp256k1::PublicKey;
 use std::collections::HashSet;
+use crypto::hashes::*;
 
 pub struct ReconciliationStatus {
     live: bool,

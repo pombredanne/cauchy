@@ -14,7 +14,7 @@ impl SketchInsertable for OddSketch {
     }
     fn insert<T>(&mut self, item: &T)
     where
-        T: Blk2bHashable,
+        T: Identifiable,
     {
         let (shift, index) = util::get_bit_pos(item, SKETCH_CAPACITY);
         self.0[index] ^= 1 << shift;

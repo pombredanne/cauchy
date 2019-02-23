@@ -1,7 +1,7 @@
 // TODO: Eventually replace this with minisketch and do optimizations
 
 use bytes::Bytes;
-use crypto::hashes::blake2b::*;
+use crypto::hashes::*;
 use crypto::sketches::*;
 use std::collections::HashSet;
 use std::ops::Sub;
@@ -31,9 +31,9 @@ impl SketchInsertable for DummySketch {
         }
     }
 
-    fn insert<T: Blk2bHashable>(&mut self, item: &T) {
-        let digest = item.blake2b().blake2b();
-        println!("Dummy Insert {:?}", digest);
+    fn insert<T: Identifiable>(&mut self, item: &T) {
+        let digest = item.get_id();
+        // println!("Dummy Insert {:?}", digest);
         self.pos_set.insert(digest);
     }
 

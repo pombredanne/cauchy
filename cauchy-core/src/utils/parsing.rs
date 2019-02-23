@@ -113,7 +113,7 @@ impl Parsable<DummySketch> for DummySketch {
             println!("Finished DummySketch parsing");
         }
         Ok(Some((
-            DummySketch::sketch(&pos_set),
+            DummySketch::sketch_ids(&pos_set),
             vi_pos_len_len + us_pos_len * HASH_LEN,
         )))
     }

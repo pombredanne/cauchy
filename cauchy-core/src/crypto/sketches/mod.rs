@@ -1,19 +1,19 @@
 pub mod dummy_sketch;
 pub mod odd_sketch;
 use bytes::Bytes;
-use crypto::hashes::blake2b::Blk2bHashable;
+use crypto::hashes::*;
 use std::collections::HashSet;
 
 pub trait SketchInsertable {
     fn new() -> Self;
     fn insert<T>(&mut self, item: &T)
     where
-        T: Blk2bHashable;
+        T: Identifiable;
     fn insert_id(&mut self, item: &Bytes);
 }
 
 pub trait Sketchable {
-    fn sketch<T: Blk2bHashable, U>(items: &U) -> Self
+    fn sketch<T: Identifiable, U>(items: &U) -> Self
     where
         U: IntoIterator<Item = T>,
         U: Clone;
@@ -27,7 +27,7 @@ impl<V> Sketchable for V
 where
     V: SketchInsertable,
 {
-    fn sketch<T: Blk2bHashable, U>(items: &U) -> Self
+    fn sketch<T: Identifiable, U>(items: &U) -> Self
     where
         U: IntoIterator<Item = T>,
         U: Clone,

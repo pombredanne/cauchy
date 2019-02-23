@@ -6,6 +6,7 @@ mod db_tests {
     use primitives::transaction::*;
     use rocksdb::{Options, DB};
     use std::sync::Arc;
+    use crypto::hashes::*;
 
     #[test]
     fn test_rocksdb() {

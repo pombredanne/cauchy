@@ -1,5 +1,7 @@
 use bytes::Bytes;
 use crypto::hashes::blake2b::Blk2bHashable;
+use crypto::hashes::*;
+
 
 /*
                                       v Auxillary Data               v Binary
@@ -31,15 +33,17 @@ impl Transaction {
         &self.binary
     }
 
-    pub fn get_id(&self) -> Bytes {
-        self.blake2b().blake2b()
-    }
-
     pub fn get_time(&self) -> &u64 {
         &self.time
     }
 
     pub fn get_binary_hash(&self) -> Bytes {
         self.binary.blake2b()
+    }
+}
+
+impl Identifiable for Transaction {
+    fn get_id(&self) -> Bytes {
+        self.blake2b().blake2b()
     }
 }

@@ -9,7 +9,7 @@ use crypto::sketches::odd_sketch::*;
 use crypto::sketches::*;
 use primitives::transaction::Transaction;
 use primitives::work_site::WorkSite;
-use utils::constants::*;
+use crypto::hashes::*;
 
 use secp256k1::PublicKey;
 
@@ -42,7 +42,7 @@ impl Status {
         }
     }
 
-    pub fn add_to_odd_sketch<T: Blk2bHashable>(&self, item: &T) {
+    pub fn add_to_odd_sketch<T: Identifiable>(&self, item: &T) {
         let mut sketch_locked = self.odd_sketch.write().unwrap();
         sketch_locked.insert(item);
     }
@@ -72,7 +72,7 @@ impl Status {
         sketch_locked.clone()
     }
 
-    pub fn add_to_mini_sketch<T: Blk2bHashable>(&self, item: &T) {
+    pub fn add_to_mini_sketch<T: Identifiable>(&self, item: &T) {
         let mut sketch_locked = self.mini_sketch.write().unwrap();
         sketch_locked.insert(item);
     }
