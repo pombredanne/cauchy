@@ -92,13 +92,14 @@ impl Encoder for MessageCodec {
                 }
                 dst.put_u8(6);
                 let mut payload = BytesMut::new();
+                let n_txs = txs.len() as u64;
                 for tx in txs.into_iter() {
                     let raw = Bytes::from(tx);
                     payload.extend(Bytes::from(VarInt::new(raw.len() as u64)));
                     payload.extend(raw);
                 }
 
-                dst.extend(Bytes::from(VarInt::new(payload.len() as u64)));
+                dst.extend(Bytes::from(VarInt::new(n_txs)));
                 dst.extend(payload);
             }
             Message::Reconcile => dst.put_u8(7),

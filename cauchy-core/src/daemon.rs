@@ -295,7 +295,6 @@ pub fn server(
             Message::GetTransactions { ids } => {
                 if DAEMON_VERBOSE {
                     println!("Received {} ids", ids.len());
-                    println!("Sending transactions to {}", socket_addr);
                 }
 
                 // Remove to reconcilee
@@ -328,6 +327,9 @@ pub fn server(
                             return Err(DaemonError::MissingTransaction.into());
                         }
                     }
+                }
+                if DAEMON_VERBOSE {
+                    println!("Sending transactions to {}", socket_addr);
                 }
                 Ok(Message::Transactions { txs })
             }
