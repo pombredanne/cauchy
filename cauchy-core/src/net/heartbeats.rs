@@ -30,7 +30,6 @@ pub fn heartbeat_oddsketch(
         let rec_status_read = rec_status.read().unwrap();
         let live = rec_status_read.is_live();
         let reconcilee = rec_status_read.is_reconcilee(sock_pk);
-        println!("Live? {}, Reconcilee? {}", live, reconcilee);
         !live && !reconcilee
     }) // Wait while reconciling or while sending to reconcilee
     .map(move |sock_pk| {

@@ -33,7 +33,6 @@ impl SketchInsertable for DummySketch {
 
     fn insert<T: Identifiable>(&mut self, item: &T) {
         let digest = item.get_id();
-        // println!("Dummy Insert {:?}", digest);
         self.pos_set.insert(digest);
     }
 

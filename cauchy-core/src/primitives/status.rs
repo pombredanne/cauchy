@@ -97,7 +97,6 @@ impl Status {
         loop {
             select! {
                 recv(tx_receive) -> tx => {
-                    println!("ID after receive {:?}", &tx.clone().unwrap().get_id());
                     self.add_to_odd_sketch(&tx.clone().unwrap());
                     self.add_to_mini_sketch(&tx.unwrap());
                     odd_sketch_bus.broadcast(self.get_odd_sketch());

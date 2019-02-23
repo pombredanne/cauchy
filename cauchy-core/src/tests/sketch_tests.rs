@@ -2,12 +2,36 @@ mod odd_sketch {
     use bytes::Bytes;
     use crypto::sketches::odd_sketch::*;
     use crypto::sketches::*;
+    use crypto::hashes::*;
+    use crypto::hashes::blake2b::*;
+    use rand::Rng;
+
+    #[derive(Clone)]
+    pub struct DummyHolder {
+        b: Bytes
+    }
+
+    impl DummyHolder {
+        fn new() -> DummyHolder {
+            let mut rng = rand::thread_rng();
+            let rand_dat: [u8; 8] = rng.gen();
+            DummyHolder {
+                b: Bytes::from(&rand_dat[..])
+            }
+        }
+    }
+
+    impl Identifiable for DummyHolder {
+        fn get_id(&self) -> Bytes {
+            self.b.blake2b()
+        }
+    }
 
     #[test]
     fn test_sketchable_permutation() {
-        let ele_a = Bytes::from(&b"hello"[..]);
-        let ele_b = Bytes::from(&b"script"[..]);
-        let ele_c = Bytes::from(&b"world!!"[..]);
+        let ele_a = DummyHolder::new();
+        let ele_b = DummyHolder::new();
+        let ele_c = DummyHolder::new();
         let vec_a = vec![ele_a.clone(), ele_b.clone(), ele_c.clone()];
         let vec_b = vec![ele_b, ele_a, ele_c];
         assert_eq!(OddSketch::sketch(&vec_a), OddSketch::sketch(&vec_b))
@@ -15,11 +39,11 @@ mod odd_sketch {
 
     #[test]
     fn test_sketchable_size() {
-        let ele_a = Bytes::from(&b"hello"[..]);
-        let ele_b = Bytes::from(&b"script"[..]);
-        let ele_c = Bytes::from(&b"world!!"[..]);
-        let ele_d = Bytes::from(&b"extra"[..]);
-        let ele_e = Bytes::from(&b"extra2"[..]);
+        let ele_a = DummyHolder::new();
+        let ele_b = DummyHolder::new();
+        let ele_c = DummyHolder::new();
+        let ele_d = DummyHolder::new();
+        let ele_e = DummyHolder::new();
         let vec_a = vec![ele_a, ele_b, ele_c, ele_d, ele_e];
         let sketch_a = OddSketch::sketch(&vec_a);
         assert_eq!(sketch_a.size(), 5)
@@ -27,11 +51,11 @@ mod odd_sketch {
 
     #[test]
     fn test_sketchable_symmetric_difference() {
-        let script_a = Bytes::from(&b"hello"[..]);
-        let script_b = Bytes::from(&b"script"[..]);
-        let script_c = Bytes::from(&b"world!!"[..]);
-        let script_d = Bytes::from(&b"extra"[..]);
-        let script_e = Bytes::from(&b"extra2"[..]);
+        let script_a = DummyHolder::new();
+        let script_b = DummyHolder::new();
+        let script_c = DummyHolder::new();
+        let script_d = DummyHolder::new();
+        let script_e = DummyHolder::new();
         let vec_a = vec![script_a.clone(), script_b.clone(), script_c.clone()];
         let vec_b = vec![script_b, script_a, script_d, script_e];
         let sketch_a = OddSketch::sketch(&vec_a);
@@ -46,13 +70,36 @@ mod sketch_interaction {
     use crypto::sketches::dummy_sketch::*;
     use crypto::sketches::odd_sketch::*;
     use crypto::sketches::*;
-    use crypto::sketches::*;
+    use crypto::hashes::*;
+    use crypto::hashes::blake2b::*;
+    use rand::Rng;
+
+    #[derive(Clone)]
+    pub struct DummyHolder {
+        b: Bytes
+    }
+
+    impl DummyHolder {
+        fn new() -> DummyHolder {
+            let mut rng = rand::thread_rng();
+            let rand_dat: [u8; 8] = rng.gen();
+            DummyHolder {
+                b: Bytes::from(&rand_dat[..])
+            }
+        }
+    }
+
+    impl Identifiable for DummyHolder {
+        fn get_id(&self) -> Bytes {
+            self.b.blake2b()
+        }
+    }
 
     #[test]
     fn test_decode_equivalence() {
-        let script_a = Bytes::from(&b"hello"[..]);
-        let script_b = Bytes::from(&b"script"[..]);
-        let script_c = Bytes::from(&b"world!!"[..]);
+        let script_a = DummyHolder::new();
+        let script_b = DummyHolder::new();
+        let script_c = DummyHolder::new();
         let vec_a = vec![script_a, script_b, script_c];
         let sketch_a = OddSketch::sketch(&vec_a);
         let sketch_b = DummySketch::sketch(&vec_a);
@@ -63,14 +110,13 @@ mod sketch_interaction {
 
     #[test]
     fn test_xor_decode_equivalence() {
-        let script_a = Bytes::from(&b"hello"[..]);
-        let script_b = Bytes::from(&b"script"[..]);
-        let script_c = Bytes::from(&b"world!!"[..]);
-        let script_d = Bytes::from(&b"lets"[..]);
-        let script_e = Bytes::from(&b"xor"[..]);
+        let script_a = DummyHolder::new();
+        let script_b = DummyHolder::new();
+        let script_c = DummyHolder::new();
+        let script_d = DummyHolder::new();
+        let script_e = DummyHolder::new();
         let vec_a = vec![script_a.clone(), script_b, script_c.clone(), script_e];
         let vec_b = vec![script_a, script_c, script_d];
-        // let vec_c = vec![script_a, script_c, script_d];
         let odd_sketch_a = OddSketch::sketch(&vec_a);
         let odd_sketch_b = OddSketch::sketch(&vec_b);
         let dummy_sketch_a = DummySketch::sketch(&vec_a);
