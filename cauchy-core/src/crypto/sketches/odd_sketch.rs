@@ -22,7 +22,7 @@ impl SketchInsertable for OddSketch {
 
     fn insert_id(&mut self, item: &Bytes)
     {
-        let (shift, index) = util::get_bit_pos(item, SKETCH_CAPACITY);
+        let (shift, index) = util::get_id_bit_pos(item, SKETCH_CAPACITY);
         self.0[index] ^= 1 << shift;
     }
 

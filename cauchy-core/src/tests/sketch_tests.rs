@@ -43,3 +43,25 @@ mod odd_sketch {
         assert_eq!(sketch_a.xor(&sketch_b).size(), 3)
     }
 }
+
+mod sketch_interaction {
+    use bytes::Bytes;
+    use crypto::sketches::odd_sketch::*;
+    use crypto::sketches::*;
+    use crypto::sketches::dummy_sketch::*;
+    use crypto::sketches::*;
+
+    #[test]
+    fn test_decode_equivalence() {
+        let script_a = Bytes::from(&b"hello"[..]);
+        let script_b = Bytes::from(&b"script"[..]);
+        let script_c = Bytes::from(&b"world!!"[..]);
+        let vec_a = vec![script_a, script_b, script_c];
+        let sketch_a = OddSketch::sketch(&vec_a);
+        let sketch_b = DummySketch::sketch(&vec_a);
+    
+        let decoded_a = &sketch_b.decode().unwrap().0;
+        assert_eq!(OddSketch::sketch_ids(decoded_a), sketch_a)
+    }
+}
+    
