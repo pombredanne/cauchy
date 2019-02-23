@@ -1,4 +1,5 @@
 use bytes::{Buf, Bytes};
+use crypto::sketches::*;
 use crypto::sketches::dummy_sketch::*;
 use primitives::transaction::*;
 use primitives::varint::*;
@@ -112,7 +113,7 @@ impl Parsable<DummySketch> for DummySketch {
             println!("Finished DummySketch parsing");
         }
         Ok(Some((
-            DummySketch::new(pos_set, HashSet::new()),
+            DummySketch::sketch(&pos_set),
             vi_pos_len_len + us_pos_len * HASH_LEN,
         )))
     }

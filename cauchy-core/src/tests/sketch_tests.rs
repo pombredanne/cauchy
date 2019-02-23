@@ -1,7 +1,7 @@
 mod odd_sketch {
     use bytes::Bytes;
     use crypto::sketches::odd_sketch::*;
-    use utils::byte_ops::*;
+    use crypto::sketches::*;
 
     #[test]
     fn test_sketchable_permutation() {

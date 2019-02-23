@@ -4,6 +4,7 @@ use bytes::Bytes;
 use crypto::hashes::blake2b::*;
 use std::collections::HashSet;
 use std::ops::Sub;
+use crypto::sketches::*;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct DummySketch {
@@ -22,17 +23,21 @@ impl Sub for DummySketch {
     }
 }
 
-impl DummySketch {
-    pub fn new(pos_set: HashSet<Bytes>, neg_set: HashSet<Bytes>) -> DummySketch {
-        DummySketch { pos_set, neg_set }
+impl SketchInsertable for DummySketch {
+    fn new() -> DummySketch {
+        DummySketch { pos_set: HashSet::new(), neg_set: HashSet::new() }
     }
 
-    pub fn with_capacity(capacity: usize) -> DummySketch {
-        DummySketch {
-            pos_set: HashSet::with_capacity(capacity),
-            neg_set: HashSet::with_capacity(capacity),
-        }
+    fn insert<T: Blk2bHashable>(&mut self, item: &T) {
+        self.pos_set.insert(item.blake2b().blake2b());
     }
+
+    fn insert_id(&mut self, item: &Bytes) {
+        self.pos_set.insert(item.clone());
+    }
+}
+
+impl DummySketch {
 
     pub fn pos_len(&self) -> usize {
         self.pos_set.len()
@@ -42,10 +47,6 @@ impl DummySketch {
         self.pos_set.len()
     }
 
-    pub fn insert<T: Blk2bHashable>(&mut self, item: &T) {
-        self.pos_set.insert(item.blake2b().blake2b());
-    }
-
     pub fn get_pos(&self) -> &HashSet<Bytes> {
         &self.pos_set
     }
@@ -53,8 +54,10 @@ impl DummySketch {
     pub fn get_neg(&self) -> &HashSet<Bytes> {
         &self.neg_set
     }
+}
 
-    pub fn decode(&self) -> Result<(HashSet<Bytes>, HashSet<Bytes>), String> {
+impl Decodable for DummySketch {
+    fn decode(&self) -> Result<(HashSet<Bytes>, HashSet<Bytes>), String> {
         Ok((self.pos_set.clone(), self.neg_set.clone()))
     }
 }

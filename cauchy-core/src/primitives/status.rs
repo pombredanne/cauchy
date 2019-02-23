@@ -4,6 +4,7 @@ use crossbeam::channel::select;
 use crossbeam::channel::Receiver;
 
 use crypto::hashes::blake2b::Blk2bHashable;
+use crypto::sketches::*;
 use crypto::sketches::dummy_sketch::*;
 use crypto::sketches::odd_sketch::*;
 use primitives::transaction::Transaction;
@@ -37,13 +38,13 @@ impl Status {
         Status {
             nonce: RwLock::new(0),
             odd_sketch: RwLock::new(OddSketch::new()),
-            mini_sketch: RwLock::new(DummySketch::with_capacity(2 * SKETCH_CAPACITY)),
+            mini_sketch: RwLock::new(DummySketch::new()),
         }
     }
 
     pub fn add_to_odd_sketch<T: Blk2bHashable>(&self, item: &T) {
         let mut sketch_locked = self.odd_sketch.write().unwrap();
-        sketch_locked.add_to_bin(item);
+        sketch_locked.insert(item);
     }
 
     pub fn update_odd_sketch(&self, odd_sketch: OddSketch) {
