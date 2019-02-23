@@ -19,7 +19,7 @@ use core::{
     crypto::signatures::ecdsa, db::rocksdb::RocksDb, db::storing::Storable, db::*,
     net::connections::*, net::heartbeats::*, net::reconcile_status::ReconciliationStatus,
     primitives::arena::*, primitives::status::Status, primitives::transaction::Transaction,
-    utils::constants::*, utils::mining,
+    utils::constants::*, utils::mining, crypto::hashes::*,
 };
 use futures::lazy;
 use futures::sync::mpsc;
@@ -92,8 +92,9 @@ fn main() {
 
     loop {
         let new_random_tx = random_tx();
-        new_random_tx.to_db(tx_db.clone()).unwrap();
-        sketch_send.send(random_tx());
+        new_random_tx.clone().to_db(tx_db.clone()).unwrap();
+        println!("ID before send {:?}", &new_random_tx.clone().get_id());
+        sketch_send.send(new_random_tx);
         thread::sleep(new_tx_interval);
     }
 

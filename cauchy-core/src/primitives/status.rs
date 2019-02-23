@@ -1,9 +1,8 @@
 use bus::Bus;
-use bytes::{Bytes, BytesMut};
+use bytes::Bytes;
 use crossbeam::channel::select;
 use crossbeam::channel::Receiver;
 
-use crypto::hashes::blake2b::Blk2bHashable;
 use crypto::sketches::dummy_sketch::*;
 use crypto::sketches::odd_sketch::*;
 use crypto::sketches::*;
@@ -98,6 +97,7 @@ impl Status {
         loop {
             select! {
                 recv(tx_receive) -> tx => {
+                    println!("ID after receive {:?}", &tx.clone().unwrap().get_id());
                     self.add_to_odd_sketch(&tx.clone().unwrap());
                     self.add_to_mini_sketch(&tx.unwrap());
                     odd_sketch_bus.broadcast(self.get_odd_sketch());
