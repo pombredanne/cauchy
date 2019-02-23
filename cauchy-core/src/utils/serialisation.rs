@@ -76,7 +76,6 @@ impl From<Transaction> for Bytes {
     }
 }
 
-// TODO: Catch errors
 impl TryFrom<Bytes> for Transaction {
     type Err = Error;
     fn try_from(raw: Bytes) -> Result<Transaction, Self::Err> {

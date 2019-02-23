@@ -40,7 +40,7 @@ fn main() {
 
     let (distance_send, distance_recv) = channel::unbounded();
     let mut odd_sketch_bus = Bus::new(10);
-    let n_mining_threads: u64 = 1;
+    let n_mining_threads: u64 = 0;
 
     for i in 0..n_mining_threads {
         let distance_send_c = distance_send.clone();
@@ -89,7 +89,7 @@ fn main() {
     let (sketch_send, sketch_recv) = channel::unbounded();
     thread::spawn(move || local_status.update_local(odd_sketch_bus, sketch_recv, distance_recv));
 
-    let new_tx_interval = time::Duration::from_millis(1000);
+    let new_tx_interval = time::Duration::from_millis(10000);
 
     loop {
         let new_random_tx = random_tx();

@@ -35,7 +35,7 @@ pub fn heartbeat_oddsketch(
     .map(move |sock_pk| {
         (
             local_status.get_odd_sketch(),
-            local_status.get_mini_sketch(), // TODO: This is not garaunteed to be ~ to the odd sketch?
+            local_status.get_mini_sketch(), // TODO: This is not garaunteed to be ~ to the odd sketch? What if it's updated between these calls?
             sock_pk,
         )
     })

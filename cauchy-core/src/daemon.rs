@@ -309,9 +309,9 @@ pub fn server(
                     let tx_db_inner = tx_db_inner.clone();
                     match Transaction::from_db(tx_db_inner, &id) {
                         Ok(Some(tx)) => {
-                            if DAEMON_VERBOSE {
-                                println!("Found {:?}", id);
-                            }
+                            // if DAEMON_VERBOSE {
+                            //     println!("Found {:?}", id);
+                            // }
                             txs.insert(tx);
                         }
                         Err(err) => {

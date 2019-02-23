@@ -20,4 +20,4 @@ pub const DAEMON_VERBOSE: bool = true;
 pub const PARSING_VERBOSE: bool = false;
 pub const ARENA_VERBOSE: bool = false;
 pub const ENCODING_VERBOSE: bool = false;
-pub const DECODING_VERBOSE: bool = false;
+pub const DECODING_VERBOSE: bool = true;

@@ -116,7 +116,8 @@ impl ConnectionManager {
 struct ConnectionStatus {
     pub secret: u64,
     pub impulse_sender: Sender<Message>,
-    pub current_pk: Arc<RwLock<PublicKey>>, // TODO: Misbehaviour history etc
+    pub current_pk: Arc<RwLock<PublicKey>>, 
+    // TODO: Misbehaviour history etc
 }
 
 impl ConnectionStatus {
