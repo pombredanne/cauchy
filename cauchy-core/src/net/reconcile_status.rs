@@ -4,11 +4,18 @@ use primitives::transaction::*;
 use secp256k1::PublicKey;
 use std::collections::HashSet;
 use crypto::hashes::*;
+use std::sync::Arc;
+use primitives::status::*;
+
+use crypto::sketches::*;
+use crypto::sketches::odd_sketch::*;
+use crypto::sketches::dummy_sketch::*;
 
 pub struct ReconciliationStatus {
     live: bool,
     target: PublicKey,
-    expected_ids: HashSet<Bytes>,
+    missing_ids: HashSet<Bytes>,
+    excess_ids: HashSet<Bytes>,
     reconcilees: HashSet<PublicKey>
 }
 
@@ -18,7 +25,8 @@ impl ReconciliationStatus {
         ReconciliationStatus {
             live: false,
             target: dummy_pk,
-            expected_ids: HashSet::new(),
+            missing_ids: HashSet::new(),
+            excess_ids: HashSet::new(),
             reconcilees: HashSet::new()
         }
     }
@@ -40,13 +48,34 @@ impl ReconciliationStatus {
         self.target == *other && self.live
     }
 
-    pub fn set_ids(&mut self, ids: &HashSet<Bytes>) {
-        self.expected_ids = ids.clone()
+    pub fn set_ids(&mut self, excess_ids: &HashSet<Bytes>, missing_ids: &HashSet<Bytes>) {
+        self.excess_ids = excess_ids.clone();
+        self.missing_ids = missing_ids.clone();
     }
 
-    pub fn ids_eq(&self, other: &HashSet<Transaction>) -> bool {
+    pub fn get_tx_ids(&self) -> (&HashSet<Bytes>, &HashSet<Bytes>) {
+        (&self.excess_ids, &self.missing_ids)
+    }
+
+    pub fn final_update(&self, local_status: Arc<Status>, perception: Arc<Status>) {
+        // TODO: Revamp all of this
+        let perceived_odd_sketch = perception.get_odd_sketch();
+        let mut perceived_mini_sketch = perception.get_mini_sketch();
+        local_status.update_odd_sketch(
+            perceived_odd_sketch
+            .xor(&OddSketch::sketch_ids(&self.excess_ids))
+            .xor(&OddSketch::sketch_ids(&self.missing_ids))
+        );
+        
+        let mut new_mini_sketch = perceived_mini_sketch - (DummySketch::sketch_ids(&self.excess_ids) - DummySketch::sketch_ids(&self.missing_ids));
+        new_mini_sketch.collect();
+        local_status.update_mini_sketch(new_mini_sketch)
+
+    }
+
+    pub fn missing_ids_eq(&self, other: &HashSet<Transaction>) -> bool {
         let received_tx_ids: HashSet<Bytes> = other.iter().map(move |tx| tx.get_id()).collect();
-        self.expected_ids == received_tx_ids
+        self.missing_ids == received_tx_ids
     }
 
     pub fn add_reconcilee(&mut self, pubkey: &PublicKey) {

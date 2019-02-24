@@ -1,4 +1,4 @@
-// TODO: Eventually replace this with minisketch and do optimizations
+// TODO: Eventually replace this with minisketch
 
 use bytes::Bytes;
 use crypto::hashes::*;
@@ -56,6 +56,11 @@ impl DummySketch {
 
     pub fn get_neg(&self) -> &HashSet<Bytes> {
         &self.neg_set
+    }
+
+    pub fn collect(&mut self) {
+        self.pos_set = self.pos_set.difference(&self.neg_set).map(|x| x.clone()).collect();
+        self.neg_set = HashSet::new();
     }
 }
 

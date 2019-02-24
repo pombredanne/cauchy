@@ -165,6 +165,7 @@ pub fn server(
         let socket_pk_inner = socket_pk.clone();
         let arena_inner = arena.clone();
         let rec_status_inner = rec_status.clone();
+        let local_status_inner = local_status.clone();
         let received_stream = received_stream.filter(move |msg| match msg {
             Message::StartHandshake { .. } => {
                 if DAEMON_VERBOSE {
@@ -248,11 +249,20 @@ pub fn server(
                     if DAEMON_VERBOSE {
                         println!("Checking payload IDs match requested");
                     }
-                    if rec_status_read.ids_eq(&txs) {
+                    if rec_status_read.missing_ids_eq(&txs) {
                         if DAEMON_VERBOSE {
                             println!("Payload is valid.");
                         }
-                    // TODO: Send frontstage
+                        // TODO: Send side stage for validation
+
+                        // TODO: Update state, this is here temporarily
+                        let arena_r = arena_inner.read().unwrap();
+                        let perception = match arena_r.get_perception(&socket_pk_read) {
+                            Some(some) => some,
+                            None => return false,
+                        };
+                        rec_status_read.final_update(local_status_inner.clone(), perception)
+
                     } else {
                         if DAEMON_VERBOSE {
                             println!("Payload is invalid.");
@@ -262,7 +272,7 @@ pub fn server(
                     drop(rec_status_read);
                     rec_status_inner.write().unwrap().stop();
                 } else {
-                    // TODO: Send backstage
+                    // TODO: Send to acceptor
                 }
                 false
             }
@@ -297,7 +307,7 @@ pub fn server(
                     println!("Received {} ids", ids.len());
                 }
 
-                // Remove to reconcilee
+                // Remove reconcilee
                 let socket_pk_read = *socket_pk_inner.read().unwrap();
                 rec_status_inner.write().unwrap().remove_reconcilee(&socket_pk_read);
 
@@ -369,8 +379,11 @@ pub fn server(
                     .xor(&OddSketch::sketch_ids(&missing_actor_ids))
                     == perception_odd_sketch.xor(&peer_odd_sketch)
                 {
+                    if DAEMON_VERBOSE {
+                        println!("Valid Minisketch");
+                    }
                     // Set expected IDs
-                    rec_status_inner.write().unwrap().set_ids(&missing_actor_ids);
+                    rec_status_inner.write().unwrap().set_ids(&excess_actor_ids, &missing_actor_ids);
                     
                     Ok(Message::GetTransactions {
                         ids: missing_actor_ids,
