@@ -9,4 +9,6 @@ ckb-vm = { path = "./ckb-vm"}
 hex = "*"
 rand = "*"
 sha2 = "*"
+bytes = "*"
+rocksdb = "*"
 core = { package = "cauchy-core", version = "*", path = "../cauchy-core" }

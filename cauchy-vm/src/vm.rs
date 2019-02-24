@@ -19,20 +19,27 @@ use std::str;
 use std::time::SystemTime;
 use std::vec::Vec;
 
-use core::primitives::transaction;
+use core::primitives::transaction::Transaction;
+use core::db::storing::*;
+use core::db::rocksdb::RocksDb;
+use core::db::*;
+use bytes::Bytes;
+use std::sync::Arc;
 
 use crate::vmsnapshot::VMSnapshot;
 
 pub struct VM {
     ret_bytes: Vec<u8>,
     txid: Vec<u8>,
+    tx_db: Arc<RocksDb>
 }
 
 impl VM {
-    pub fn new() -> VM {
+    pub fn new(tx_db: Arc<RocksDb>) -> VM {
         VM {
             ret_bytes: vec![],
             txid: vec![],
+            tx_db
         }
     }
 
@@ -47,6 +54,7 @@ impl VM {
         let mut machine = DefaultMachine::<u64, SparseMemory>::default();
         machine.add_syscall_module(Box::new(VMSyscalls {
             txid: self.txid.to_vec(),
+            tx_db: self.tx_db.clone()
         }));
         let result = machine.run(buffer, args);
         self.ret_bytes = machine.get_retbytes().to_vec();
@@ -93,6 +101,7 @@ impl VM {
         machine.load_elf(&buffer).unwrap();
         machine.add_syscall_module(Box::new(VMSyscalls {
             txid: self.txid.to_vec(),
+            tx_db: self.tx_db.clone()
         }));
         machine.initialize_stack(
             &vec![],
@@ -121,6 +130,7 @@ pub trait Retbytes {
 
 struct VMSyscalls {
     txid: Vec<u8>,
+    tx_db: Arc<RocksDb>
 }
 
 impl VMSyscalls {
@@ -132,6 +142,10 @@ impl VMSyscalls {
         };
         // let t = Transaction::from_id();
         buffer
+    }
+
+    fn lookup_tx(&self, tx_db: Arc<RocksDb>, txid: &Bytes) -> Transaction {
+        Transaction::from_db(tx_db, txid).unwrap().unwrap()
     }
 }
 
@@ -190,7 +204,7 @@ impl Syscalls<u64, SparseMemory> for VMSyscalls {
                 );
                 let call_script = &VMSyscalls::lookup_script(&String::from_utf8(txid).unwrap());
 
-                let mut vm = VM::new();
+                let mut vm = VM::new(self.tx_db.clone());
                 let mut retcode: u8 = 0;
 
                 // // Get the state ID for this script, which should be the TXID for now
@@ -277,13 +291,15 @@ impl Syscalls<u64, SparseMemory> for VMSyscalls {
 // use std::io::Read;
 #[test]
 fn test_simple() {
+    let tx_db = RocksDb::open_db(".geodesic/tests/db_vm_test_simple/").unwrap();
+
     let mut buffer = Vec::new();
     File::open("tests/simple")
         .unwrap()
         .read_to_end(&mut buffer)
         .unwrap();
 
-    let mut vm = VM::new();
+    let mut vm = VM::new(Arc::new(tx_db));
     let result = vm.run(&buffer, &vec![b"__vm_script".to_vec()]);
 
     assert!(result.is_ok());
@@ -292,13 +308,15 @@ fn test_simple() {
 
 #[test]
 fn test_vm_syscalls() {
+    let tx_db = RocksDb::open_db(".geodesic/tests/db_vm_test_syscalls/").unwrap();
+
     let mut buffer = Vec::new();
     File::open("tests/syscalls")
         .unwrap()
         .read_to_end(&mut buffer)
         .unwrap();
 
-    let mut vm = VM::new();
+    let mut vm = VM::new(Arc::new(tx_db));
     let result = vm.run(&buffer, &vec![b"__vm_script".to_vec()]);
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), 0);
@@ -309,13 +327,15 @@ fn test_vm_syscalls() {
 
 #[test]
 fn test_sha256() {
+    let tx_db = RocksDb::open_db(".geodesic/tests/db_vm_test_sha256/").unwrap();
+
     let mut buffer = Vec::new();
     File::open("tests/sha256")
         .unwrap()
         .read_to_end(&mut buffer)
         .unwrap();
 
-    let mut vm = VM::new();
+    let mut vm = VM::new(Arc::new(tx_db));
     let result = vm.run(&buffer, &vec![b"__vm_script".to_vec()]);
     assert!(result.is_ok());
     let bytes = vm.get_retbytes();
@@ -364,13 +384,15 @@ fn test_sha256() {
 
 #[test]
 fn test_syscall2() {
+    let tx_db = RocksDb::open_db(".geodesic/tests/db_vm_test_syscall2/").unwrap();
+
     let mut buffer = Vec::new();
     File::open("tests/syscalls2")
         .unwrap()
         .read_to_end(&mut buffer)
         .unwrap();
 
-    let mut vm = VM::new();
+    let mut vm = VM::new(Arc::new(tx_db));
     // let result = vm.run(&buffer, &vec![b"__vm_script".to_vec()]);
     let result = vm.run_args(&buffer, b"hello".to_vec());
     // assert!(result.is_ok());
@@ -387,13 +409,15 @@ fn test_syscall2() {
 
 #[test]
 fn test_ecdsa() {
+    let tx_db = RocksDb::open_db(".geodesic/tests/db_vm_test_ecdsa/").unwrap();
+
     let mut buffer = Vec::new();
     File::open("tests/ecdsa_test")
         .unwrap()
         .read_to_end(&mut buffer)
         .unwrap();
 
-    let mut vm = VM::new();
+    let mut vm = VM::new(Arc::new(tx_db));
     // let result = vm.run(&buffer, &vec![b"__vm_script".to_vec()]);
     let mut pubkey = hex::decode("927d42216ae79f7599a50e1204da87cf7fce8fe278773ddd9348393b7ee4d714098fd88fba58bd0e014023118858f67e2294719b53deb1546edf7c3440fefe9f").unwrap();
     let mut sig = hex::decode("84a28969215b235bcf00cc11330a20198f71a0b51f71badccd535dfbaf776cd1c25e7e75fccaff0f14546d9b2f33d6d7d351590f6590a0c682ac0d8422025edc").unwrap();
@@ -411,13 +435,15 @@ fn test_ecdsa() {
 
 #[test]
 fn test_time() {
+    let tx_db = RocksDb::open_db(".geodesic/tests/db_vm_test_time/").unwrap();
+
     let mut buffer = Vec::new();
     File::open("tests/time")
         .unwrap()
         .read_to_end(&mut buffer)
         .unwrap();
 
-    let mut vm = VM::new();
+    let mut vm = VM::new(Arc::new(tx_db));
     let result = vm.run_func(&buffer, 0, vec![]);
     println!("{:X?}", &hex::encode(&vm.get_retbytes()));
     assert!(result.is_ok());
@@ -426,13 +452,16 @@ fn test_time() {
 
 #[test]
 fn test_freeze() {
+    let tx_db = RocksDb::open_db(".geodesic/tests/db_vm_test_freeze/").unwrap();
+    let arc_tx_db = Arc::new(tx_db);
+
     let mut buffer = Vec::new();
     File::open("tests/freeze")
         .unwrap()
         .read_to_end(&mut buffer)
         .unwrap();
 
-    let mut vm = VM::new();
+    let mut vm = VM::new(arc_tx_db.clone());
     let result = vm.run_func(&buffer, 0, vec![]);
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), 123);
@@ -443,7 +472,7 @@ fn test_freeze() {
         Ok(mut r) => r.read_to_end(&mut buffer).unwrap(),
     };
 
-    let mut vm = VM::new();
+    let mut vm = VM::new(arc_tx_db);
     let result = vm.run_args(&buffer, b"DEADBEEF".to_vec());
     if !(result.is_ok()) {
         panic!("{:?}", result.err());
@@ -453,6 +482,8 @@ fn test_freeze() {
 
 #[test]
 fn test_simple_contract() {
+    let tx_db = RocksDb::open_db(".geodesic/tests/db_vm_test_simple_contract/").unwrap();
+    
     // let mut buffer = Vec::new();
     // File::open("tests/simple_contract")
     //     .unwrap()
@@ -472,7 +503,7 @@ fn test_simple_contract() {
         .read_to_end(&mut buffer)
         .unwrap();
 
-    let mut vm = VM::new();
+    let mut vm = VM::new(Arc::new(tx_db));
     let result = vm.run_func(&buffer, 0, vec![]);
     println!("contract_call: {:X?}", &hex::encode(&vm.get_retbytes()));
     assert!(result.is_ok());
@@ -481,13 +512,15 @@ fn test_simple_contract() {
 
 #[test]
 fn test_simple_contract_cpp() {
+    let tx_db = RocksDb::open_db(".geodesic/tests/db_vm_test_simple_contract_cpp/").unwrap();
+
     let mut buffer = Vec::new();
     File::open("tests/simple_contract_cpp")
         .unwrap()
         .read_to_end(&mut buffer)
         .unwrap();
 
-    let mut vm = VM::new();
+    let mut vm = VM::new(Arc::new(tx_db));
     let result = vm.run_func(&buffer, 0, vec![]);
     println!("contract_call: {:X?}", &hex::encode(&vm.get_retbytes()));
     assert_eq!(result.unwrap(), 1);
