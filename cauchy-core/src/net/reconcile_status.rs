@@ -60,14 +60,14 @@ impl ReconciliationStatus {
     pub fn final_update(&self, local_status: Arc<Status>, perception: Arc<Status>) {
         // TODO: Revamp all of this
         let perceived_odd_sketch = perception.get_odd_sketch();
-        let mut perceived_mini_sketch = perception.get_mini_sketch();
+        let perceived_mini_sketch = perception.get_mini_sketch();
         local_status.update_odd_sketch(
             perceived_odd_sketch
             .xor(&OddSketch::sketch_ids(&self.excess_ids))
             .xor(&OddSketch::sketch_ids(&self.missing_ids))
         );
         
-        let mut new_mini_sketch = perceived_mini_sketch - (DummySketch::sketch_ids(&self.excess_ids) - DummySketch::sketch_ids(&self.missing_ids));
+        let mut new_mini_sketch = perceived_mini_sketch - DummySketch::from((self.excess_ids.clone(), self.missing_ids.clone()));
         new_mini_sketch.collect();
         local_status.update_mini_sketch(new_mini_sketch)
 
