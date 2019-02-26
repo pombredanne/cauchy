@@ -16,9 +16,13 @@ impl Sub for DummySketch {
     type Output = DummySketch;
 
     fn sub(self, other: DummySketch) -> DummySketch {
+        let a: HashSet<&Bytes> = self.pos_set.difference(&other.pos_set).collect();
+        let b: HashSet<&Bytes> = self.neg_set.difference(&other.neg_set).collect();
+        let c: HashSet<&Bytes> = other.pos_set.difference(&self.pos_set).collect();
+        let d: HashSet<&Bytes> = other.neg_set.difference(&self.neg_set).collect();
         DummySketch {
-            pos_set: self.pos_set.difference(&other.pos_set).cloned().collect(),
-            neg_set: other.pos_set.difference(&self.pos_set).cloned().collect(),
+            pos_set: a.union(&d).cloned().cloned().collect(),
+            neg_set: c.union(&b).cloned().cloned().collect(),
         }
     }
 }
