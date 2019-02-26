@@ -59,7 +59,7 @@ impl DummySketch {
     }
 
     pub fn collect(&mut self) {
-        self.pos_set = self.pos_set.difference(&self.neg_set).map(|x| x.clone()).collect();
+        self.pos_set = self.pos_set.difference(&self.neg_set).cloned().collect();
         self.neg_set = HashSet::new();
     }
 }

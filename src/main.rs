@@ -22,7 +22,6 @@ use core::{
     utils::constants::*, utils::mining,
 };
 use futures::lazy;
-use futures::sync::mpsc;
 use rand::Rng;
 use rocksdb::{Options, DB};
 use std::sync::{Arc, RwLock};
@@ -53,11 +52,14 @@ fn main() {
 
     let local_status = Arc::new(Status::null());
     let arena = Arc::new(RwLock::new(Arena::init(&local_pk, local_status.clone())));
-    let (connection_manager, router) = ConnectionManager::init();
+
+    // Initialise connection manager
+    let (connection_manager, new_socket_rx, router) = ConnectionManager::init();
+
+    // Initialise reconciliation status
     let recon_status = Arc::new(RwLock::new(ReconciliationStatus::new()));
 
     // Server
-    let (new_socket_tx, new_socket_rx) = mpsc::channel(1);
     let server = core::daemon::server(
         tx_db.clone(),
         local_status.clone(),
@@ -70,7 +72,7 @@ fn main() {
     );
 
     // RPC Server
-    let rpc_server = core::daemon::rpc_server(new_socket_tx);
+    let rpc_server = core::net::rpc_server::rpc_server(connection_manager.clone());
     let reconcile_heartbeat =
         spawn_heartbeat_reconcile(connection_manager.clone(), arena.clone(), recon_status);
 
@@ -89,7 +91,7 @@ fn main() {
     let (sketch_send, sketch_recv) = channel::unbounded();
     thread::spawn(move || local_status.update_local(odd_sketch_bus, sketch_recv, distance_recv));
 
-    let new_tx_interval = time::Duration::from_millis(10000);
+    let new_tx_interval = time::Duration::from_millis(1000);
 
     loop {
         let new_random_tx = random_tx();

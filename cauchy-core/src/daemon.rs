@@ -11,7 +11,6 @@ use net::connections::*;
 use net::heartbeats::*;
 use net::messages::*;
 use net::reconcile_status::*;
-use net::rpc_messages::*;
 use primitives::arena::Arena;
 use primitives::status::Status;
 use primitives::transaction::Transaction;
@@ -25,61 +24,6 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::prelude::*;
 use utils::constants::*;
 use utils::errors::DaemonError;
-
-pub fn rpc_server(
-    tcp_socket_send: mpsc::Sender<TcpStream>,
-) -> impl Future<Item = (), Error = ()> + Send + 'static {
-    let addr = format!("0.0.0.0:{}", RPC_SERVER_PORT).to_string();
-    let addr = addr.parse::<SocketAddr>().unwrap();
-
-    let listener = TcpListener::bind(&addr)
-        .map_err(|_| DaemonError::BindFailure)
-        .unwrap();
-
-    let server = listener
-        .incoming()
-        .map_err(|e| println!("error accepting socket; error = {:?}", e))
-        .for_each(move |socket| {
-            let socket_addr = socket.peer_addr().unwrap();
-            if DAEMON_VERBOSE {
-                println!("New RPC server socket to {}", socket_addr);
-            }
-
-            // Frame sockets
-            let framed_sock = Framed::new(socket, RPCCodec);
-            let (_, stream) = framed_sock.split();
-
-            // New TCP socket sender
-            let tcp_socket_send_inner = tcp_socket_send.clone();
-
-            let send = stream
-                .for_each(move |msg| match msg {
-                    RPC::AddPeer { addr } => {
-                        if DAEMON_VERBOSE {
-                            println!("Received addpeer {} message from {}", addr, socket_addr);
-                        }
-                        let tcp_socket_send_inner = tcp_socket_send_inner.clone();
-                        TcpStream::connect(&addr)
-                            .and_then(move |sock| {
-                                tcp_socket_send_inner.send(sock).map_err(|e| {
-                                    std::io::Error::new(
-                                        std::io::ErrorKind::Other,
-                                        "RPC addpeer channel failure",
-                                    )
-                                })
-                            })
-                            .map(|_| ())
-                            .or_else(|e| {
-                                println!("error = {:?}", e);
-                                Ok(())
-                            })
-                    }
-                })
-                .map_err(|e| ());
-            tokio::spawn(send)
-        });
-    server
-}
 
 macro_rules! command_peer {
     ($arena: ident, $pk: ident, $fn_name: ident, $input: ident) => {

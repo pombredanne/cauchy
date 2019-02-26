@@ -1,10 +1,11 @@
-use futures::sync::mpsc::{channel, Sender};
+use futures::sync::mpsc::{channel, Sender, Receiver};
 use net::messages::Message;
 use secp256k1::PublicKey;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::{Arc, RwLock};
 use tokio::prelude::*;
+use tokio::net::TcpStream;
 
 use failure::Error;
 use utils::errors::{ConnectionAddError, ImpulseReceiveError};
@@ -12,19 +13,25 @@ use utils::errors::{ConnectionAddError, ImpulseReceiveError};
 pub struct ConnectionManager {
     connections: HashMap<SocketAddr, ConnectionStatus>,
     router_sender: Sender<(SocketAddr, Message)>,
+    new_socket_send: Sender<TcpStream>,
 }
 
 impl ConnectionManager {
     pub fn init() -> (
-        Arc<RwLock<ConnectionManager>>,
+        Arc<RwLock<ConnectionManager>>, Receiver<TcpStream>,
         impl Future<Item = (), Error = ()> + Send + 'static,
     ) {
+        // Initialise the new peer stream
+        let (new_socket_send, new_socket_recv) = channel::<TcpStream>(1);
+
         // Initialise connection manager
         let (router_sender, router_receiver) = channel::<(SocketAddr, Message)>(128);
         let cm = Arc::new(RwLock::new(ConnectionManager {
             connections: HashMap::new(),
             router_sender,
+            new_socket_send
         }));
+
 
         // Initialise router
         let cm_inner = cm.clone();
@@ -49,9 +56,13 @@ impl ConnectionManager {
             });
             tokio::spawn(routed_send)
         });
-        (cm, router)
+        (cm, new_socket_recv, router)
     }
 
+    pub fn get_new_socket_send(&self) -> Sender<TcpStream> {
+        self.new_socket_send.clone()
+    }
+    
     pub fn get_socket_by_pk(&self, pk: PublicKey) -> Option<SocketAddr> {
         let (socket, _) = self
             .connections
@@ -67,6 +78,10 @@ impl ConnectionManager {
 
     pub fn get_router_sender(&self) -> Sender<(SocketAddr, Message)> {
         self.router_sender.clone()
+    }
+
+    pub fn connect(&mut self, addr: &SocketAddr) {
+        
     }
 
     pub fn add(
