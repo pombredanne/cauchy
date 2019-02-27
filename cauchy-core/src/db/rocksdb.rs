@@ -24,6 +24,7 @@ impl Database<RocksDb> for RocksDb {
     }
 
     fn put(&self, key: &Bytes, value: &Bytes) -> Result<(), Error> {
-        Ok(self.0.put(key, value)?)
+        self.0.put(key, value)?;
+        Ok(())
     }
 }

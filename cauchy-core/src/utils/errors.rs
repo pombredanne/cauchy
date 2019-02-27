@@ -79,7 +79,13 @@ pub enum SystemError {
 }
 
 // Connection Errors
-#[derive(Debug)]
+#[derive(Debug, Fail)]
+#[fail(display = "socket not found")]
+pub struct SocketNotFound;
+
+// Connection Errors
+#[derive(Debug, Fail)]
+#[fail(display = "socket not found")]
 pub struct ConnectionAddError;
 
 #[derive(Debug, Fail)]

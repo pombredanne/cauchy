@@ -19,11 +19,11 @@ use std::str;
 use std::time::SystemTime;
 use std::vec::Vec;
 
-use core::primitives::transaction::Transaction;
-use core::db::storing::*;
-use core::db::rocksdb::RocksDb;
-use core::db::*;
 use bytes::Bytes;
+use core::db::rocksdb::RocksDb;
+use core::db::storing::*;
+use core::db::*;
+use core::primitives::transaction::Transaction;
 use std::sync::Arc;
 
 use crate::vmsnapshot::VMSnapshot;
@@ -31,7 +31,7 @@ use crate::vmsnapshot::VMSnapshot;
 pub struct VM {
     ret_bytes: Vec<u8>,
     txid: Vec<u8>,
-    tx_db: Arc<RocksDb>
+    tx_db: Arc<RocksDb>,
 }
 
 impl VM {
@@ -39,7 +39,7 @@ impl VM {
         VM {
             ret_bytes: vec![],
             txid: vec![],
-            tx_db
+            tx_db,
         }
     }
 
@@ -54,7 +54,7 @@ impl VM {
         let mut machine = DefaultMachine::<u64, SparseMemory>::default();
         machine.add_syscall_module(Box::new(VMSyscalls {
             txid: self.txid.to_vec(),
-            tx_db: self.tx_db.clone()
+            tx_db: self.tx_db.clone(),
         }));
         let result = machine.run(buffer, args);
         self.ret_bytes = machine.get_retbytes().to_vec();
@@ -101,7 +101,7 @@ impl VM {
         machine.load_elf(&buffer).unwrap();
         machine.add_syscall_module(Box::new(VMSyscalls {
             txid: self.txid.to_vec(),
-            tx_db: self.tx_db.clone()
+            tx_db: self.tx_db.clone(),
         }));
         machine.initialize_stack(
             &vec![],
@@ -130,7 +130,7 @@ pub trait Retbytes {
 
 struct VMSyscalls {
     txid: Vec<u8>,
-    tx_db: Arc<RocksDb>
+    tx_db: Arc<RocksDb>,
 }
 
 impl VMSyscalls {
@@ -483,7 +483,7 @@ fn test_freeze() {
 #[test]
 fn test_simple_contract() {
     let tx_db = RocksDb::open_db(".geodesic/tests/db_vm_test_simple_contract/").unwrap();
-    
+
     // let mut buffer = Vec::new();
     // File::open("tests/simple_contract")
     //     .unwrap()

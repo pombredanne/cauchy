@@ -1,11 +1,11 @@
 use bytes::Bytes;
+use crypto::hashes::*;
 use db::rocksdb::*;
 use db::*;
 use failure::Error;
 use primitives::transaction::*;
 use std::sync::Arc;
 use utils::serialisation::*;
-use crypto::hashes::*;
 
 pub trait Storable<U> {
     fn from_db(db: Arc<RocksDb>, id: &Bytes) -> Result<Option<U>, Error>;

@@ -1,5 +1,4 @@
 use bytes::{Bytes, BytesMut};
-use crypto::hashes::blake2b::Blk2bHashable;
 use crypto::sketches::*;
 use crypto::util;
 use utils::byte_ops::*;

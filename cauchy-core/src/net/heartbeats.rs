@@ -74,7 +74,6 @@ pub fn heartbeat_nonce(
     local_status: Arc<Status>,
     rec_status: Arc<RwLock<ReconciliationStatus>>,
     socket_pk: Arc<RwLock<PublicKey>>,
-    dummy_pk: PublicKey, // TODO: This shouldn't be the condition (it should be perceived pk)
     socket_addr: SocketAddr,
 ) -> impl futures::stream::Stream<Item = Message, Error = Error> {
     Interval::new_interval(Duration::new(
@@ -83,7 +82,7 @@ pub fn heartbeat_nonce(
     ))
     .filter(move |_| !rec_status.read().unwrap().is_live()) // Wait while reconciling
     .map(move |_| (local_status.get_nonce(), *socket_pk.read().unwrap()))
-    .filter(move |(_, sock_pk)| *sock_pk != dummy_pk)
+    // .filter(move |(_, sock_pk)| *sock_pk != dummy_pk) // TODO: Check whether socket has been handshaken
     .map(move |(current_nonce, sock_pk)| {
         let arena_r = &*arena.read().unwrap();
         let perception = arena_r.get_perception(&sock_pk);
@@ -137,7 +136,7 @@ pub fn spawn_heartbeat_reconcile(
 
         let connection_manager_inner = connection_manager.clone();
         let connection_manager_read = &*connection_manager_inner.read().unwrap();
-        let socket_addr = connection_manager_read.get_socket_by_pk(leader_pk);
+        let socket_addr = connection_manager_read.get_socket_by_pk(&leader_pk);
         let router_sender = connection_manager_read.get_router_sender();
 
         (socket_addr, router_sender, leader_pk)

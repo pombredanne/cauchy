@@ -76,9 +76,6 @@ impl Decodable for DummySketch {
 
 impl From<(HashSet<Bytes>, HashSet<Bytes>)> for DummySketch {
     fn from((pos_set, neg_set): (HashSet<Bytes>, HashSet<Bytes>)) -> DummySketch {
-        DummySketch {
-            pos_set,
-            neg_set
-        }
+        DummySketch { pos_set, neg_set }
     }
 }

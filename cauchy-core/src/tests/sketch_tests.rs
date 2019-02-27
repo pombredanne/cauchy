@@ -1,14 +1,14 @@
 mod odd_sketch {
     use bytes::Bytes;
+    use crypto::hashes::blake2b::*;
+    use crypto::hashes::*;
     use crypto::sketches::odd_sketch::*;
     use crypto::sketches::*;
-    use crypto::hashes::*;
-    use crypto::hashes::blake2b::*;
     use rand::Rng;
 
     #[derive(Clone)]
     pub struct DummyHolder {
-        b: Bytes
+        b: Bytes,
     }
 
     impl DummyHolder {
@@ -16,7 +16,7 @@ mod odd_sketch {
             let mut rng = rand::thread_rng();
             let rand_dat: [u8; 8] = rng.gen();
             DummyHolder {
-                b: Bytes::from(&rand_dat[..])
+                b: Bytes::from(&rand_dat[..]),
             }
         }
     }
@@ -67,16 +67,16 @@ mod odd_sketch {
 
 mod sketch_interaction {
     use bytes::Bytes;
+    use crypto::hashes::blake2b::*;
+    use crypto::hashes::*;
     use crypto::sketches::dummy_sketch::*;
     use crypto::sketches::odd_sketch::*;
     use crypto::sketches::*;
-    use crypto::hashes::*;
-    use crypto::hashes::blake2b::*;
     use rand::Rng;
 
     #[derive(Clone)]
     pub struct DummyHolder {
-        b: Bytes
+        b: Bytes,
     }
 
     impl DummyHolder {
@@ -84,7 +84,7 @@ mod sketch_interaction {
             let mut rng = rand::thread_rng();
             let rand_dat: [u8; 8] = rng.gen();
             DummyHolder {
-                b: Bytes::from(&rand_dat[..])
+                b: Bytes::from(&rand_dat[..]),
             }
         }
     }

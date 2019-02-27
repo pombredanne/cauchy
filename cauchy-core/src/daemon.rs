@@ -67,19 +67,17 @@ pub fn server(
             println!("New server socket to {}", socket_addr);
         }
 
-        // Add new peer with dummy pubkey
-        let dummy_pk = ecdsa::generate_dummy_pubkey();
-        let socket_pk = Arc::new(RwLock::new(dummy_pk));
-        let socket_pk_read = *socket_pk.read().unwrap();
-        let mut arena_w = arena.write().unwrap();
-        (*arena_w).new_peer(&socket_pk_read);
-        drop(arena_w);
-
         // Pair socket in connection manager
         let mut connection_manager_write_locked = connection_manager.write().unwrap();
-        let (secret, impulse_recv) = connection_manager_write_locked
-            .add(&socket_addr, socket_pk.clone())
-            .unwrap();
+        let mut arena_w = arena.write().unwrap();
+        let (impulse_recv, socket_pk) = connection_manager_write_locked.add(&socket_addr).unwrap();
+        let socket_pk_read = *socket_pk.read().unwrap();
+        (*arena_w).new_peer(&socket_pk_read);
+
+        // Send handshake
+        connection_manager_write_locked.send_handshake(&socket_addr);
+
+        drop(arena_w);
         drop(connection_manager_write_locked);
 
         // Frame the socket
@@ -101,7 +99,6 @@ pub fn server(
             local_status.clone(),
             rec_status.clone(),
             socket_pk.clone(),
-            dummy_pk,
             socket_addr,
         );
 
@@ -110,6 +107,7 @@ pub fn server(
         let arena_inner = arena.clone();
         let rec_status_inner = rec_status.clone();
         let local_status_inner = local_status.clone();
+        let connection_manager_inner = connection_manager.clone();
         let received_stream = received_stream.filter(move |msg| match msg {
             Message::StartHandshake { .. } => {
                 if DAEMON_VERBOSE {
@@ -122,26 +120,27 @@ pub fn server(
                     println!("Received handshake finalisation from {}", socket_addr);
                 }
 
-                // Add peer to arena
-                let secret_msg = ecdsa::message_from_preimage(Bytes::from(VarInt::new(secret)));
-                if ecdsa::verify(&secret_msg, sig, pubkey).unwrap() {
-                    if DAEMON_VERBOSE {
-                        println!("Handshake completed with {}", socket_addr);
-                    }
-                    // If peer correctly signs our secret we upgrade them from a dummy pk
+                // If peer correctly signs our secret we upgrade them from a dummy pk
+                let mut connection_manager_write_locked = connection_manager_inner.write().unwrap();
+                if connection_manager_write_locked
+                    .check_handshake(arena_inner.clone(), &socket_addr, sig, pubkey)
+                    .unwrap()
+                {
                     let arena_inner = arena_inner.clone();
 
                     let mut arena_write = arena_inner.write().unwrap();
                     let socket_pk_read = *socket_pk.read().unwrap();
                     (*arena_write).replace_key(&socket_pk_read, &pubkey);
                     drop(arena_write);
-                    let mut socket_pk_write_locked = socket_pk.write().unwrap();
-                    *socket_pk_write_locked = *pubkey;
+                    if DAEMON_VERBOSE {
+                        println!("Handshake completed with {}", socket_addr);
+                    }
                 } else {
                     if DAEMON_VERBOSE {
                         println!("Handshake failed with {}", socket_addr);
                     }
                 }
+                // TODO: Reply with return StartHandshake?
                 false
             }
             Message::Nonce { nonce } => {
@@ -206,7 +205,6 @@ pub fn server(
                             None => return false,
                         };
                         rec_status_read.final_update(local_status_inner.clone(), perception)
-
                     } else {
                         if DAEMON_VERBOSE {
                             println!("Payload is invalid.");
@@ -253,7 +251,10 @@ pub fn server(
 
                 // Remove reconcilee
                 let socket_pk_read = *socket_pk_inner.read().unwrap();
-                rec_status_inner.write().unwrap().remove_reconcilee(&socket_pk_read);
+                rec_status_inner
+                    .write()
+                    .unwrap()
+                    .remove_reconcilee(&socket_pk_read);
 
                 let mut txs = HashSet::with_capacity(ids.len());
                 for id in ids {
@@ -327,8 +328,11 @@ pub fn server(
                         println!("Valid Minisketch");
                     }
                     // Set expected IDs
-                    rec_status_inner.write().unwrap().set_ids(&excess_actor_ids, &missing_actor_ids);
-                    
+                    rec_status_inner
+                        .write()
+                        .unwrap()
+                        .set_ids(&excess_actor_ids, &missing_actor_ids);
+
                     Ok(Message::GetTransactions {
                         ids: missing_actor_ids,
                     })
@@ -348,7 +352,10 @@ pub fn server(
 
                 // Add to reconcilee
                 let socket_pk_read = *socket_pk_inner.read().unwrap();
-                rec_status_inner.write().unwrap().add_reconcilee(&socket_pk_read);
+                rec_status_inner
+                    .write()
+                    .unwrap()
+                    .add_reconcilee(&socket_pk_read);
 
                 // Send the perceived minisketch
                 let arena_r = arena_inner.read().unwrap();

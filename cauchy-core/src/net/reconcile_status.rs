@@ -1,22 +1,22 @@
 use bytes::Bytes;
+use crypto::hashes::*;
 use crypto::signatures::ecdsa::generate_dummy_pubkey;
+use primitives::status::*;
 use primitives::transaction::*;
 use secp256k1::PublicKey;
 use std::collections::HashSet;
-use crypto::hashes::*;
 use std::sync::Arc;
-use primitives::status::*;
 
-use crypto::sketches::*;
-use crypto::sketches::odd_sketch::*;
 use crypto::sketches::dummy_sketch::*;
+use crypto::sketches::odd_sketch::*;
+use crypto::sketches::*;
 
 pub struct ReconciliationStatus {
     live: bool,
     target: PublicKey,
     missing_ids: HashSet<Bytes>,
     excess_ids: HashSet<Bytes>,
-    reconcilees: HashSet<PublicKey>
+    reconcilees: HashSet<PublicKey>,
 }
 
 impl ReconciliationStatus {
@@ -27,7 +27,7 @@ impl ReconciliationStatus {
             target: dummy_pk,
             missing_ids: HashSet::new(),
             excess_ids: HashSet::new(),
-            reconcilees: HashSet::new()
+            reconcilees: HashSet::new(),
         }
     }
 
@@ -63,14 +63,14 @@ impl ReconciliationStatus {
         let perceived_mini_sketch = perception.get_mini_sketch();
         local_status.update_odd_sketch(
             perceived_odd_sketch
-            .xor(&OddSketch::sketch_ids(&self.excess_ids))
-            .xor(&OddSketch::sketch_ids(&self.missing_ids))
+                .xor(&OddSketch::sketch_ids(&self.excess_ids))
+                .xor(&OddSketch::sketch_ids(&self.missing_ids)),
         );
-        
-        let mut new_mini_sketch = perceived_mini_sketch - DummySketch::from((self.excess_ids.clone(), self.missing_ids.clone()));
+
+        let mut new_mini_sketch = perceived_mini_sketch
+            - DummySketch::from((self.excess_ids.clone(), self.missing_ids.clone()));
         new_mini_sketch.collect();
         local_status.update_mini_sketch(new_mini_sketch)
-
     }
 
     pub fn missing_ids_eq(&self, other: &HashSet<Transaction>) -> bool {

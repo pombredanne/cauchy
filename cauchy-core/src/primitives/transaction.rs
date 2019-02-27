@@ -2,7 +2,6 @@ use bytes::Bytes;
 use crypto::hashes::blake2b::Blk2bHashable;
 use crypto::hashes::*;
 
-
 /*
                                       v Auxillary Data               v Binary
     VarInt    ||    VarInt    ||    Bytes    ||    VarInt    ||    Bytes

@@ -1,5 +1,4 @@
 use bus::BusReader;
-use bytes::Bytes;
 use crossbeam::channel::Sender;
 
 use crypto::sketches::odd_sketch::*;
