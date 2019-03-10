@@ -8,13 +8,15 @@ use utils::byte_ops::Hamming;
 #[derive(Debug, Clone)]
 pub struct WorkSite {
     public_key: PublicKey,
+    root: Bytes,
     nonce: Cell<u64>,
 }
 
 impl WorkSite {
-    pub fn new(pk: PublicKey, nonce: u64) -> WorkSite {
+    pub fn new(public_key: PublicKey, root: Bytes, nonce: u64) -> WorkSite {
         WorkSite {
-            public_key: pk,
+            public_key,
+            root,
             nonce: Cell::new(nonce),
         }
     }
@@ -29,6 +31,10 @@ impl WorkSite {
 
     pub fn get_public_key(&self) -> PublicKey {
         self.public_key
+    }
+
+    pub fn get_root(&self) -> Bytes {
+        self.root.clone()
     }
 
     pub fn get_nonce(&self) -> u64 {

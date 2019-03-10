@@ -1,4 +1,5 @@
 use bus::BusReader;
+use bytes::Bytes;
 use crossbeam::channel::Sender;
 
 use crypto::sketches::odd_sketch::*;
@@ -10,34 +11,35 @@ use primitives::work_site::WorkSite;
 
 pub fn mine(
     public_key: PublicKey,
-    mut sketch_rx: BusReader<OddSketch>,
+    mut sketch_rx: BusReader<(OddSketch, Bytes)>,
     record_sender: Sender<(u64, u16)>,
     start_nonce: u64,
     step: u64,
 ) {
-    let work_site = WorkSite::new(public_key, start_nonce);
     println!("Start mining...");
 
     let mut best_nonce: u64 = 0;
     let mut best_distance: u16 = 512;
 
-    let pk = work_site.get_public_key();
-
     let mut current_distance: u16;
-    let mut current_sketch: OddSketch = sketch_rx.recv().unwrap();
+    let (mut current_oddsketch, mut current_root) = sketch_rx.recv().unwrap();
+
+    let work_site = WorkSite::new(public_key, current_root, start_nonce);
 
     loop {
         {
             match sketch_rx.try_recv() {
-                Ok(sketch) => {
-                    current_sketch = sketch;
-                    current_distance = WorkSite::new(pk, best_nonce).mine(&current_sketch);
+                Ok((new_oddsketch, new_root)) => {
+                    current_oddsketch = new_oddsketch;
+                    current_root = new_root;
+                    current_distance = WorkSite::new(public_key, current_root, best_nonce)
+                        .mine(&current_oddsketch);
 
                     record_sender.send((best_nonce, current_distance));
                     best_distance = current_distance;
                 }
                 Err(_) => {
-                    current_distance = work_site.mine(&current_sketch);
+                    current_distance = work_site.mine(&current_oddsketch);
                     if current_distance < best_distance {
                         best_nonce = work_site.get_nonce();
                         record_sender.send((best_nonce, current_distance));

@@ -10,50 +10,70 @@ use crypto::sketches::*;
 use primitives::transaction::Transaction;
 use primitives::work_site::WorkSite;
 
+use utils::constants::HASH_LEN;
+
 use secp256k1::PublicKey;
 
 use std::sync::RwLock;
 
+#[derive(PartialEq, Clone)]
+pub struct TotalSketch {
+    pub oddsketch: OddSketch,
+    pub minisketch: DummySketch, // When status is professed we need not store the minisketch?
+    pub root: Bytes,
+}
+
+pub struct Update {
+    pub oddsketch: OddSketch,
+    pub root: Bytes,
+    pub nonce: u64,
+}
+
 pub struct Status {
     nonce: RwLock<u64>,
-    odd_sketch: RwLock<OddSketch>,
-    mini_sketch: RwLock<DummySketch>,
+    sketch: RwLock<TotalSketch>,
 }
 
 impl Status {
-    pub fn new(
-        nonce: RwLock<u64>,
-        odd_sketch: RwLock<OddSketch>,
-        mini_sketch: RwLock<DummySketch>,
-    ) -> Status {
-        Status {
-            nonce,
-            odd_sketch,
-            mini_sketch,
-        }
+    pub fn new(nonce: RwLock<u64>, sketch: RwLock<TotalSketch>) -> Status {
+        Status { nonce, sketch }
     }
 
     pub fn null() -> Status {
         Status {
             nonce: RwLock::new(0),
-            odd_sketch: RwLock::new(OddSketch::new()),
-            mini_sketch: RwLock::new(DummySketch::new()),
+            sketch: RwLock::new(TotalSketch {
+                oddsketch: OddSketch::new(),
+                minisketch: DummySketch::new(),
+                root: Bytes::from(&[0; HASH_LEN][..]),
+            }),
         }
     }
 
-    pub fn add_to_odd_sketch<T: Identifiable>(&self, item: &T) {
-        let mut sketch_locked = self.odd_sketch.write().unwrap();
-        sketch_locked.insert(item);
+    pub fn add_item<T: Identifiable>(&self, item: &T, root: Bytes) {
+        let mut sketch_locked = self.sketch.write().unwrap();
+        sketch_locked.oddsketch.insert(item);
+        sketch_locked.minisketch.insert(item);
+        sketch_locked.root = root;
     }
 
-    pub fn update_odd_sketch(&self, odd_sketch: OddSketch) {
-        let mut sketch_locked = self.odd_sketch.write().unwrap();
-        *sketch_locked = odd_sketch;
+    // Update oddsketch, root and minisketch
+    pub fn update_total_sketch(&self, total_sketch: &TotalSketch) {
+        let mut sketch_locked = self.sketch.write().unwrap();
+        *sketch_locked = total_sketch.clone();
     }
 
-    pub fn update_mini_sketch(&self, mini_sketch: DummySketch) {
-        let mut sketch_locked = self.mini_sketch.write().unwrap();
-        *sketch_locked = mini_sketch;
+    // Update oddsketch, root and nonce
+    pub fn update(&self, update: Update) {
+        let mut sketch_locked = self.sketch.write().unwrap();
+        let minisketch = sketch_locked.minisketch.clone();
+        *sketch_locked = TotalSketch {
+            oddsketch: update.oddsketch,
+            minisketch,
+            root: update.root,
+        };
+        let mut nonce_locked = self.nonce.write().unwrap();
+        *nonce_locked = update.nonce;
     }
 
     pub fn update_nonce(&self, nonce: u64) {
@@ -61,24 +81,24 @@ impl Status {
         *nonce_locked = nonce;
     }
 
-    pub fn get_odd_sketch(&self) -> OddSketch {
-        let sketch_read = self.odd_sketch.read().unwrap();
-        sketch_read.clone()
+    pub fn get_total_sketch(&self) -> TotalSketch {
+        self.sketch.read().unwrap().clone()
     }
 
-    pub fn get_mini_sketch(&self) -> DummySketch {
-        let sketch_locked = self.mini_sketch.read().unwrap();
-        sketch_locked.clone()
+    pub fn get_oddsketch(&self) -> OddSketch {
+        let sketch_read = self.sketch.read().unwrap();
+        sketch_read.oddsketch.clone()
     }
 
-    pub fn add_to_mini_sketch<T: Identifiable>(&self, item: &T) {
-        let mut sketch_locked = self.mini_sketch.write().unwrap();
-        sketch_locked.insert(item);
+    pub fn get_minisketch(&self) -> DummySketch {
+        let sketch_locked = self.sketch.read().unwrap();
+        sketch_locked.minisketch.clone()
     }
 
     pub fn get_site_hash(&self, pubkey: PublicKey) -> Bytes {
-        let nonce_locked = self.nonce.read().unwrap();
-        let work_site = WorkSite::new(pubkey, *nonce_locked);
+        let nonce_read = *self.nonce.read().unwrap();
+        let sketch_read = self.sketch.read().unwrap();
+        let work_site = WorkSite::new(pubkey, sketch_read.root.clone(), nonce_read);
         work_site.get_site_hash()
     }
 
@@ -89,7 +109,7 @@ impl Status {
 
     pub fn update_local(
         &self,
-        mut odd_sketch_bus: Bus<OddSketch>,
+        mut odd_sketch_bus: Bus<(OddSketch, Bytes)>,
         tx_receive: Receiver<Transaction>,
         distance_receive: Receiver<(u64, u16)>,
     ) {
@@ -97,10 +117,10 @@ impl Status {
         loop {
             select! {
                 recv(tx_receive) -> tx => {
+                    let root = Bytes::from(&[0; 32][..]); // TODO: Actually get root
                     // TODO: These should be simulatenously locked/unlocked
-                    self.add_to_odd_sketch(&tx.clone().unwrap());
-                    self.add_to_mini_sketch(&tx.unwrap());
-                    odd_sketch_bus.broadcast(self.get_odd_sketch());
+                    self.add_item(&tx.unwrap(), root.clone());
+                    odd_sketch_bus.broadcast((self.get_oddsketch(), root));
                     best_distance = 512;
                 },
                 recv(distance_receive) -> pair => {

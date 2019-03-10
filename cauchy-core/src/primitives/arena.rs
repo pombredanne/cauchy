@@ -77,7 +77,7 @@ impl Arena {
             .map(|(pubkey, status)| {
                 let mut dist: u16 = 0;
                 for site_hash in site_hashes.iter().by_ref() {
-                    dist += Bytes::hamming_distance(&status.get_odd_sketch().into(), site_hash);
+                    dist += Bytes::hamming_distance(&status.get_oddsketch().into(), site_hash);
                 }
                 (*pubkey, dist)
             })

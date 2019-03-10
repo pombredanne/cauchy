@@ -14,7 +14,7 @@ use utils::constants::*;
 use failure::Error;
 use utils::errors::{HeartBeatNonceError, HeartBeatOddSketchError};
 
-pub fn heartbeat_oddsketch(
+pub fn heartbeat_update(
     arena: Arc<RwLock<Arena>>,
     local_status: Arc<Status>,
     rec_status: Arc<RwLock<ReconciliationStatus>>,
@@ -34,80 +34,42 @@ pub fn heartbeat_oddsketch(
     }) // Wait while reconciling or while sending to reconcilee
     .map(move |sock_pk| {
         (
-            local_status.get_odd_sketch(),
-            local_status.get_mini_sketch(), // TODO: This is not garaunteed to be ~ to the odd sketch? What if it's updated between these calls?
+            local_status.get_total_sketch(),
+            local_status.get_nonce(),
             sock_pk,
         )
     })
-    .map(move |(current_odd_sketch, current_mini_sketch, sock_pk)| {
+    .map(move |(current_total_sketch, current_nonce, sock_pk)| {
         let arena_r = &*arena.read().unwrap();
         let perception = arena_r.get_perception(&sock_pk);
 
-        (current_odd_sketch, current_mini_sketch, perception)
+        (current_total_sketch, current_nonce, perception)
     })
-    .filter(move |(current_odd_sketch, _, perception)| {
+    .filter(move |(current_total_sketch, current_nonce, perception)| {
         // Check whether peers perception of own nonce needs updating
         match perception {
-            Some(some) => *current_odd_sketch != some.get_odd_sketch(),
+            Some(some) => {
+                (*current_total_sketch != some.get_total_sketch())
+                    || (*current_nonce != some.get_nonce())
+            } // TODO: Only send nonce if only nonce changes
             None => false,
         }
     })
-    .map(
-        move |(current_odd_sketch, current_mini_sketch, perception)| {
-            if HEARTBEAT_VERBOSE {
-                println!("Sending odd sketch to {}", socket_addr);
-            }
-            // Update perception and send msg
-            let perception = perception.unwrap();
-            perception.update_odd_sketch(current_odd_sketch.clone());
-            perception.update_mini_sketch(current_mini_sketch);
-            Message::OddSketch {
-                sketch: current_odd_sketch,
-            }
-        },
-    )
-    .map_err(|_| HeartBeatOddSketchError.into())
-}
-
-pub fn heartbeat_nonce(
-    arena: Arc<RwLock<Arena>>,
-    local_status: Arc<Status>,
-    rec_status: Arc<RwLock<ReconciliationStatus>>,
-    socket_pk: Arc<RwLock<PublicKey>>,
-    socket_addr: SocketAddr,
-) -> impl futures::stream::Stream<Item = Message, Error = Error> {
-    Interval::new_interval(Duration::new(
-        NONCE_HEARTBEAT_PERIOD_SEC,
-        NONCE_HEARTBEAT_PERIOD_NANO,
-    ))
-    .filter(move |_| !rec_status.read().unwrap().is_live()) // Wait while reconciling
-    .map(move |_| (local_status.get_nonce(), *socket_pk.read().unwrap()))
-    // .filter(move |(_, sock_pk)| *sock_pk != dummy_pk) // TODO: Check whether socket has been handshaken
-    .map(move |(current_nonce, sock_pk)| {
-        let arena_r = &*arena.read().unwrap();
-        let perception = arena_r.get_perception(&sock_pk);
-
-        (current_nonce, perception)
-    })
-    .filter(move |(current_nonce, perception)| {
-        // Check whether peers perception of own nonce needs updating
-        match perception {
-            Some(some) => *current_nonce != some.get_nonce(),
-            None => false,
-        }
-    })
-    .map(move |(current_nonce, perception)| {
+    .map(move |(current_total_sketch, current_nonce, perception)| {
         if HEARTBEAT_VERBOSE {
-            println!("Sending nonce to {}", socket_addr);
+            println!("Sending odd sketch to {}", socket_addr);
         }
-
         // Update perception and send msg
-        perception.unwrap().update_nonce(current_nonce);
-        Message::Nonce {
+        let perception = perception.unwrap();
+
+        perception.update_total_sketch(&current_total_sketch);
+        Message::Update {
+            oddsketch: current_total_sketch.oddsketch.clone(),
+            root: current_total_sketch.root.clone(),
             nonce: current_nonce,
         }
     })
-    .map_err(|_| HeartBeatNonceError.into())
+    .map_err(|_| HeartBeatOddSketchError.into())
 }
 
 // TODO: How does this thread die?

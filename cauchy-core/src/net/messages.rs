@@ -18,14 +18,31 @@ use failure::Error;
 use utils::errors::MalformedMessageError;
 
 pub enum Message {
-    StartHandshake { secret: u64 }, // 0 || Secret VarInt
-    EndHandshake { pubkey: PublicKey, sig: Signature }, // 1 || Pk || Sig
-    Nonce { nonce: u64 },           // 2 || nonce VarInt
-    OddSketch { sketch: OddSketch }, // 3 || Sketch
-    MiniSketch { mini_sketch: DummySketch }, // 4 || Number of Rows VarInt || IBLT
-    GetTransactions { ids: HashSet<Bytes> }, // 5 || Number of Ids VarInt || Ids
-    Transactions { txs: HashSet<Transaction> }, // 6 || Number of Bytes VarInt || Tx ...
-    Reconcile,                      // 7
+    StartHandshake {
+        secret: u64,
+    }, // 0 || Secret VarInt
+    EndHandshake {
+        pubkey: PublicKey,
+        sig: Signature,
+    }, // 1 || Pk || Sig
+    Nonce {
+        nonce: u64,
+    }, // 2 || nonce VarInt
+    Update {
+        oddsketch: OddSketch,
+        root: Bytes,
+        nonce: u64,
+    }, // 3 || OddSketch || Root || Nonce
+    MiniSketch {
+        mini_sketch: DummySketch,
+    }, // 4 || Number of Rows VarInt || IBLT
+    GetTransactions {
+        ids: HashSet<Bytes>,
+    }, // 5 || Number of Ids VarInt || Ids
+    Transactions {
+        txs: HashSet<Transaction>,
+    }, // 6 || Number of Bytes VarInt || Tx ...
+    Reconcile, // 7
 }
 
 pub struct MessageCodec;
@@ -60,14 +77,20 @@ impl Encoder for MessageCodec {
                 dst.put_u8(2);
                 dst.extend(Bytes::from(VarInt::new(nonce)));
             }
-            Message::OddSketch { sketch } => {
+            Message::Update {
+                oddsketch,
+                root,
+                nonce,
+            } => {
                 if ENCODING_VERBOSE {
                     println!("Encoding OddSketch");
                 }
                 dst.put_u8(3);
                 // TODO: Variable length
                 //dst.extend(Bytes::from(VarInt::new(sketch.len() as u64)));
-                dst.extend(Bytes::from(sketch));
+                dst.extend(Bytes::from(oddsketch));
+                dst.extend(root);
+                dst.extend(Bytes::from(VarInt::new(nonce)));
             }
             Message::MiniSketch { mini_sketch } => {
                 if ENCODING_VERBOSE {
@@ -169,10 +192,21 @@ impl Decoder for MessageCodec {
                 }
                 let mut sketch_dst = [0; SKETCH_CAPACITY];
                 buf.copy_to_slice(&mut sketch_dst);
-                let msg = Message::OddSketch {
-                    sketch: OddSketch::from(&sketch_dst[..]),
+
+                let mut root_dst = [0; HASH_LEN];
+                buf.copy_to_slice(&mut sketch_dst);
+
+                let (nonce_vi, len) = match VarInt::parse_buf(&mut buf)? {
+                    Some(some) => some,
+                    None => return Ok(None),
                 };
-                src.advance(1 + SKETCH_CAPACITY);
+
+                let msg = Message::Update {
+                    oddsketch: OddSketch::from(&sketch_dst[..]),
+                    root: Bytes::from(&root_dst[..]),
+                    nonce: u64::from(nonce_vi),
+                };
+                src.advance(1 + SKETCH_CAPACITY + HASH_LEN + len);
                 Ok(Some(msg))
             }
             4 => {

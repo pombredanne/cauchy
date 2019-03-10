@@ -121,9 +121,10 @@ impl TryFrom<Bytes> for Transaction {
 
 impl From<WorkSite> for Bytes {
     fn from(work_site: WorkSite) -> Bytes {
-        let mut buf = BytesMut::with_capacity(PUBKEY_LEN + 8);
+        let mut buf = BytesMut::with_capacity(PUBKEY_LEN + 32 + 8);
         let pk = bytes_from_pubkey(work_site.get_public_key());
         buf.extend_from_slice(&pk[..]);
+        buf.extend_from_slice(&work_site.get_root());
         buf.put_u64_be(work_site.get_nonce());
         buf.freeze()
     }

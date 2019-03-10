@@ -13,6 +13,7 @@ use net::messages::*;
 use net::reconcile_status::*;
 use primitives::arena::Arena;
 use primitives::status::Status;
+use primitives::status::Update;
 use primitives::transaction::Transaction;
 use primitives::varint::VarInt;
 use secp256k1::{PublicKey, SecretKey};
@@ -85,16 +86,7 @@ pub fn server(
         let (sink, received_stream) = framed_sock.split();
 
         // Heartbeat OddSketch
-        let odd_sketch_stream = heartbeat_oddsketch(
-            arena.clone(),
-            local_status.clone(),
-            rec_status.clone(),
-            socket_pk.clone(),
-            socket_addr,
-        );
-
-        // Heartbeat Nonce
-        let nonce_stream = heartbeat_nonce(
+        let update_stream = heartbeat_update(
             arena.clone(),
             local_status.clone(),
             rec_status.clone(),
@@ -149,19 +141,27 @@ pub fn server(
                 }
 
                 // Update nonce
-                let socket_pk_locked = *socket_pk.read().unwrap();
+                let socket_pk_read = *socket_pk.read().unwrap();
                 let nonce = *nonce;
-                command_peer!(arena_inner, socket_pk_locked, update_nonce, nonce);
+                command_peer!(arena_inner, socket_pk_read, update_nonce, nonce);
                 false
             }
-            Message::OddSketch { sketch } => {
+            Message::Update {
+                oddsketch,
+                root,
+                nonce,
+            } => {
                 if DAEMON_VERBOSE {
-                    println!("Received odd sketch from {}", socket_addr);
+                    println!("Received half sketch from {}", socket_addr);
                 }
                 // Update state sketch
-                let socket_pk_locked = *socket_pk.read().unwrap();
-                let sketch = sketch.clone();
-                command_peer!(arena_inner, socket_pk_locked, update_odd_sketch, sketch);
+                let socket_pk_read = *socket_pk.read().unwrap();
+                let new_update = Update {
+                    oddsketch: oddsketch.clone(),
+                    root: root.clone(),
+                    nonce: *nonce,
+                };
+                command_peer!(arena_inner, socket_pk_read, update, new_update);
                 false
             }
             Message::MiniSketch { .. } => {
@@ -300,16 +300,13 @@ pub fn server(
                     Some(some) => some,
                     None => return Err(DaemonError::Perceptionless.into()),
                 };
-                let peer_odd_sketch = arena_r
-                    .get_status(&socket_pk_read)
-                    .unwrap()
-                    .get_odd_sketch();
+                let peer_odd_sketch = arena_r.get_status(&socket_pk_read).unwrap().get_oddsketch();
 
                 // Decode difference
-                let perception_sketch = perception.get_mini_sketch();
+                let perception_sketch = perception.get_minisketch();
                 let (excess_actor_ids, missing_actor_ids) =
                     (perception_sketch - mini_sketch).decode().unwrap();
-                let perception_odd_sketch = perception.get_odd_sketch();
+                let perception_odd_sketch = perception.get_oddsketch();
 
                 if DAEMON_VERBOSE {
                     println!(
@@ -365,7 +362,7 @@ pub fn server(
                     None => return Err(DaemonError::Perceptionless.into()),
                 };
                 Ok(Message::MiniSketch {
-                    mini_sketch: perception.get_mini_sketch(),
+                    mini_sketch: perception.get_minisketch(),
                 })
             }
             _ => unreachable!(),
@@ -373,10 +370,7 @@ pub fn server(
 
         // Remove failed responses and merge with heartbeats
         let response_stream = response_stream.filter(|x| x.is_ok()).map(|x| x.unwrap());
-        let out_stream = response_stream
-            .select(odd_sketch_stream)
-            .select(nonce_stream)
-            .select(impulse_recv);
+        let out_stream = response_stream.select(update_stream).select(impulse_recv);
 
         // Send responses
         let send = sink.send_all(out_stream).map(|_| ()).or_else(|e| {

@@ -39,7 +39,7 @@ fn main() {
 
     let (distance_send, distance_recv) = channel::unbounded();
     let mut odd_sketch_bus = Bus::new(10);
-    let n_mining_threads: u64 = 0;
+    let n_mining_threads: u64 = 1;
 
     for i in 0..n_mining_threads {
         let distance_send_c = distance_send.clone();
