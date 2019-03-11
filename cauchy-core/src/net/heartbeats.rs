@@ -22,8 +22,8 @@ pub fn heartbeat_update(
     socket_addr: SocketAddr,
 ) -> impl futures::stream::Stream<Item = Message, Error = Error> {
     Interval::new_interval(Duration::new(
-        ODDSKETCH_HEARTBEAT_PERIOD_SEC,
-        ODDSKETCH_HEARTBEAT_PERIOD_NANO,
+        UPDATE_HEARTBEAT_PERIOD_SEC,
+        UPDATE_HEARTBEAT_PERIOD_NANO,
     ))
     .map(move |_| *socket_pk.read().unwrap())
     .filter(move |sock_pk| {
@@ -69,7 +69,7 @@ pub fn heartbeat_update(
             nonce: current_nonce,
         }
     })
-    .map_err(|_| HeartBeatOddSketchError.into())
+    .map_err(|_| HeartBeatUpdateError.into())
 }
 
 // TODO: How does this thread die?
