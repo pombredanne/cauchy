@@ -288,7 +288,7 @@ pub fn server(
                 }
                 Ok(Message::Transactions { txs })
             }
-            Message::MiniSketch { mini_sketch } => {
+            Message::MiniSketch { minisketch } => {
                 if DAEMON_VERBOSE {
                     println!("Sending transactions request to {}", socket_addr);
                 }
@@ -300,13 +300,13 @@ pub fn server(
                     Some(some) => some,
                     None => return Err(DaemonError::Perceptionless.into()),
                 };
-                let peer_odd_sketch = arena_r.get_status(&socket_pubkey_read).unwrap().get_oddsketch();
+                let peer_oddsketch = arena_r.get_status(&socket_pubkey_read).unwrap().get_oddsketch();
 
                 // Decode difference
                 let perception_sketch = perception.get_minisketch();
                 let (excess_actor_ids, missing_actor_ids) =
-                    (perception_sketch - mini_sketch).decode().unwrap();
-                let perception_odd_sketch = perception.get_oddsketch();
+                    (perception_sketch - minisketch).decode().unwrap();
+                let perception_oddsketch = perception.get_oddsketch();
 
                 if DAEMON_VERBOSE {
                     println!(
@@ -319,7 +319,7 @@ pub fn server(
                 // Check for fraud
                 if OddSketch::sketch_ids(&excess_actor_ids)
                     .xor(&OddSketch::sketch_ids(&missing_actor_ids))
-                    == perception_odd_sketch.xor(&peer_odd_sketch)
+                    == perception_oddsketch.xor(&peer_oddsketch)
                 {
                     if DAEMON_VERBOSE {
                         println!("Valid Minisketch");
@@ -362,7 +362,7 @@ pub fn server(
                     None => return Err(DaemonError::Perceptionless.into()),
                 };
                 Ok(Message::MiniSketch {
-                    mini_sketch: perception.get_minisketch(),
+                    minisketch: perception.get_minisketch(),
                 })
             }
             _ => unreachable!(),

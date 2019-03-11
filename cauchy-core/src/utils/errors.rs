@@ -48,7 +48,7 @@ pub struct VarIntDeserialisationError;
 
 // Heartbeat Errors
 #[derive(Debug, Fail)]
-#[fail(display = "odd sketch heart failure")]
+#[fail(display = "work heart failure")]
 pub struct HeartBeatWorkError;
 
 #[derive(Debug, Fail)]

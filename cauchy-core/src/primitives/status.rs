@@ -17,7 +17,7 @@ use secp256k1::PublicKey;
 use std::sync::RwLock;
 
 #[derive(PartialEq, Clone)]
-pub struct TotalSketch {
+pub struct AllSketch {
     pub oddsketch: OddSketch,
     pub minisketch: DummySketch, // When status is professed we need not store the minisketch?
     pub root: Bytes,
@@ -31,18 +31,18 @@ pub struct Work {
 
 pub struct Status {
     nonce: RwLock<u64>,
-    sketch: RwLock<TotalSketch>,
+    sketch: RwLock<AllSketch>,
 }
 
 impl Status {
-    pub fn new(nonce: RwLock<u64>, sketch: RwLock<TotalSketch>) -> Status {
+    pub fn new(nonce: RwLock<u64>, sketch: RwLock<AllSketch>) -> Status {
         Status { nonce, sketch }
     }
 
     pub fn null() -> Status {
         Status {
             nonce: RwLock::new(0),
-            sketch: RwLock::new(TotalSketch {
+            sketch: RwLock::new(AllSketch {
                 oddsketch: OddSketch::new(),
                 minisketch: DummySketch::new(),
                 root: Bytes::from(&[0; HASH_LEN][..]),
@@ -58,16 +58,16 @@ impl Status {
     }
 
     // Update oddsketch, root and minisketch
-    pub fn update_total_sketch(&self, total_sketch: &TotalSketch) {
+    pub fn update_all_sketch(&self, all_sketch: &AllSketch) {
         let mut sketch_locked = self.sketch.write().unwrap();
-        *sketch_locked = total_sketch.clone();
+        *sketch_locked = all_sketch.clone();
     }
 
     // Update oddsketch, root and nonce
     pub fn update_work(&self, work: Work) {
         let mut sketch_locked = self.sketch.write().unwrap();
         let minisketch = sketch_locked.minisketch.clone();
-        *sketch_locked = TotalSketch {
+        *sketch_locked = AllSketch {
             oddsketch: work.oddsketch,
             minisketch,
             root: work.root,
@@ -81,7 +81,7 @@ impl Status {
         *nonce_locked = nonce;
     }
 
-    pub fn get_total_sketch(&self) -> TotalSketch {
+    pub fn get_all_sketch(&self) -> AllSketch {
         self.sketch.read().unwrap().clone()
     }
 
@@ -109,7 +109,7 @@ impl Status {
 
     pub fn update_local(
         &self,
-        mut odd_sketch_bus: Bus<(OddSketch, Bytes)>,
+        mut oddsketch_bus: Bus<(OddSketch, Bytes)>,
         tx_receive: Receiver<Transaction>,
         distance_receive: Receiver<(u64, u16)>,
     ) {
@@ -120,7 +120,7 @@ impl Status {
                     let root = Bytes::from(&[0; 32][..]); // TODO: Actually get root
                     // TODO: These should be simulatenously locked/unlocked
                     self.add_item(&tx.unwrap(), root.clone());
-                    odd_sketch_bus.broadcast((self.get_oddsketch(), root));
+                    oddsketch_bus.broadcast((self.get_oddsketch(), root));
                     best_distance = 512;
                 },
                 recv(distance_receive) -> pair => {

@@ -1,4 +1,4 @@
-mod odd_sketch {
+mod oddsketch {
     use bytes::Bytes;
     use crypto::hashes::blake2b::*;
     use crypto::hashes::*;
@@ -117,15 +117,15 @@ mod sketch_interaction {
         let script_e = DummyHolder::new();
         let vec_a = vec![script_a.clone(), script_b, script_c.clone(), script_e];
         let vec_b = vec![script_a, script_c, script_d];
-        let odd_sketch_a = OddSketch::sketch(&vec_a);
-        let odd_sketch_b = OddSketch::sketch(&vec_b);
-        let dummy_sketch_a = DummySketch::sketch(&vec_a);
-        let dummy_sketch_b = DummySketch::sketch(&vec_b);
+        let oddsketch_a = OddSketch::sketch(&vec_a);
+        let oddsketch_b = OddSketch::sketch(&vec_b);
+        let dummysketch_a = DummySketch::sketch(&vec_a);
+        let dummysketch_b = DummySketch::sketch(&vec_b);
 
-        let (excess, missing) = (dummy_sketch_a - dummy_sketch_b).decode().unwrap();
+        let (excess, missing) = (dummysketch_a - dummysketch_b).decode().unwrap();
         assert_eq!(
             OddSketch::sketch_ids(&excess).xor(&OddSketch::sketch_ids(&missing)),
-            odd_sketch_a.xor(&odd_sketch_b)
+            oddsketch_a.xor(&oddsketch_b)
         )
     }
 }

@@ -34,7 +34,7 @@ pub enum Message {
         nonce: u64,
     }, // 3 || OddSketch || Root || Nonce
     MiniSketch {
-        mini_sketch: DummySketch,
+        minisketch: DummySketch,
     }, // 4 || Number of Rows VarInt || IBLT
     GetTransactions {
         ids: HashSet<Bytes>,
@@ -92,12 +92,12 @@ impl Encoder for MessageCodec {
                 dst.extend(root);
                 dst.extend(Bytes::from(VarInt::new(nonce)));
             }
-            Message::MiniSketch { mini_sketch } => {
+            Message::MiniSketch { minisketch } => {
                 if ENCODING_VERBOSE {
                     println!("Encoding MiniSketch");
                 }
                 dst.put_u8(4);
-                dst.extend(Bytes::from(mini_sketch))
+                dst.extend(Bytes::from(minisketch))
             }
             Message::GetTransactions { ids } => {
                 if ENCODING_VERBOSE {
@@ -213,12 +213,12 @@ impl Decoder for MessageCodec {
                 if DECODING_VERBOSE {
                     println!("Decoding MiniSketch");
                 }
-                let (mini_sketch, len) = match DummySketch::parse_buf(&mut buf)? {
+                let (minisketch, len) = match DummySketch::parse_buf(&mut buf)? {
                     Some(some) => some,
                     None => return Ok(None),
                 };
                 src.advance(1 + len);
-                let msg = Message::MiniSketch { mini_sketch };
+                let msg = Message::MiniSketch { minisketch };
                 Ok(Some(msg))
             }
             5 => {

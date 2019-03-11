@@ -34,38 +34,38 @@ pub fn heartbeat_work(
     }) // Wait while reconciling or while sending to reconcilee
     .map(move |sock_pk| {
         (
-            local_status.get_total_sketch(),
+            local_status.get_all_sketch(),
             local_status.get_nonce(),
             sock_pk,
         )
     })
-    .map(move |(current_total_sketch, current_nonce, sock_pk)| {
+    .map(move |(current_all_sketch, current_nonce, sock_pk)| {
         let arena_r = &*arena.read().unwrap();
         let perception = arena_r.get_perception(&sock_pk);
 
-        (current_total_sketch, current_nonce, perception)
+        (current_all_sketch, current_nonce, perception)
     })
-    .filter(move |(current_total_sketch, current_nonce, perception)| {
+    .filter(move |(current_all_sketch, current_nonce, perception)| {
         // Check whether peers perception of own nonce needs updating
         match perception {
             Some(some) => {
-                (*current_total_sketch != some.get_total_sketch())
+                (*current_all_sketch != some.get_all_sketch())
                     || (*current_nonce != some.get_nonce())
             } // TODO: Only send nonce if only nonce changes
             None => false,
         }
     })
-    .map(move |(current_total_sketch, current_nonce, perception)| {
+    .map(move |(current_all_sketch, current_nonce, perception)| {
         if HEARTBEAT_VERBOSE {
-            println!("Sending odd sketch to {}", socket_addr);
+            println!("Sending work to {}", socket_addr);
         }
         // Update perception and send msg
         let perception = perception.unwrap();
 
-        perception.update_total_sketch(&current_total_sketch);
+        perception.update_all_sketch(&current_all_sketch);
         Message::Work {
-            oddsketch: current_total_sketch.oddsketch.clone(),
-            root: current_total_sketch.root.clone(),
+            oddsketch: current_all_sketch.oddsketch.clone(),
+            root: current_all_sketch.root.clone(),
             nonce: current_nonce,
         }
     })

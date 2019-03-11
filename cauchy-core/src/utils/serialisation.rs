@@ -131,13 +131,13 @@ impl From<WorkSite> for Bytes {
 }
 
 impl From<DummySketch> for Bytes {
-    fn from(dummy_sketch: DummySketch) -> Bytes {
-        let pos_len = dummy_sketch.pos_len();
+    fn from(dummysketch: DummySketch) -> Bytes {
+        let pos_len = dummysketch.pos_len();
         let vi_pos_len = VarInt::from(pos_len);
         let mut buf = BytesMut::with_capacity(pos_len + vi_pos_len.len());
 
         buf.extend(&Bytes::from(vi_pos_len));
-        for item in dummy_sketch.get_pos() {
+        for item in dummysketch.get_pos() {
             buf.extend(item)
         }
         buf.freeze()

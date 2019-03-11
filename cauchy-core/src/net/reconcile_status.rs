@@ -71,7 +71,7 @@ impl ReconciliationStatus {
             .xor(&OddSketch::sketch_ids(&self.excess_ids))
             .xor(&OddSketch::sketch_ids(&self.missing_ids));
 
-        local_status.update_total_sketch(&TotalSketch {
+        local_status.update_all_sketch(&AllSketch {
             minisketch,
             oddsketch,
             root,
