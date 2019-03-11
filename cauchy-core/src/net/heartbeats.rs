@@ -12,7 +12,7 @@ use tokio::timer::Interval;
 use utils::constants::*;
 
 use failure::Error;
-use utils::errors::{HeartBeatNonceError, HeartBeatOddSketchError};
+use utils::errors::HeartBeatUpdateError;
 
 pub fn heartbeat_update(
     arena: Arc<RwLock<Arena>>,

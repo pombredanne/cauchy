@@ -49,7 +49,7 @@ pub struct VarIntDeserialisationError;
 // Heartbeat Errors
 #[derive(Debug, Fail)]
 #[fail(display = "odd sketch heart failure")]
-pub struct HeartBeatOddSketchError;
+pub struct HeartBeatUpdateError;
 
 #[derive(Debug, Fail)]
 #[fail(display = "nonce heart failure")]
