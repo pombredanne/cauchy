@@ -11,10 +11,9 @@ use primitives::work_site::WorkSite;
 
 pub fn mine(
     public_key: PublicKey,
-    mut sketch_rx: BusReader<(OddSketch, Bytes)>,
+    mut proxy_recv: BusReader<(OddSketch, Bytes)>,
     record_sender: Sender<(u64, u16)>,
     start_nonce: u64,
-    step: u64,
 ) {
     println!("Start mining...");
 
@@ -22,13 +21,13 @@ pub fn mine(
     let mut best_distance: u16 = 512;
 
     let mut current_distance: u16;
-    let (mut current_oddsketch, mut current_root) = sketch_rx.recv().unwrap();
+    let (mut current_oddsketch, mut current_root) = proxy_recv.recv().unwrap();
 
     let work_site = WorkSite::new(public_key, current_root, start_nonce);
 
     loop {
         {
-            match sketch_rx.try_recv() {
+            match proxy_recv.try_recv() {
                 Ok((new_oddsketch, new_root)) => {
                     current_oddsketch = new_oddsketch;
                     current_root = new_root;
@@ -45,7 +44,7 @@ pub fn mine(
                         record_sender.send((best_nonce, current_distance));
                         best_distance = current_distance;
                     }
-                    work_site.increment(step);
+                    work_site.increment();
                 }
             }
         }

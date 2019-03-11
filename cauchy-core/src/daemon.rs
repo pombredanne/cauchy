@@ -13,7 +13,7 @@ use net::messages::*;
 use net::reconcile_status::*;
 use primitives::arena::Arena;
 use primitives::status::Status;
-use primitives::status::Update;
+use primitives::status::Work;
 use primitives::transaction::Transaction;
 use primitives::varint::VarInt;
 use secp256k1::{PublicKey, SecretKey};
@@ -69,33 +69,33 @@ pub fn server(
         }
 
         // Pair socket in connection manager
-        let mut connection_manager_write_locked = connection_manager.write().unwrap();
-        let mut arena_w = arena.write().unwrap();
-        let (impulse_recv, socket_pk) = connection_manager_write_locked.add(&socket_addr).unwrap();
-        let socket_pk_read = *socket_pk.read().unwrap();
-        (*arena_w).new_peer(&socket_pk_read);
+        let mut connection_manager_write = connection_manager.write().unwrap();
+        let mut arena_write = arena.write().unwrap();
+        let (impulse_recv, socket_pubkey) = connection_manager_write.add(&socket_addr).unwrap();
+        let socket_pubkey_read = *socket_pubkey.read().unwrap();
+        (*arena_write).new_peer(&socket_pubkey_read);
 
         // Send handshake
-        connection_manager_write_locked.send_handshake(&socket_addr);
+        connection_manager_write.send_handshake(&socket_addr);
 
-        drop(arena_w);
-        drop(connection_manager_write_locked);
+        drop(arena_write);
+        drop(connection_manager_write);
 
         // Frame the socket
         let framed_sock = Framed::new(socket, MessageCodec);
-        let (sink, received_stream) = framed_sock.split();
+        let (send_stream, received_stream) = framed_sock.split();
 
         // Heartbeat OddSketch
-        let update_stream = heartbeat_update(
+        let update_stream = heartbeat_work(
             arena.clone(),
             local_status.clone(),
             rec_status.clone(),
-            socket_pk.clone(),
+            socket_pubkey.clone(),
             socket_addr,
         );
 
         // Filter through received messages
-        let socket_pk_inner = socket_pk.clone();
+        let socket_pubkey_inner = socket_pubkey.clone();
         let arena_inner = arena.clone();
         let rec_status_inner = rec_status.clone();
         let local_status_inner = local_status.clone();
@@ -113,16 +113,16 @@ pub fn server(
                 }
 
                 // If peer correctly signs our secret we upgrade them from a dummy pk
-                let mut connection_manager_write_locked = connection_manager_inner.write().unwrap();
-                if connection_manager_write_locked
+                let mut connection_manager_write = connection_manager_inner.write().unwrap();
+                if connection_manager_write
                     .check_handshake(arena_inner.clone(), &socket_addr, sig, pubkey)
                     .unwrap()
                 {
                     let arena_inner = arena_inner.clone();
 
                     let mut arena_write = arena_inner.write().unwrap();
-                    let socket_pk_read = *socket_pk.read().unwrap();
-                    (*arena_write).replace_key(&socket_pk_read, &pubkey);
+                    let socket_pubkey_read = *socket_pubkey.read().unwrap();
+                    (*arena_write).replace_key(&socket_pubkey_read, &pubkey);
                     drop(arena_write);
                     if DAEMON_VERBOSE {
                         println!("Handshake completed with {}", socket_addr);
@@ -141,12 +141,12 @@ pub fn server(
                 }
 
                 // Update nonce
-                let socket_pk_read = *socket_pk.read().unwrap();
+                let socket_pubkey_read = *socket_pubkey.read().unwrap();
                 let nonce = *nonce;
-                command_peer!(arena_inner, socket_pk_read, update_nonce, nonce);
+                command_peer!(arena_inner, socket_pubkey_read, update_nonce, nonce);
                 false
             }
-            Message::Update {
+            Message::Work {
                 oddsketch,
                 root,
                 nonce,
@@ -155,13 +155,13 @@ pub fn server(
                     println!("Received half sketch from {}", socket_addr);
                 }
                 // Update state sketch
-                let socket_pk_read = *socket_pk.read().unwrap();
-                let new_update = Update {
+                let socket_pubkey_read = *socket_pubkey.read().unwrap();
+                let new_work = Work {
                     oddsketch: oddsketch.clone(),
                     root: root.clone(),
                     nonce: *nonce,
                 };
-                command_peer!(arena_inner, socket_pk_read, update, new_update);
+                command_peer!(arena_inner, socket_pubkey_read, update_work, new_work);
                 false
             }
             Message::MiniSketch { .. } => {
@@ -170,8 +170,8 @@ pub fn server(
                 }
 
                 // Only response if the pk is reconciliation target
-                let socket_pk_read = *socket_pk.read().unwrap();
-                rec_status_inner.read().unwrap().target_eq(&socket_pk_read)
+                let socket_pubkey_read = *socket_pubkey.read().unwrap();
+                rec_status_inner.read().unwrap().target_eq(&socket_pubkey_read)
             }
             Message::GetTransactions { .. } => {
                 // TODO: Check if reconcilee?
@@ -186,9 +186,9 @@ pub fn server(
                 }
                 // If received txs from reconciliation target check the payload matches reported
                 // TODO: IDs should be calculated before we read to reduce unnecesarry concurrency on rec_status?
-                let socket_pk_read = *socket_pk.read().unwrap();
+                let socket_pubkey_read = *socket_pubkey.read().unwrap();
                 let rec_status_read = rec_status_inner.read().unwrap();
-                if rec_status_read.target_eq(&socket_pk_read) {
+                if rec_status_read.target_eq(&socket_pubkey_read) {
                     if DAEMON_VERBOSE {
                         println!("Checking payload IDs match requested");
                     }
@@ -200,7 +200,7 @@ pub fn server(
 
                         // TODO: Update state, this is here temporarily
                         let arena_r = arena_inner.read().unwrap();
-                        let perception = match arena_r.get_perception(&socket_pk_read) {
+                        let perception = match arena_r.get_perception(&socket_pubkey_read) {
                             Some(some) => some,
                             None => return false,
                         };
@@ -250,11 +250,11 @@ pub fn server(
                 }
 
                 // Remove reconcilee
-                let socket_pk_read = *socket_pk_inner.read().unwrap();
+                let socket_pubkey_read = *socket_pubkey_inner.read().unwrap();
                 rec_status_inner
                     .write()
                     .unwrap()
-                    .remove_reconcilee(&socket_pk_read);
+                    .remove_reconcilee(&socket_pubkey_read);
 
                 let mut txs = HashSet::with_capacity(ids.len());
                 for id in ids {
@@ -294,13 +294,13 @@ pub fn server(
                 }
 
                 let arena_r = arena_inner.read().unwrap();
-                let socket_pk_read = *socket_pk_inner.read().unwrap();
+                let socket_pubkey_read = *socket_pubkey_inner.read().unwrap();
 
-                let perception = match arena_r.get_perception(&socket_pk_read) {
+                let perception = match arena_r.get_perception(&socket_pubkey_read) {
                     Some(some) => some,
                     None => return Err(DaemonError::Perceptionless.into()),
                 };
-                let peer_odd_sketch = arena_r.get_status(&socket_pk_read).unwrap().get_oddsketch();
+                let peer_odd_sketch = arena_r.get_status(&socket_pubkey_read).unwrap().get_oddsketch();
 
                 // Decode difference
                 let perception_sketch = perception.get_minisketch();
@@ -348,16 +348,16 @@ pub fn server(
                 }
 
                 // Add to reconcilee
-                let socket_pk_read = *socket_pk_inner.read().unwrap();
+                let socket_pubkey_read = *socket_pubkey_inner.read().unwrap();
                 rec_status_inner
                     .write()
                     .unwrap()
-                    .add_reconcilee(&socket_pk_read);
+                    .add_reconcilee(&socket_pubkey_read);
 
                 // Send the perceived minisketch
                 let arena_r = arena_inner.read().unwrap();
-                let socket_pk_read = *socket_pk_inner.read().unwrap();
-                let perception = match arena_r.get_perception(&socket_pk_read) {
+                let socket_pubkey_read = *socket_pubkey_inner.read().unwrap();
+                let perception = match arena_r.get_perception(&socket_pubkey_read) {
                     Some(some) => some,
                     None => return Err(DaemonError::Perceptionless.into()),
                 };
@@ -373,7 +373,7 @@ pub fn server(
         let out_stream = response_stream.select(update_stream).select(impulse_recv);
 
         // Send responses
-        let send = sink.send_all(out_stream).map(|_| ()).or_else(|e| {
+        let send = send_stream.send_all(out_stream).map(|_| ()).or_else(|e| {
             println!("error = {:?}", e);
             Ok(())
         });

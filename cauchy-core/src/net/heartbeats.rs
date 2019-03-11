@@ -12,9 +12,9 @@ use tokio::timer::Interval;
 use utils::constants::*;
 
 use failure::Error;
-use utils::errors::HeartBeatUpdateError;
+use utils::errors::HeartBeatWorkError;
 
-pub fn heartbeat_update(
+pub fn heartbeat_work(
     arena: Arc<RwLock<Arena>>,
     local_status: Arc<Status>,
     rec_status: Arc<RwLock<ReconciliationStatus>>,
@@ -63,13 +63,13 @@ pub fn heartbeat_update(
         let perception = perception.unwrap();
 
         perception.update_total_sketch(&current_total_sketch);
-        Message::Update {
+        Message::Work {
             oddsketch: current_total_sketch.oddsketch.clone(),
             root: current_total_sketch.root.clone(),
             nonce: current_nonce,
         }
     })
-    .map_err(|_| HeartBeatUpdateError.into())
+    .map_err(|_| HeartBeatWorkError.into())
 }
 
 // TODO: How does this thread die?

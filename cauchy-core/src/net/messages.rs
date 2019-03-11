@@ -28,7 +28,7 @@ pub enum Message {
     Nonce {
         nonce: u64,
     }, // 2 || nonce VarInt
-    Update {
+    Work {
         oddsketch: OddSketch,
         root: Bytes,
         nonce: u64,
@@ -77,13 +77,13 @@ impl Encoder for MessageCodec {
                 dst.put_u8(2);
                 dst.extend(Bytes::from(VarInt::new(nonce)));
             }
-            Message::Update {
+            Message::Work {
                 oddsketch,
                 root,
                 nonce,
             } => {
                 if ENCODING_VERBOSE {
-                    println!("Encoding OddSketch");
+                    println!("Encoding Work");
                 }
                 dst.put_u8(3);
                 // TODO: Variable length
@@ -185,23 +185,23 @@ impl Decoder for MessageCodec {
             }
             3 => {
                 if DECODING_VERBOSE {
-                    println!("Decoding OddSketch");
+                    println!("Decoding Work");
                 }
-                if buf.remaining() < SKETCH_CAPACITY {
+                if buf.remaining() < SKETCH_CAPACITY + HASH_LEN {
                     return Ok(None);
                 }
                 let mut sketch_dst = [0; SKETCH_CAPACITY];
                 buf.copy_to_slice(&mut sketch_dst);
 
                 let mut root_dst = [0; HASH_LEN];
-                buf.copy_to_slice(&mut sketch_dst);
+                buf.copy_to_slice(&mut root_dst);
 
                 let (nonce_vi, len) = match VarInt::parse_buf(&mut buf)? {
                     Some(some) => some,
                     None => return Ok(None),
                 };
 
-                let msg = Message::Update {
+                let msg = Message::Work {
                     oddsketch: OddSketch::from(&sketch_dst[..]),
                     root: Bytes::from(&root_dst[..]),
                     nonce: u64::from(nonce_vi),

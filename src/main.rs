@@ -38,15 +38,17 @@ fn main() {
     let (local_sk, local_pk) = ecdsa::generate_keypair();
 
     let (distance_send, distance_recv) = channel::unbounded();
-    let mut odd_sketch_bus = Bus::new(10);
+    let mut state_proxy_bus = Bus::new(10);
     let n_mining_threads: u64 = 1;
+    let nonce_start_base = std::u64::MAX / n_mining_threads;
+
 
     for i in 0..n_mining_threads {
-        let distance_send_c = distance_send.clone();
-        let mut sketch_recv = odd_sketch_bus.add_rx();
+        let distance_send_inner = distance_send.clone();
+        let mut proxy_recv = state_proxy_bus.add_rx();
 
         thread::spawn(move || {
-            mining::mine(local_pk, sketch_recv, distance_send_c, i, n_mining_threads)
+            mining::mine(local_pk, proxy_recv, distance_send_inner, i * nonce_start_base)
         });
     }
 
@@ -88,15 +90,15 @@ fn main() {
     });
 
     // Update local state
-    let (sketch_send, sketch_recv) = channel::unbounded();
-    thread::spawn(move || local_status.update_local(odd_sketch_bus, sketch_recv, distance_recv));
+    let (tx_send, tx_recv) = channel::unbounded();
+    thread::spawn(move || local_status.update_local(state_proxy_bus, tx_recv, distance_recv));
 
     let new_tx_interval = time::Duration::from_millis(1000);
 
     loop {
         let new_random_tx = random_tx();
         new_random_tx.clone().to_db(tx_db.clone()).unwrap();
-        sketch_send.send(new_random_tx);
+        tx_send.send(new_random_tx);
         thread::sleep(new_tx_interval);
     }
 

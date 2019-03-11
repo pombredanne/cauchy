@@ -23,7 +23,7 @@ pub struct TotalSketch {
     pub root: Bytes,
 }
 
-pub struct Update {
+pub struct Work {
     pub oddsketch: OddSketch,
     pub root: Bytes,
     pub nonce: u64,
@@ -64,16 +64,16 @@ impl Status {
     }
 
     // Update oddsketch, root and nonce
-    pub fn update(&self, update: Update) {
+    pub fn update_work(&self, work: Work) {
         let mut sketch_locked = self.sketch.write().unwrap();
         let minisketch = sketch_locked.minisketch.clone();
         *sketch_locked = TotalSketch {
-            oddsketch: update.oddsketch,
+            oddsketch: work.oddsketch,
             minisketch,
-            root: update.root,
+            root: work.root,
         };
         let mut nonce_locked = self.nonce.write().unwrap();
-        *nonce_locked = update.nonce;
+        *nonce_locked = work.nonce;
     }
 
     pub fn update_nonce(&self, nonce: u64) {
