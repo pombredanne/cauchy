@@ -57,6 +57,8 @@ impl ReconciliationStatus {
         (&self.excess_ids, &self.missing_ids)
     }
 
+    // pub fn final_push(&self, )
+
     pub fn final_update(&self, local_status: Arc<Status>, perception: Arc<Status>) {
         // TODO: Revamp all of this
         let perceived_oddsketch = perception.get_oddsketch();

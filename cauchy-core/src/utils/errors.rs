@@ -78,6 +78,12 @@ pub enum SystemError {
     InvalidPath,
 }
 
+#[derive(Debug, Fail)]
+pub enum ArenaError {
+    #[fail(display = "failed to push perception to local")]
+    PushLocal,
+}
+
 // Connection Errors
 #[derive(Debug, Fail)]
 #[fail(display = "socket not found")]

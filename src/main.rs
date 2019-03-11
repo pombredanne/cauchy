@@ -42,13 +42,17 @@ fn main() {
     let n_mining_threads: u64 = 1;
     let nonce_start_base = std::u64::MAX / n_mining_threads;
 
-
     for i in 0..n_mining_threads {
         let distance_send_inner = distance_send.clone();
         let mut proxy_recv = state_proxy_bus.add_rx();
 
         thread::spawn(move || {
-            mining::mine(local_pk, proxy_recv, distance_send_inner, i * nonce_start_base)
+            mining::mine(
+                local_pk,
+                proxy_recv,
+                distance_send_inner,
+                i * nonce_start_base,
+            )
         });
     }
 

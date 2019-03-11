@@ -36,6 +36,16 @@ macro_rules! command_peer {
     };
 }
 
+macro_rules! command_perception {
+    ($arena: ident, $pk: ident, $fn_name: ident, $input: ident) => {
+        let arena_r = $arena.read().unwrap();
+        let peer_status = arena_r.get_perception(&$pk).unwrap();
+        drop(arena_r);
+        peer_status.$fn_name($input);
+        drop(peer_status);
+    };
+}
+
 pub fn server(
     tx_db: Arc<RocksDb>,
     local_status: Arc<Status>,
@@ -171,7 +181,10 @@ pub fn server(
 
                 // Only response if the pk is reconciliation target
                 let socket_pubkey_read = *socket_pubkey.read().unwrap();
-                rec_status_inner.read().unwrap().target_eq(&socket_pubkey_read)
+                rec_status_inner
+                    .read()
+                    .unwrap()
+                    .target_eq(&socket_pubkey_read)
             }
             Message::GetTransactions { .. } => {
                 // TODO: Check if reconcilee?
@@ -286,6 +299,13 @@ pub fn server(
                 if DAEMON_VERBOSE {
                     println!("Sending transactions to {}", socket_addr);
                 }
+
+                // TODO: Only do this if they are our reconicilee
+                arena_inner
+                    .read()
+                    .unwrap()
+                    .push_perception_to_peer(&socket_pubkey_read);
+
                 Ok(Message::Transactions { txs })
             }
             Message::MiniSketch { minisketch } => {
@@ -300,7 +320,10 @@ pub fn server(
                     Some(some) => some,
                     None => return Err(DaemonError::Perceptionless.into()),
                 };
-                let peer_oddsketch = arena_r.get_status(&socket_pubkey_read).unwrap().get_oddsketch();
+                let peer_oddsketch = arena_r
+                    .get_status(&socket_pubkey_read)
+                    .unwrap()
+                    .get_oddsketch();
 
                 // Decode difference
                 let perception_sketch = perception.get_minisketch();

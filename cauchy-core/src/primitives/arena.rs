@@ -5,6 +5,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use utils::byte_ops::Hamming;
 use utils::constants::ARENA_VERBOSE;
+use utils::errors::ArenaError;
+
+use failure::Error;
 
 pub struct Arena {
     // TODO: Individual RWLocks for each? Asyncronous hasmaps?
@@ -52,6 +55,19 @@ impl Arena {
             self.perceived_status
                 .insert(*pubkey, Arc::new(Status::null()));
         }
+    }
+
+    pub fn push_perception_to_peer(&self, pubkey: &PublicKey) -> Result<(), Error> {
+        let perception = match self.get_perception(pubkey) {
+            Some(some) => some,
+            None => return Err(ArenaError::PushLocal.into()),
+        };
+        let peer = match self.get_status(&self.local_pubkey) {
+            Some(some) => some,
+            None => return Err(ArenaError::PushLocal.into()),
+        };
+        peer.update_all_sketch(&perception.get_all_sketch());
+        Ok(())
     }
 
     pub fn get_perception(&self, pubkey: &PublicKey) -> Option<Arc<Status>> {
