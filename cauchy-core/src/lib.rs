@@ -9,6 +9,11 @@ extern crate secp256k1;
 extern crate tokio;
 #[macro_use]
 extern crate failure;
+extern crate toml;
+#[macro_use]
+extern crate serde_derive;
+#[macro_use]
+extern crate lazy_static;
 
 pub mod crypto;
 pub mod daemon;

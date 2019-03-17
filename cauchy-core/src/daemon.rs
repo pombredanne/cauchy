@@ -51,7 +51,7 @@ pub fn server(
     with proof-of-work calculations */
     /* Connection manager forwards the messages from RPC commands, tracks misbehaviour and handles
     reconciliation/handshake messages */
-    let addr = format!("0.0.0.0:{}", SERVER_PORT).to_string();
+    let addr = format!("0.0.0.0:{}", CONFIG.NETWORK.SERVER_PORT).to_string();
     let addr = addr.parse::<SocketAddr>().unwrap();
     let listener = TcpListener::bind(&addr)
         .map_err(|_| DaemonError::BindFailure)

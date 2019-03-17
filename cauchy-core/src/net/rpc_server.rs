@@ -5,13 +5,13 @@ use std::net::SocketAddr;
 use std::sync::{Arc, RwLock};
 use tokio::codec::Framed;
 use tokio::net::{TcpListener, TcpStream};
-use utils::constants::{DAEMON_VERBOSE, RPC_SERVER_PORT};
+use utils::constants::{DAEMON_VERBOSE, CONFIG};
 use utils::errors::DaemonError;
 
 pub fn rpc_server(
     connection_manager: Arc<RwLock<ConnectionManager>>,
 ) -> impl Future<Item = (), Error = ()> + Send + 'static {
-    let addr = format!("0.0.0.0:{}", RPC_SERVER_PORT).to_string();
+    let addr = format!("0.0.0.0:{}", CONFIG.NETWORK.RPC_SERVER_PORT).to_string();
     let addr = addr.parse::<SocketAddr>().unwrap();
 
     let listener = TcpListener::bind(&addr)

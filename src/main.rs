@@ -39,7 +39,7 @@ fn main() {
 
     let (distance_send, distance_recv) = channel::unbounded();
     let mut state_proxy_bus = Bus::new(10);
-    let n_mining_threads: u64 = 1;
+    let n_mining_threads: u64 = CONFIG.MINING.N_MINING_THREADS as u64;
     let nonce_start_base = std::u64::MAX / n_mining_threads;
 
     for i in 0..n_mining_threads {
@@ -97,7 +97,7 @@ fn main() {
     let (tx_send, tx_recv) = channel::unbounded();
     thread::spawn(move || local_status.update_local(state_proxy_bus, tx_recv, distance_recv));
 
-    let new_tx_interval = time::Duration::from_millis(1000);
+    let new_tx_interval = time::Duration::from_nanos(CONFIG.DEBUGGING.TEST_TX_INTERVAL);
 
     loop {
         let new_random_tx = random_tx();

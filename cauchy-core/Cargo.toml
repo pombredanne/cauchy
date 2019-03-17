@@ -15,6 +15,10 @@ bus = "*"
 crossbeam = "*"
 futures = "*"
 failure = "*"
+toml = "*"
+lazy_static = "*"
+serde_derive = "*"
+serde = "*"
 
 [dependencies.secp256k1]
 version = "*"

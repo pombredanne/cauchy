@@ -9,7 +9,6 @@ use utils::timing::*;
 use secp256k1::PublicKey;
 use std::net::SocketAddr;
 use std::sync::{Arc, RwLock};
-use std::time::Duration;
 use tokio::prelude::*;
 use tokio::timer::Interval;
 
@@ -23,17 +22,14 @@ pub fn heartbeat_work(
     socket_pk: Arc<RwLock<PublicKey>>,
     socket_addr: SocketAddr,
 ) -> impl futures::stream::Stream<Item = Message, Error = Error> {
-    Interval::new_interval(Duration::new(
-        UPDATE_HEARTBEAT_PERIOD_SEC,
-        UPDATE_HEARTBEAT_PERIOD_NANO,
-    ))
+    Interval::new_interval(duration_from_nano(CONFIG.NETWORK.WORK_HEARTBEAT))
     .map(move |_| *socket_pk.read().unwrap())
     .filter(move |sock_pk| {
         let rec_status_read = rec_status.read().unwrap();
         if rec_status_read.is_live() {
             let current_time = get_current_time();
             let start_time = rec_status_read.get_start_time();
-            if current_time - start_time < RECONCILE_TIMEOUT  {
+            if current_time - start_time < CONFIG.NETWORK.RECONCILE_TIMEOUT  {
                 false
             } else {
                 let reconcilee = rec_status_read.is_reconcilee(sock_pk);
@@ -96,10 +92,7 @@ pub fn spawn_heartbeat_reconcile(
     rec_status: Arc<RwLock<ReconciliationStatus>>,
 ) -> impl Future<Item = (), Error = ()> + Send + 'static {
     let rec_status_inner = rec_status.clone();
-    Interval::new_interval(Duration::new(
-        RECONCILE_HEARTBEAT_PERIOD_SEC,
-        RECONCILE_HEARTBEAT_PERIOD_NANO,
-    ))
+    Interval::new_interval(duration_from_nano(CONFIG.NETWORK.RECONCILE_HEARTBEAT))
     .filter(move |_| !rec_status_inner.read().unwrap().is_live()) // Wait while reconciling
     .map(move |_| {
         // Update order
