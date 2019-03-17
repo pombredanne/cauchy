@@ -291,7 +291,7 @@ impl Syscalls<u64, SparseMemory> for VMSyscalls {
 // use std::io::Read;
 #[test]
 fn test_simple() {
-    let tx_db = RocksDb::open_db(".geodesic/tests/db_vm_test_simple/").unwrap();
+    let tx_db = RocksDb::open_db(".cauchy/tests/db_vm_test_simple/").unwrap();
 
     let mut buffer = Vec::new();
     File::open("tests/simple")
@@ -308,7 +308,7 @@ fn test_simple() {
 
 #[test]
 fn test_vm_syscalls() {
-    let tx_db = RocksDb::open_db(".geodesic/tests/db_vm_test_syscalls/").unwrap();
+    let tx_db = RocksDb::open_db(".cauchy/tests/db_vm_test_syscalls/").unwrap();
 
     let mut buffer = Vec::new();
     File::open("tests/syscalls")
@@ -327,7 +327,7 @@ fn test_vm_syscalls() {
 
 #[test]
 fn test_sha256() {
-    let tx_db = RocksDb::open_db(".geodesic/tests/db_vm_test_sha256/").unwrap();
+    let tx_db = RocksDb::open_db(".cauchy/tests/db_vm_test_sha256/").unwrap();
 
     let mut buffer = Vec::new();
     File::open("tests/sha256")
@@ -384,7 +384,7 @@ fn test_sha256() {
 
 #[test]
 fn test_syscall2() {
-    let tx_db = RocksDb::open_db(".geodesic/tests/db_vm_test_syscall2/").unwrap();
+    let tx_db = RocksDb::open_db(".cauchy/tests/db_vm_test_syscall2/").unwrap();
 
     let mut buffer = Vec::new();
     File::open("tests/syscalls2")
@@ -409,7 +409,7 @@ fn test_syscall2() {
 
 #[test]
 fn test_ecdsa() {
-    let tx_db = RocksDb::open_db(".geodesic/tests/db_vm_test_ecdsa/").unwrap();
+    let tx_db = RocksDb::open_db(".cauchy/tests/db_vm_test_ecdsa/").unwrap();
 
     let mut buffer = Vec::new();
     File::open("tests/ecdsa_test")
@@ -435,7 +435,7 @@ fn test_ecdsa() {
 
 #[test]
 fn test_time() {
-    let tx_db = RocksDb::open_db(".geodesic/tests/db_vm_test_time/").unwrap();
+    let tx_db = RocksDb::open_db(".cauchy/tests/db_vm_test_time/").unwrap();
 
     let mut buffer = Vec::new();
     File::open("tests/time")
@@ -452,7 +452,7 @@ fn test_time() {
 
 #[test]
 fn test_freeze() {
-    let tx_db = RocksDb::open_db(".geodesic/tests/db_vm_test_freeze/").unwrap();
+    let tx_db = RocksDb::open_db(".cauchy/tests/db_vm_test_freeze/").unwrap();
     let arc_tx_db = Arc::new(tx_db);
 
     let mut buffer = Vec::new();
@@ -482,7 +482,7 @@ fn test_freeze() {
 
 #[test]
 fn test_simple_contract() {
-    let tx_db = RocksDb::open_db(".geodesic/tests/db_vm_test_simple_contract/").unwrap();
+    let tx_db = RocksDb::open_db(".cauchy/tests/db_vm_test_simple_contract/").unwrap();
 
     // let mut buffer = Vec::new();
     // File::open("tests/simple_contract")
@@ -512,7 +512,7 @@ fn test_simple_contract() {
 
 #[test]
 fn test_simple_contract_cpp() {
-    let tx_db = RocksDb::open_db(".geodesic/tests/db_vm_test_simple_contract_cpp/").unwrap();
+    let tx_db = RocksDb::open_db(".cauchy/tests/db_vm_test_simple_contract_cpp/").unwrap();
 
     let mut buffer = Vec::new();
     File::open("tests/simple_contract_cpp")

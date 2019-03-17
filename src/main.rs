@@ -31,7 +31,7 @@ use std::time;
 fn main() {
     // TODO: Do not destroy DB
     let mut opts = Options::default();
-    DB::destroy(&opts, ".geodesic/tests/db_a/");
+    DB::destroy(&opts, ".cauchy/tests/db_a/");
 
     let tx_db = Arc::new(RocksDb::open_db(TX_DB_PATH).unwrap());
 

@@ -1,7 +1,7 @@
 pub const HASH_LEN: usize = 32;
 pub const PUBKEY_LEN: usize = 33;
 pub const SIG_LEN: usize = 64;
-pub const TX_DB_PATH: &str = ".geodesic/db/";
+pub const TX_DB_PATH: &str = ".cauchy/db/";
 pub const SKETCH_CAPACITY: usize = 32; // TODO: This should become dynamic
 pub const HEARTBEAT_VERBOSE: bool = true;
 pub const DAEMON_VERBOSE: bool = true;
@@ -64,7 +64,7 @@ pub fn default_config() -> CoreConfig {
 // TODO: Catch with defaults
 pub fn load_config() -> CoreConfig {
     let mut path = dirs::home_dir().unwrap();
-    path.push(".geodesic/config.toml");
+    path.push(".cauchy/config.toml");
     match &mut fs::File::open(path) {
         Ok(file) => {
             let mut contents = String::new();
