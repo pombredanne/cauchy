@@ -6,6 +6,7 @@ use primitives::transaction::*;
 use secp256k1::PublicKey;
 use std::collections::HashSet;
 use std::sync::Arc;
+use utils::timing::*;
 
 use crypto::sketches::dummy_sketch::*;
 use crypto::sketches::odd_sketch::*;
@@ -14,6 +15,7 @@ use crypto::sketches::*;
 pub struct ReconciliationStatus {
     live: bool,
     target: PublicKey,
+    start_time: u64,
     missing_ids: HashSet<Bytes>,
     excess_ids: HashSet<Bytes>,
     reconcilees: HashSet<PublicKey>,
@@ -23,6 +25,7 @@ impl ReconciliationStatus {
     pub fn new() -> ReconciliationStatus {
         let dummy_pk = generate_dummy_pubkey();
         ReconciliationStatus {
+            start_time: 0,
             live: false,
             target: dummy_pk,
             missing_ids: HashSet::new(),
@@ -39,7 +42,12 @@ impl ReconciliationStatus {
         self.live = false;
     }
 
+    pub fn get_start_time(&self) -> u64 {
+        self.start_time
+    }
+
     pub fn set_target(&mut self, new_target: &PublicKey) {
+        self.start_time = get_current_time();
         self.live = true;
         self.target = *new_target;
     }
@@ -56,8 +64,6 @@ impl ReconciliationStatus {
     pub fn get_tx_ids(&self) -> (&HashSet<Bytes>, &HashSet<Bytes>) {
         (&self.excess_ids, &self.missing_ids)
     }
-
-    // pub fn final_push(&self, )
 
     pub fn final_update(&self, local_status: Arc<Status>, perception: Arc<Status>) {
         // TODO: Revamp all of this

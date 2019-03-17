@@ -7,6 +7,7 @@ pub const UPDATE_HEARTBEAT_PERIOD_SEC: u64 = 7;
 pub const UPDATE_HEARTBEAT_PERIOD_NANO: u32 = 0;
 pub const RECONCILE_HEARTBEAT_PERIOD_SEC: u64 = 10;
 pub const RECONCILE_HEARTBEAT_PERIOD_NANO: u32 = 0;
+pub const RECONCILE_TIMEOUT: u64 = 3_000;
 pub const SERVER_PORT: u16 = 8333;
 pub const RPC_SERVER_PORT: u16 = 8332;
 pub const MINER: bool = true;

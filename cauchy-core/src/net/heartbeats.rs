@@ -3,13 +3,15 @@ use net::messages::Message;
 use net::reconcile_status::*;
 use primitives::arena::*;
 use primitives::status::*;
+use utils::constants::*;
+use utils::timing::*;
+
 use secp256k1::PublicKey;
 use std::net::SocketAddr;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 use tokio::prelude::*;
 use tokio::timer::Interval;
-use utils::constants::*;
 
 use failure::Error;
 use utils::errors::HeartBeatWorkError;
@@ -28,9 +30,23 @@ pub fn heartbeat_work(
     .map(move |_| *socket_pk.read().unwrap())
     .filter(move |sock_pk| {
         let rec_status_read = rec_status.read().unwrap();
-        let live = rec_status_read.is_live();
-        let reconcilee = rec_status_read.is_reconcilee(sock_pk);
-        !live && !reconcilee
+        if rec_status_read.is_live() {
+            let current_time = get_current_time();
+            let start_time = rec_status_read.get_start_time();
+            if current_time - start_time < RECONCILE_TIMEOUT  {
+                false
+            } else {
+                let reconcilee = rec_status_read.is_reconcilee(sock_pk);
+                drop(rec_status_read);
+
+                // End reconcile
+                let mut rec_status_write = rec_status.write().unwrap();
+                rec_status_write.stop();
+                !reconcilee
+            }
+        } else {
+            !rec_status_read.is_reconcilee(sock_pk)
+        }
     }) // Wait while reconciling or while sending to reconcilee
     .map(move |sock_pk| {
         (

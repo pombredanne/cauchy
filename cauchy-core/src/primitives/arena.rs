@@ -33,12 +33,17 @@ impl Arena {
     }
 
     pub fn replace_key(&mut self, pubkey_a: &PublicKey, pubkey_b: &PublicKey) {
-        let value = self.peer_status.remove(pubkey_a).unwrap();
+        let value = self.peer_status.remove(pubkey_a).unwrap(); // TODO: Catch?
         self.peer_status.insert(*pubkey_b, value);
         if *pubkey_a != self.local_pubkey {
             let value = self.perceived_status.remove(pubkey_a).unwrap();
             self.perceived_status.insert(*pubkey_b, value);
         }
+    }
+
+    pub fn remove(&mut self, pubkey: &PublicKey) {
+        self.peer_status.remove(pubkey).unwrap();
+        self.perceived_status.remove(pubkey).unwrap();
     }
 
     pub fn new_peer(&mut self, pubkey: &PublicKey) {

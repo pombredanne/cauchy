@@ -13,6 +13,7 @@ use std::sync::{Arc, RwLock};
 use tokio::net::TcpStream;
 use tokio::prelude::*;
 use utils::errors::{ConnectionAddError, ImpulseReceiveError, SocketNotFound};
+use net::reconcile_status::ReconciliationStatus;
 
 pub struct ConnectionManager {
     connections: HashMap<SocketAddr, ConnectionStatus>,
@@ -40,25 +41,7 @@ impl ConnectionManager {
         // Initialise router
         let cm_inner = cm.clone();
         let router = router_receiver.for_each(move |(socket_addr, message)| {
-            // Fetch appropriate impulse sender from connection manager
-            let impulse_sender = cm_inner
-                .read()
-                .unwrap()
-                .get_impulse_sender(&socket_addr)
-                .unwrap();
-
-            // Route message to impulse sender
-            let routed_send = impulse_sender.clone().send(message).then(|tx| match tx {
-                Ok(_tx) => {
-                    println!("Impulse sent");
-                    Ok(())
-                }
-                Err(e) => {
-                    println!("Impulse failed to send! {:?}", e);
-                    Err(())
-                }
-            });
-            tokio::spawn(routed_send)
+            cm_inner.read().unwrap().send(&socket_addr, message).map_err(|e| println!("routing failed {:?}", e))
         });
         (cm, new_socket_recv, router)
     }
@@ -104,11 +87,11 @@ impl ConnectionManager {
 
         let handshake_impulse = impulse_sender.clone().send(message).then(|tx| match tx {
             Ok(_tx) => {
-                println!("Handshake impulse sent");
+                println!("Impulse sent");
                 Ok(())
             }
             Err(e) => {
-                println!("Handshake failed to send! {:?}", e);
+                println!("Impulse failed to send! {:?}", e);
                 Err(())
             }
         });
@@ -170,6 +153,20 @@ impl ConnectionManager {
 
         let impulse_receiver = impulse_receiver.map_err(|_| ImpulseReceiveError.into());
         Ok((impulse_receiver, dummy_pk))
+    }
+
+    pub fn disconnect(&mut self, arena: Arc<RwLock<Arena>>, rec_status: Arc<RwLock<ReconciliationStatus>>, addr: &SocketAddr) {
+        let dead_connection = self.connections.remove(&addr).unwrap(); // TODO: Catch?
+        let dead_pubkey = dead_connection.pubkey.read().unwrap();
+
+        // If reconcilee stop
+        let mut rec_status_write = rec_status.write().unwrap();
+        if rec_status_write.target_eq(&dead_pubkey) {
+            rec_status_write.stop();
+        }
+
+        // Remove from arena
+        arena.write().unwrap().remove(&dead_pubkey);
     }
 }
 

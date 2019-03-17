@@ -36,16 +36,6 @@ macro_rules! command_peer {
     };
 }
 
-macro_rules! command_perception {
-    ($arena: ident, $pk: ident, $fn_name: ident, $input: ident) => {
-        let arena_r = $arena.read().unwrap();
-        let peer_status = arena_r.get_perception(&$pk).unwrap();
-        drop(arena_r);
-        peer_status.$fn_name($input);
-        drop(peer_status);
-    };
-}
-
 pub fn server(
     tx_db: Arc<RocksDb>,
     local_status: Arc<Status>,
@@ -162,7 +152,7 @@ pub fn server(
                 nonce,
             } => {
                 if DAEMON_VERBOSE {
-                    println!("Received half sketch from {}", socket_addr);
+                    println!("Received work from {}", socket_addr);
                 }
                 // Update state sketch
                 let socket_pubkey_read = *socket_pubkey.read().unwrap();
@@ -396,8 +386,12 @@ pub fn server(
         let out_stream = response_stream.select(update_stream).select(impulse_recv);
 
         // Send responses
-        let send = send_stream.send_all(out_stream).map(|_| ()).or_else(|e| {
-            println!("error = {:?}", e);
+        let connection_manager_inner = connection_manager.clone();
+        let arena_inner = arena.clone();
+        let rec_status_inner = rec_status.clone();
+        let send = send_stream.send_all(out_stream).map(|_| ()).or_else(move |e| {
+            println!("socket error {:?}", e);
+            connection_manager_inner.write().unwrap().disconnect(arena_inner, rec_status_inner, &socket_addr);
             Ok(())
         });
         tokio::spawn(send)
