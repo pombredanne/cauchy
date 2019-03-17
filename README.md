@@ -8,8 +8,11 @@ cd cauchy
 cargo build --release
 ```
 
+## Running a Node
+
+
 ## Configuration
-Custom configuration can be done by adding `config.toml` file to the your `HOME_DIRECTORY\.geodesic\` directory. 
+A custom configuration file `config.toml` may be added `HOME_DIRECTORY\.cauchy\` directory. 
 
 ### Example
 
