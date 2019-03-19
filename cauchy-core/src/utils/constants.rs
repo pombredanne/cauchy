@@ -15,9 +15,9 @@ use std::io::Read;
 
 #[derive(Deserialize)]
 pub struct Networking {
-    pub WORK_HEARTBEAT: u64,
-    pub RECONCILE_HEARTBEAT: u64,
-    pub RECONCILE_TIMEOUT: u64,
+    pub WORK_HEARTBEAT_MS: u64,
+    pub RECONCILE_HEARTBEAT_MS: u64,
+    pub RECONCILE_TIMEOUT_MS: u64,
     pub SERVER_PORT: u16,
     pub RPC_SERVER_PORT: u16,
 }
@@ -46,9 +46,9 @@ lazy_static! {
 pub fn default_config() -> CoreConfig {
     CoreConfig {
         NETWORK: Networking {
-            WORK_HEARTBEAT: 1_000,
-            RECONCILE_HEARTBEAT: 3_000,
-            RECONCILE_TIMEOUT: 5_000,
+            WORK_HEARTBEAT_MS: 1_000,
+            RECONCILE_HEARTBEAT_MS: 3_000,
+            RECONCILE_TIMEOUT_MS: 5_000,
             SERVER_PORT: 8332,
             RPC_SERVER_PORT: 8333,
         },

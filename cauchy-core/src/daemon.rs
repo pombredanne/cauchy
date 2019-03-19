@@ -31,6 +31,10 @@ pub fn server(
     socket_recv: mpsc::Receiver<TcpStream>,
     arena: Arc<Mutex<Arena>>,
 ) -> impl Future<Item = (), Error = ()> + Send + 'static {
+    if DAEMON_VERBOSE {
+        println!("Spawning daemon");
+    }
+    
     // Bind socket
     let addr = format!("0.0.0.0:{}", CONFIG.NETWORK.SERVER_PORT).to_string();
     let addr = addr.parse::<SocketAddr>().unwrap();
