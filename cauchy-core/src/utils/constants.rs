@@ -46,9 +46,9 @@ lazy_static! {
 pub fn default_config() -> CoreConfig {
     CoreConfig {
         NETWORK: Networking {
-            WORK_HEARTBEAT: 1_000_000_000,
-            RECONCILE_HEARTBEAT: 3_000_000_000,
-            RECONCILE_TIMEOUT: 5_000_000_000,
+            WORK_HEARTBEAT: 1_000,
+            RECONCILE_HEARTBEAT: 3_000,
+            RECONCILE_TIMEOUT: 5_000,
             SERVER_PORT: 8332,
             RPC_SERVER_PORT: 8333,
         },
@@ -56,7 +56,7 @@ pub fn default_config() -> CoreConfig {
             N_MINING_THREADS: 2,
         },
         DEBUGGING: Debugging {
-            TEST_TX_INTERVAL: 500_000_000,
+            TEST_TX_INTERVAL: 500,
         },
     }
 }

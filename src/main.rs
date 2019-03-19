@@ -19,6 +19,7 @@ use core::{
     crypto::signatures::ecdsa, db::rocksdb::RocksDb, db::storing::Storable, db::*,
     net::heartbeats::*, primitives::arena::*, primitives::ego::*,
     primitives::transaction::Transaction, utils::constants::*, utils::mining,
+    utils::timing::*
 };
 use futures::lazy;
 use rand::Rng;
@@ -83,7 +84,7 @@ fn main() {
     let (tx_send, tx_recv) = channel::unbounded();
     // thread::spawn(move || local_status.update_local(state_proxy_bus, tx_recv, distance_recv));
 
-    let new_tx_interval = time::Duration::from_nanos(CONFIG.DEBUGGING.TEST_TX_INTERVAL);
+    let new_tx_interval = duration_from_millis(CONFIG.DEBUGGING.TEST_TX_INTERVAL);
 
     loop {
         let new_random_tx = random_tx();
