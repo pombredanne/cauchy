@@ -36,7 +36,7 @@ pub struct Mining {
 pub struct CoreConfig {
     pub NETWORK: Networking,
     pub MINING: Mining,
-    pub DEBUGGING: Debugging
+    pub DEBUGGING: Debugging,
 }
 
 lazy_static! {
@@ -50,14 +50,14 @@ pub fn default_config() -> CoreConfig {
             RECONCILE_HEARTBEAT: 3_000_000_000,
             RECONCILE_TIMEOUT: 5_000_000_000,
             SERVER_PORT: 8332,
-            RPC_SERVER_PORT: 8333
+            RPC_SERVER_PORT: 8333,
         },
         MINING: Mining {
-            N_MINING_THREADS: 2
+            N_MINING_THREADS: 2,
         },
         DEBUGGING: Debugging {
-            TEST_TX_INTERVAL: 500_000
-        }
+            TEST_TX_INTERVAL: 500_000_000,
+        },
     }
 }
 
@@ -77,11 +77,11 @@ pub fn load_config() -> CoreConfig {
                     default_config()
                 }
             }
-        },
+        }
         Err(e) => {
             println!("config file could not be read = {:?}", e);
             println!("using default configuration");
             default_config()
         }
-    } 
+    }
 }

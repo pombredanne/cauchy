@@ -1,15 +1,15 @@
 use futures::{Future, Sink, Stream};
-use net::connections::ConnectionManager;
 use net::rpc_messages::*;
 use std::net::SocketAddr;
-use std::sync::{Arc, RwLock};
 use tokio::codec::Framed;
 use tokio::net::{TcpListener, TcpStream};
-use utils::constants::{DAEMON_VERBOSE, CONFIG};
+use tokio::sync::mpsc::Sender;
+
+use utils::constants::{CONFIG, DAEMON_VERBOSE};
 use utils::errors::DaemonError;
 
 pub fn rpc_server(
-    connection_manager: Arc<RwLock<ConnectionManager>>,
+    socket_sender: Sender<TcpStream>,
 ) -> impl Future<Item = (), Error = ()> + Send + 'static {
     let addr = format!("0.0.0.0:{}", CONFIG.NETWORK.RPC_SERVER_PORT).to_string();
     let addr = addr.parse::<SocketAddr>().unwrap();
@@ -32,18 +32,17 @@ pub fn rpc_server(
             let (_, stream) = framed_sock.split();
 
             // New TCP socket sender
-            let tcp_socket_send = connection_manager.read().unwrap().get_new_socket_send();
-
+            let socket_sender_inner = socket_sender.clone();
             let action = stream
                 .for_each(move |msg| match msg {
                     RPC::AddPeer { addr } => {
                         if DAEMON_VERBOSE {
                             println!("Received addpeer {} message from {}", addr, socket_addr);
                         }
-                        let tcp_socket_send_inner = tcp_socket_send.clone();
+                        let socket_sender_inner = socket_sender_inner.clone();
                         TcpStream::connect(&addr)
                             .and_then(move |sock| {
-                                tcp_socket_send_inner.send(sock).map_err(|e| {
+                                socket_sender_inner.send(sock).map_err(|e| {
                                     std::io::Error::new(
                                         std::io::ErrorKind::Other,
                                         "RPC addpeer channel failure",

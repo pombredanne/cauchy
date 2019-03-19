@@ -17,16 +17,16 @@ use crossbeam::channel;
 
 use core::{
     crypto::signatures::ecdsa, db::rocksdb::RocksDb, db::storing::Storable, db::*,
-    net::connections::*, net::heartbeats::*, net::reconcile_status::ReconciliationStatus,
-    primitives::arena::*, primitives::status::Status, primitives::transaction::Transaction,
-    utils::constants::*, utils::mining,
+    net::heartbeats::*, primitives::arena::*, primitives::ego::*,
+    primitives::transaction::Transaction, utils::constants::*, utils::mining,
 };
 use futures::lazy;
 use rand::Rng;
 use rocksdb::{Options, DB};
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time;
+use tokio::sync::mpsc;
 
 fn main() {
     // TODO: Do not destroy DB
@@ -56,31 +56,18 @@ fn main() {
         });
     }
 
-    let local_status = Arc::new(Status::null());
-    let arena = Arc::new(RwLock::new(Arena::init(&local_pk, local_status.clone())));
+    // Init Ego
+    let ego = Arc::new(Mutex::new(Ego::new(local_pk, local_sk)));
 
-    // Initialise connection manager
-    let (connection_manager, new_socket_rx, router) = ConnectionManager::init();
-
-    // Initialise reconciliation status
-    let recon_status = Arc::new(RwLock::new(ReconciliationStatus::new()));
+    let arena = Arc::new(Mutex::new(Arena::new(ego.clone())));
 
     // Server
-    let server = core::daemon::server(
-        tx_db.clone(),
-        local_status.clone(),
-        local_pk,
-        local_sk,
-        new_socket_rx,
-        arena.clone(),
-        connection_manager.clone(),
-        recon_status.clone(),
-    );
+    let (socket_send, socket_recv) = mpsc::channel::<tokio::net::TcpStream>(128);
+    let server = core::daemon::server(tx_db.clone(), ego.clone(), socket_recv, arena.clone());
 
     // RPC Server
-    let rpc_server = core::net::rpc_server::rpc_server(connection_manager.clone());
-    let reconcile_heartbeat =
-        spawn_heartbeat_reconcile(connection_manager.clone(), arena.clone(), recon_status);
+    let rpc_server = core::net::rpc_server::rpc_server(socket_send);
+    let reconcile_heartbeat = heartbeat_reconcile(arena.clone());
 
     // Spawn servers
     thread::spawn(move || {
@@ -88,14 +75,13 @@ fn main() {
             tokio::spawn(server);
             tokio::spawn(rpc_server);
             tokio::spawn(reconcile_heartbeat);
-            tokio::spawn(router);
             Ok(())
         }))
     });
 
     // Update local state
     let (tx_send, tx_recv) = channel::unbounded();
-    thread::spawn(move || local_status.update_local(state_proxy_bus, tx_recv, distance_recv));
+    // thread::spawn(move || local_status.update_local(state_proxy_bus, tx_recv, distance_recv));
 
     let new_tx_interval = time::Duration::from_nanos(CONFIG.DEBUGGING.TEST_TX_INTERVAL);
 
