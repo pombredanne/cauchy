@@ -14,6 +14,7 @@ extern crate toml;
 extern crate serde_derive;
 #[macro_use]
 extern crate lazy_static;
+extern crate itertools;
 
 pub mod crypto;
 pub mod daemon;

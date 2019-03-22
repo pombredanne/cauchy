@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use bytes::Bytes;
 use futures::sync::mpsc::{channel, Receiver, Sender};
-use net::messages::*;
+use futures::{Future, Sink};
 use secp256k1::{PublicKey, SecretKey, Signature};
 
 use crypto::hashes::Identifiable;
@@ -14,6 +14,7 @@ use primitives::transaction::Transaction;
 use primitives::varint::VarInt;
 use primitives::work_site::WorkSite;
 use utils::constants::HASH_LEN;
+use net::messages::*;
 
 pub struct Ego {
     pubkey: PublicKey,
@@ -150,6 +151,10 @@ impl PeerEgo {
         self.sink.clone()
     }
 
+    pub fn get_secret(&self) -> u64 {
+        self.secret
+    }
+
     pub fn get_status(&self) -> Status {
         self.status.clone()
     }
@@ -218,6 +223,10 @@ impl PeerEgo {
     // Receive nonce
     pub fn pull_nonce(&mut self, nonce: u64) {
         self.reported_nonce = nonce
+    }
+
+    pub fn send_msg(&self, message: Message) {
+        tokio::spawn(self.sink.clone().send(message).and_then(|_|futures::future::ok(())).map_err(|_| panic!()));
     }
 
     // Receive work

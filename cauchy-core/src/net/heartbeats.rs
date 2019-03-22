@@ -39,15 +39,8 @@ pub fn heartbeat_work(
 pub fn heartbeat_reconcile(arena: Arc<Mutex<Arena>>) -> impl Future<Item = (), Error = ()> {
     Interval::new_interval(duration_from_millis(CONFIG.NETWORK.RECONCILE_HEARTBEAT_MS))
         .map_err(|_| ()) // TODO: Catch
-        .filter_map(move |_| {
-            match arena.lock().unwrap().find_leader_sink() {
-                None => None,
-                Some(sink) => Some(tokio::spawn(
-                    sink.send(Message::Reconcile)
-                        .map_err(|e| ()) // TODO: Catch
-                        .and_then(|_| ok(())),
-                )),
-            }
+        .for_each(move |_| {
+            arena.lock().unwrap().reconcile_leader();
+            ok(())
         })
-        .for_each(|_| ok(()))
 }

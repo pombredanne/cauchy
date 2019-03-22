@@ -21,9 +21,8 @@ use net::messages::*;
 use primitives::arena::Arena;
 use primitives::ego::{Ego, PeerEgo, Status};
 use primitives::transaction::Transaction;
-use primitives::varint::VarInt;
 use utils::constants::*;
-use utils::errors::DaemonError;
+use utils::errors::{DaemonError, ImpulseReceiveError};
 
 pub fn server(
     tx_db: Arc<RocksDb>,
@@ -55,7 +54,13 @@ pub fn server(
         }
 
         // Construct peer ego
-        let (peer_ego, peer_sink) = PeerEgo::new();
+        let (peer_ego, peer_stream) = PeerEgo::new();
+
+        // Send handshake
+        peer_ego.send_msg(Message::StartHandshake {
+            secret: peer_ego.get_secret()
+        });
+
         let arc_peer_ego = Arc::new(Mutex::new(peer_ego));
         arena
             .lock()
@@ -64,10 +69,6 @@ pub fn server(
 
         // Start work heartbeat
         let work_heartbeat = heartbeat_work(ego.clone(), arc_peer_ego.clone());
-
-        // Send handshake
-        // TODO: Select impulse stream into the repulse stream below
-        // connection_manager_write.send_handshake(&socket_addr);
 
         // Frame the socket
         let framed_sock = Framed::new(socket, MessageCodec);
@@ -239,10 +240,11 @@ pub fn server(
         });
 
         // Remove failed responses and merge with heartbeats
-        let out_stream = response_stream.select(work_heartbeat);
+        let out_stream = response_stream
+            .select(work_heartbeat)
+            .select(peer_stream.map_err(|_| ImpulseReceiveError.into()));
 
         // Send responses
-        let arena_inner = arena.clone();
         let send = send_stream
             .send_all(out_stream)
             .map(|_| ())

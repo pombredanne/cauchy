@@ -19,6 +19,7 @@ toml = "*"
 lazy_static = "*"
 serde_derive = "*"
 serde = "*"
+itertools = "*"
 
 [dependencies.secp256k1]
 version = "*"

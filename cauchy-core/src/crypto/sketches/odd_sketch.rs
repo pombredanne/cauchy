@@ -41,6 +41,10 @@ impl OddSketch {
             Bytes::from(self.0.clone()).byte_xor(Bytes::from(other.0.clone())),
         ))
     } // TODO: This is super clunky, rework byte ops
+
+    pub fn distance(&self, other: &OddSketch) -> u32 {
+        self.xor(other).size()
+    }
 }
 
 impl From<OddSketch> for Bytes {
