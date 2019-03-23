@@ -252,6 +252,13 @@ pub fn server(
                 if DAEMON_VERBOSE {
                     println!("received reconcile from {}", socket_addr);
                 }
+                let mut peer_ego_locked = arc_peer_ego.lock().unwrap();
+
+                // If not gossiping then ignore reconcile request
+                if peer_ego_locked.get_status() != Status::Gossiping {
+                    return None
+                }
+                
                 // Set status to peer push
                 let mut peer_ego_locked = arc_peer_ego.lock().unwrap();
                 peer_ego_locked.update_status(Status::StatePush);
