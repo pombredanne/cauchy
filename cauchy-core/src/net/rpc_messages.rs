@@ -17,7 +17,7 @@ impl Encoder for RPCCodec {
     fn encode(&mut self, _item: Self::Item, _dst: &mut BytesMut) -> Result<(), Self::Error> {
         Err(Error::new(
             ErrorKind::Other,
-            "Daemon shouldn't send RPC messages",
+            "daemon shouldn't send RPC messages",
         ))
     }
 }

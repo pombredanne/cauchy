@@ -249,9 +249,11 @@ pub fn server(
                 peer_ego_locked.update_status(Status::StatePush);
 
                 // Send minisketch
-                let peer_ego = ego_inner.lock().unwrap();
+                if DAEMON_VERBOSE {
+                    println!("replying with minisketch {}", socket_addr);
+                }
                 Some(Message::MiniSketch {
-                    minisketch: peer_ego.get_minisketch(),
+                    minisketch: peer_ego_locked.get_anticipated_minisketch(),
                 })
             }
         });

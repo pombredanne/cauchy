@@ -56,14 +56,14 @@ impl Encoder for MessageCodec {
         match item {
             Message::StartHandshake { secret } => {
                 if ENCODING_VERBOSE {
-                    println!("Encoding StartHandshake");
+                    println!("encoding starthandshake");
                 }
                 dst.put_u8(0);
                 dst.extend(Bytes::from(VarInt::new(secret)));
             }
             Message::EndHandshake { pubkey, sig } => {
                 if ENCODING_VERBOSE {
-                    println!("Encoding EndHandshake");
+                    println!("encoding endhandshake");
                 }
                 dst.put_u8(1);
                 dst.extend(bytes_from_pubkey(pubkey));
@@ -71,7 +71,7 @@ impl Encoder for MessageCodec {
             }
             Message::Nonce { nonce } => {
                 if ENCODING_VERBOSE {
-                    println!("Encoding Nonce");
+                    println!("encoding nonce");
                 }
                 dst.put_u8(2);
                 dst.extend(Bytes::from(VarInt::new(nonce)));
@@ -82,7 +82,7 @@ impl Encoder for MessageCodec {
                 nonce,
             } => {
                 if ENCODING_VERBOSE {
-                    println!("Encoding Work");
+                    println!("encoding work");
                 }
                 dst.put_u8(3);
                 // TODO: Variable length
@@ -93,14 +93,14 @@ impl Encoder for MessageCodec {
             }
             Message::MiniSketch { minisketch } => {
                 if ENCODING_VERBOSE {
-                    println!("Encoding MiniSketch");
+                    println!("encoding minisketch");
                 }
                 dst.put_u8(4);
                 dst.extend(Bytes::from(minisketch))
             }
             Message::GetTransactions { ids } => {
                 if ENCODING_VERBOSE {
-                    println!("Encoding tx request");
+                    println!("encoding tx request");
                 }
                 dst.put_u8(5);
                 dst.extend(Bytes::from(VarInt::new(ids.len() as u64)));
@@ -110,7 +110,7 @@ impl Encoder for MessageCodec {
             }
             Message::Transactions { txs } => {
                 if ENCODING_VERBOSE {
-                    println!("Encoding txs");
+                    println!("encoding txs");
                 }
                 dst.put_u8(6);
                 let mut payload = BytesMut::new();
@@ -169,7 +169,7 @@ impl Decoder for MessageCodec {
             }
             2 => {
                 if DECODING_VERBOSE {
-                    println!("Decoding Nonce");
+                    println!("decoding nonce");
                 }
                 let (nonce_vi, len) = match VarInt::parse_buf(&mut buf)? {
                     Some(some) => some,
@@ -184,7 +184,7 @@ impl Decoder for MessageCodec {
             }
             3 => {
                 if DECODING_VERBOSE {
-                    println!("Decoding Work");
+                    println!("decoding work");
                 }
                 if buf.remaining() < SKETCH_CAPACITY + HASH_LEN {
                     return Ok(None);
@@ -210,7 +210,7 @@ impl Decoder for MessageCodec {
             }
             4 => {
                 if DECODING_VERBOSE {
-                    println!("Decoding MiniSketch");
+                    println!("decoding minisketch");
                 }
                 let (minisketch, len) = match DummySketch::parse_buf(&mut buf)? {
                     Some(some) => some,
@@ -222,7 +222,7 @@ impl Decoder for MessageCodec {
             }
             5 => {
                 if DECODING_VERBOSE {
-                    println!("Decoding transaction request");
+                    println!("decoding transaction request");
                 }
                 let (n_tx_ids_vi, n_tx_ids_vi_len) = match VarInt::parse_buf(&mut buf)? {
                     Some(some) => some,
@@ -230,7 +230,7 @@ impl Decoder for MessageCodec {
                 };
                 let us_n_tx_ids = usize::from(n_tx_ids_vi);
                 if DECODING_VERBOSE {
-                    println!("Number of txns to decode {}", us_n_tx_ids);
+                    println!("number of txns to decode {}", us_n_tx_ids);
                 }
                 let total_size = us_n_tx_ids * HASH_LEN;
                 let mut ids = HashSet::with_capacity(us_n_tx_ids);
@@ -250,7 +250,7 @@ impl Decoder for MessageCodec {
             }
             6 => {
                 if DECODING_VERBOSE {
-                    println!("Decoding transactions");
+                    println!("decoding transactions");
                 }
                 let (n_tx_vi, n_tx_vi_len) = match VarInt::parse_buf(&mut buf)? {
                     Some(some) => some,
@@ -258,7 +258,7 @@ impl Decoder for MessageCodec {
                 };
                 let n_tx = usize::from(n_tx_vi);
                 if DECODING_VERBOSE {
-                    println!("Number of transactions {}", n_tx);
+                    println!("number of transactions {}", n_tx);
                 }
                 let mut total_size: usize = 0;
                 let mut txs = HashSet::with_capacity(n_tx);
@@ -269,7 +269,7 @@ impl Decoder for MessageCodec {
                     };
                     txs.insert(tx);
                     if DECODING_VERBOSE {
-                        println!("Decoded transaction");
+                        println!("decoded transaction");
                     }
                     total_size += tx_len;
                 }
@@ -279,7 +279,7 @@ impl Decoder for MessageCodec {
             }
             7 => {
                 if DECODING_VERBOSE {
-                    println!("Decoding transactions");
+                    println!("decoding transactions");
                 }
                 src.advance(1);
                 Ok(Some(Message::Reconcile))
@@ -287,7 +287,7 @@ impl Decoder for MessageCodec {
             _ => {
                 // TODO: Remove malformed msgs
                 println!(
-                    "Received malformed: {}",
+                    "received malformed msg: {}",
                     String::from_utf8_lossy(&src.clone().freeze())
                 );
                 Err(MalformedMessageError.into())

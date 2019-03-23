@@ -268,7 +268,7 @@ impl PeerEgo {
         self.status = status
     }
 
-    // Receive work
+    // Update reported
     pub fn pull_work(&mut self, oddsketch: OddSketch, nonce: u64, root: Bytes) {
         self.reported_oddsketch = oddsketch;
         self.reported_nonce = nonce;
