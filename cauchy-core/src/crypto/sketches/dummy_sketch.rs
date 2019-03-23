@@ -1,10 +1,11 @@
 // TODO: Eventually replace this with minisketch
-
-use bytes::Bytes;
-use crypto::hashes::*;
-use crypto::sketches::*;
 use std::collections::HashSet;
 use std::ops::Sub;
+
+use bytes::Bytes;
+
+use crypto::hashes::*;
+use crypto::sketches::*;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct DummySketch {

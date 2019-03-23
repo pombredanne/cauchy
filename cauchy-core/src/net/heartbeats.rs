@@ -1,16 +1,16 @@
-use net::messages::Message;
-use primitives::arena::*;
-use utils::constants::*;
-use utils::timing::*;
-
-use futures::future::ok;
 use std::sync::{Arc, Mutex};
+
+use failure::Error;
+use futures::future::ok;
 use tokio::prelude::*;
 use tokio::timer::Interval;
 
-use failure::Error;
+use net::messages::Message;
+use primitives::arena::*;
 use primitives::ego::*;
+use utils::constants::*;
 use utils::errors::HeartBeatWorkError;
+use utils::timing::*;
 
 pub fn heartbeat_work(
     ego: Arc<Mutex<Ego>>,

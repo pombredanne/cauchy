@@ -1,10 +1,10 @@
 use bytes::Bytes;
-use crypto::hashes::blake2b::*;
+use failure::Error;
 use secp256k1::key::{PublicKey, SecretKey, ONE_KEY};
 use secp256k1::rand::OsRng;
 use secp256k1::{Message, Secp256k1, Signature};
 
-use failure::Error;
+use crypto::hashes::blake2b::*;
 use utils::errors::{InvalidPubkey, InvalidSignature};
 
 pub fn generate_keypair() -> (SecretKey, PublicKey) {

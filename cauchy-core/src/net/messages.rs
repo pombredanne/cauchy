@@ -1,10 +1,11 @@
+use std::collections::HashSet;
+
 use bytes::Bytes;
 use bytes::{Buf, BufMut, BytesMut, IntoBuf};
-use std::collections::HashSet;
-use tokio::codec::{Decoder, Encoder};
-
+use failure::Error;
 use secp256k1::key::PublicKey;
 use secp256k1::Signature;
+use tokio::codec::{Decoder, Encoder};
 
 use crypto::signatures::ecdsa::*;
 use crypto::sketches::dummy_sketch::*;
@@ -12,10 +13,8 @@ use crypto::sketches::odd_sketch::*;
 use primitives::transaction::*;
 use primitives::varint::VarInt;
 use utils::constants::*;
-use utils::parsing::*;
-
-use failure::Error;
 use utils::errors::MalformedMessageError;
+use utils::parsing::*;
 
 pub enum Message {
     StartHandshake {

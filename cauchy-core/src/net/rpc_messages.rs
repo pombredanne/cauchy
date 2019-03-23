@@ -1,5 +1,6 @@
-use bytes::{Buf, BytesMut, IntoBuf};
 use std::net::SocketAddr;
+
+use bytes::{Buf, BytesMut, IntoBuf};
 use tokio::codec::{Decoder, Encoder};
 use tokio::io::{Error, ErrorKind};
 

@@ -10,11 +10,11 @@ use crypto::signatures::ecdsa;
 use crypto::sketches::dummy_sketch::DummySketch;
 use crypto::sketches::odd_sketch::OddSketch;
 use crypto::sketches::SketchInsertable;
+use net::messages::*;
 use primitives::transaction::Transaction;
 use primitives::varint::VarInt;
 use primitives::work_site::WorkSite;
 use utils::constants::HASH_LEN;
-use net::messages::*;
 
 pub struct Ego {
     pubkey: PublicKey,
@@ -131,7 +131,7 @@ impl PeerEgo {
                 anticipated_minisketch: DummySketch::new(),
                 status: Status::Gossiping,
                 sink: peer_sink,
-                secret: 1337,
+                secret: 1337, // TODO: Randomize
                 expected_ids: None,
                 expected_minisketch: None,
             },
@@ -226,7 +226,17 @@ impl PeerEgo {
     }
 
     pub fn send_msg(&self, message: Message) {
-        tokio::spawn(self.sink.clone().send(message).and_then(|_|futures::future::ok(())).map_err(|_| panic!()));
+        tokio::spawn(
+            self.sink
+                .clone()
+                .send(message)
+                .and_then(|_| futures::future::ok(()))
+                .map_err(|_| panic!()),
+        );
+    }
+
+    pub fn set_status(&mut self, status: Status) {
+        self.status = status
     }
 
     // Receive work

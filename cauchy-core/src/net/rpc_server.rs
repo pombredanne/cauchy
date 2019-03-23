@@ -1,10 +1,11 @@
-use futures::{Future, Sink, Stream};
-use net::rpc_messages::*;
 use std::net::SocketAddr;
+
+use futures::{Future, Sink, Stream};
 use tokio::codec::Framed;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc::Sender;
 
+use net::rpc_messages::*;
 use utils::constants::{CONFIG, DAEMON_VERBOSE};
 use utils::errors::DaemonError;
 

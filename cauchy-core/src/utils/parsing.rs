@@ -1,12 +1,12 @@
 use bytes::{Buf, Bytes};
+use failure::Error;
+
 use crypto::sketches::dummy_sketch::*;
 use crypto::sketches::*;
 use primitives::transaction::*;
 use primitives::varint::*;
 use std::collections::HashSet;
 use utils::constants::*;
-
-use failure::Error;
 use utils::errors::VarIntParseError;
 
 pub trait Parsable<U> {

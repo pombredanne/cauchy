@@ -1,8 +1,10 @@
 pub mod dummy_sketch;
 pub mod odd_sketch;
+
+use std::collections::HashSet;
+
 use bytes::Bytes;
 use crypto::hashes::*;
-use std::collections::HashSet;
 
 pub trait SketchInsertable {
     fn new() -> Self;

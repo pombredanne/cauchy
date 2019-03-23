@@ -1,7 +1,8 @@
 use bytes::Bytes;
-use db::Database;
 use failure::Error;
 use rocksdb::DB;
+
+use db::Database;
 use utils::errors::SystemError;
 
 pub struct RocksDb(DB);

@@ -18,8 +18,7 @@ use crossbeam::channel;
 use core::{
     crypto::signatures::ecdsa, db::rocksdb::RocksDb, db::storing::Storable, db::*,
     net::heartbeats::*, primitives::arena::*, primitives::ego::*,
-    primitives::transaction::Transaction, utils::constants::*, utils::mining,
-    utils::timing::*
+    primitives::transaction::Transaction, utils::constants::*, utils::mining, utils::timing::*,
 };
 use futures::lazy;
 use rand::Rng;

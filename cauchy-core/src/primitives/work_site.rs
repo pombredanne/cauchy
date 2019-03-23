@@ -1,8 +1,10 @@
+use std::cell::Cell;
+
 use bytes::Bytes;
+use secp256k1::PublicKey;
+
 use crypto::hashes::blake2b::Blk2bHashable;
 use crypto::sketches::odd_sketch::*;
-use secp256k1::PublicKey;
-use std::cell::Cell;
 use utils::byte_ops::Hamming;
 
 #[derive(Debug, Clone)]

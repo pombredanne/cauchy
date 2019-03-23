@@ -1,10 +1,12 @@
+use std::sync::Arc;
+
+use failure::Error;
+
 use bytes::Bytes;
 use crypto::hashes::*;
 use db::rocksdb::*;
 use db::*;
-use failure::Error;
 use primitives::transaction::*;
-use std::sync::Arc;
 use utils::serialisation::*;
 
 pub trait Storable<U> {

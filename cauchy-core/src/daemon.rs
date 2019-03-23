@@ -2,16 +2,13 @@ use std::collections::HashSet;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 
-use bytes::Bytes;
 use failure::Error;
 use futures::Future;
-use secp256k1::{PublicKey, SecretKey};
 use tokio::codec::Framed;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::prelude::*;
 use tokio::sync::mpsc;
 
-use crypto::signatures::ecdsa;
 use crypto::sketches::odd_sketch::*;
 use crypto::sketches::*;
 use db::rocksdb::RocksDb;
@@ -33,7 +30,7 @@ pub fn server(
     if DAEMON_VERBOSE {
         println!("Spawning daemon");
     }
-    
+
     // Bind socket
     let addr = format!("0.0.0.0:{}", CONFIG.NETWORK.SERVER_PORT).to_string();
     let addr = addr.parse::<SocketAddr>().unwrap();
@@ -58,7 +55,7 @@ pub fn server(
 
         // Send handshake
         peer_ego.send_msg(Message::StartHandshake {
-            secret: peer_ego.get_secret()
+            secret: peer_ego.get_secret(),
         });
 
         let arc_peer_ego = Arc::new(Mutex::new(peer_ego));
@@ -199,7 +196,6 @@ pub fn server(
                         }
                     }
                 }
-
                 // Send transactions
                 Some(Message::Transactions { txs })
             }
@@ -210,9 +206,11 @@ pub fn server(
                 // If received txs from reconciliation target check the payload matches reported
                 // TODO: IDs should be calculated before we read to reduce unnecesarry concurrency on rec_status?
 
-                let peer_ego_locked = arc_peer_ego.lock().unwrap();
+                let mut peer_ego_locked = arc_peer_ego.lock().unwrap();
                 if peer_ego_locked.get_status() == Status::StatePull {
                     // Is reconcile target
+                    // Cease reconciliation status
+                    peer_ego_locked.update_status(Status::Gossiping);
                     if peer_ego_locked.is_expected_payload(&txs) {
                         // TODO: Send backstage and verify
 
@@ -232,6 +230,11 @@ pub fn server(
                 if DAEMON_VERBOSE {
                     println!("Received reconcile from {}", socket_addr);
                 }
+                // Set status to peer push
+                let mut peer_ego_locked = arc_peer_ego.lock().unwrap();
+                peer_ego_locked.update_status(Status::StatePush);
+
+                // Send minisketch
                 let peer_ego = ego_inner.lock().unwrap();
                 Some(Message::MiniSketch {
                     minisketch: peer_ego.get_minisketch(),

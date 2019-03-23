@@ -1,18 +1,17 @@
-use bytes::Bytes;
-use failure::Error;
-use secp256k1::PublicKey;
-
 use std::collections::HashMap;
+use std::net::SocketAddr;
 use std::sync::{Arc, Mutex, MutexGuard};
 
+use bytes::Bytes;
+use failure::Error;
 use futures::sync::mpsc::Sender;
+use itertools::Itertools;
+use secp256k1::PublicKey;
+
 use net::messages::Message;
 use primitives::ego::*;
-use std::net::SocketAddr;
-use utils::byte_ops::Hamming;
 use utils::constants::ARENA_VERBOSE;
 use utils::errors::ArenaError;
-use itertools::Itertools;
 
 pub struct Arena {
     ego: Arc<Mutex<Ego>>,
@@ -61,20 +60,31 @@ impl Arena {
             .any(|ego| ego.get_status() == Status::StatePull)
         {
             // TODO: This could be a lot faster
-            let mut best_distance = 256; 
+            let mut best_distance = 256;
             let mut best_index = 0;
             for (i, guard) in peer_locks.iter().enumerate() {
-                let i_distance = peer_locks.iter().map(|guard_inner| guard_inner.get_oddsketch().distance(&guard.get_oddsketch())).sum();
+                let i_distance = peer_locks
+                    .iter()
+                    .map(|guard_inner| guard_inner.get_oddsketch().distance(&guard.get_oddsketch()))
+                    .sum();
                 if i_distance < best_distance {
-                    best_index = 0;
+                    best_index = i;
                     best_distance = i_distance;
                 }
             }
-            
-            let self_distance: u32 = peer_locks.iter().map(|guard_inner| guard_inner.get_oddsketch().distance(&ego_locked.get_oddsketch())).sum();
+
+            let self_distance: u32 = peer_locks
+                .iter()
+                .map(|guard_inner| {
+                    guard_inner
+                        .get_oddsketch()
+                        .distance(&ego_locked.get_oddsketch())
+                })
+                .sum();
             if self_distance < best_distance {
                 println!("Leading");
             } else {
+                peer_locks[best_index].update_status(Status::StatePull);
                 peer_locks[best_index].send_msg(Message::Reconcile);
             }
         }

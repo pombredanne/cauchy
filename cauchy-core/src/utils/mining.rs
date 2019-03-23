@@ -1,12 +1,11 @@
+use std::time;
+
 use bus::BusReader;
 use bytes::Bytes;
 use crossbeam::channel::Sender;
-
-use crypto::sketches::odd_sketch::*;
-use std::time;
-
 use secp256k1::PublicKey;
 
+use crypto::sketches::odd_sketch::*;
 use primitives::work_site::WorkSite;
 
 pub fn mine(

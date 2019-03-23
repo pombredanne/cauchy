@@ -1,15 +1,14 @@
 use bytes::{Buf, BufMut, Bytes, BytesMut, IntoBuf};
+use failure::Error;
+
 use crypto::signatures::ecdsa::*;
 use crypto::sketches::dummy_sketch::*;
 use primitives::transaction::Transaction;
 use primitives::varint::VarInt;
 use primitives::work_site::WorkSite;
 use utils::constants::*;
-use utils::parsing::*;
-
-use failure::Error;
-
 use utils::errors::{TransactionDeserialisationError, VarIntDeserialisationError};
+use utils::parsing::*;
 
 pub trait TryFrom<T>: Sized {
     type Err;
