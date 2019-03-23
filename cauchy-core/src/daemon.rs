@@ -129,7 +129,7 @@ pub fn server(
                     // Decode difference
                     let perception_sketch = peer_ego_locked.get_anticipated_minisketch();
                     let (excess_actor_ids, missing_actor_ids) =
-                        (perception_sketch - minisketch).decode().unwrap();
+                        (perception_sketch - minisketch.clone()).decode().unwrap();
                     let perception_oddsketch = peer_ego_locked.get_perceived_oddsketch();
 
                     // Check for fraud
@@ -142,6 +142,7 @@ pub fn server(
                         }
                         // Set expected IDs
                         peer_ego_locked.update_ids(missing_actor_ids.clone());
+                        peer_ego_locked.update_expected_minisketch(minisketch);
 
                         Some(Message::GetTransactions {
                             ids: missing_actor_ids,

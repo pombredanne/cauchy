@@ -108,12 +108,12 @@ pub struct PeerEgo {
     perceived_oddsketch: OddSketch,
 
     // Anticipated
-    anticipated_minisketch: DummySketch,
+    anticipated_minisketch: DummySketch, // The minisketch to send to peer
 
     // Reconciliation
     status: Status,
     expected_ids: Option<HashSet<Bytes>>,
-    expected_minisketch: Option<DummySketch>
+    expected_minisketch: Option<DummySketch> // Post reconciliation our minisketch should match this
 }
 
 impl PeerEgo {
