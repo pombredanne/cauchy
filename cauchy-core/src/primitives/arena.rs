@@ -93,6 +93,7 @@ impl Arena {
             if self_distance < best_distance {
                 println!("leading");
             } else {
+                println!("sent reconcile");
                 peer_locks[best_index].update_status(Status::StatePull);
                 peer_locks[best_index].send_msg(Message::Reconcile);
             }

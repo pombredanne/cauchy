@@ -108,10 +108,11 @@ pub fn server(
                     println!("received work from {}", socket_addr);
                 }
                 // Update work
-                arc_peer_ego
-                    .lock()
-                    .unwrap()
-                    .pull_work(oddsketch, nonce, root);
+                let mut peer_ego_locked = arc_peer_ego.lock().unwrap();
+                peer_ego_locked.pull_work(oddsketch, nonce, root);
+
+                // Resume gossiping
+                peer_ego_locked.update_status(Status::Gossiping);
                 None
             }
             Message::MiniSketch { minisketch } => {
@@ -173,7 +174,6 @@ pub fn server(
                 // Set state to gossiping
                 // TODO: Update their reported state?
                 let mut peer_ego_locked = arc_peer_ego.lock().unwrap();
-                peer_ego_locked.update_status(Status::Gossiping);
 
                 // Find transactions
                 let mut txs = HashSet::with_capacity(ids.len());
@@ -242,8 +242,12 @@ pub fn server(
                     }
                 }
 
-                // TODO: Maybe immediately send the updated work back to the peer?
-                None
+                // Send updated state immediately
+                Some(Message::Work {
+                    oddsketch: peer_ego_locked.get_oddsketch(),
+                    root: peer_ego_locked.get_root(),
+                    nonce: 0,
+                })
             }
             Message::Reconcile => {
                 if DAEMON_VERBOSE {
