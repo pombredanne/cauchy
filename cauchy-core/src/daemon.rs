@@ -59,10 +59,9 @@ pub fn server(
         });
 
         let arc_peer_ego = Arc::new(Mutex::new(peer_ego));
-        arena
-            .lock()
-            .unwrap()
-            .new_peer(&socket_addr, arc_peer_ego.clone());
+        let mut arena_locked = arena.lock().unwrap();
+        arena_locked.new_peer(&socket_addr, arc_peer_ego.clone());
+        drop(arena_locked);
 
         // Start work heartbeat
         let work_heartbeat = heartbeat_work(ego.clone(), arc_peer_ego.clone());
@@ -264,11 +263,13 @@ pub fn server(
             .select(peer_stream.map_err(|_| ImpulseReceiveError.into()));
 
         // Send responses
+        let arena_inner = arena.clone();
         let send = send_stream
             .send_all(out_stream)
             .map(|_| ())
             .or_else(move |e| {
                 println!("socket error {:?}", e);
+                arena_inner.lock().unwrap().remove_peer(&socket_addr);
                 Ok(())
             });
         tokio::spawn(send)

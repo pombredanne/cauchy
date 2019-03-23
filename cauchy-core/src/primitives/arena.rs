@@ -30,6 +30,10 @@ impl Arena {
         self.peer_egos.insert(*addr, peer_ego);
     }
 
+    pub fn remove_peer(&mut self, addr: &SocketAddr) {
+        self.peer_egos.remove(addr);
+    }
+
     // // TODO: This seems super dangerous, maybe collect first?
     // pub fn get_state_push_targets(
     // ) -> Vec<SocketAddr> {

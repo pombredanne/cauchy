@@ -25,7 +25,7 @@ pub fn rpc_server(
         .for_each(move |socket| {
             let socket_addr = socket.peer_addr().unwrap();
             if DAEMON_VERBOSE {
-                println!("New RPC server socket to {}", socket_addr);
+                println!("new rpc cient to {}", socket_addr);
             }
 
             // Frame sockets
@@ -38,7 +38,7 @@ pub fn rpc_server(
                 .for_each(move |msg| match msg {
                     RPC::AddPeer { addr } => {
                         if DAEMON_VERBOSE {
-                            println!("Received addpeer {} message from {}", addr, socket_addr);
+                            println!("received addpeer {} message from {}", addr, socket_addr);
                         }
                         let socket_sender_inner = socket_sender_inner.clone();
                         TcpStream::connect(&addr)
@@ -46,7 +46,7 @@ pub fn rpc_server(
                                 socket_sender_inner.send(sock).map_err(|e| {
                                     std::io::Error::new(
                                         std::io::ErrorKind::Other,
-                                        "RPC addpeer channel failure",
+                                        "rpc addpeer channel failure",
                                     )
                                 })
                             })
