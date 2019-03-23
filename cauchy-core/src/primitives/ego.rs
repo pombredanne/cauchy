@@ -113,7 +113,7 @@ pub struct PeerEgo {
     // Reconciliation
     status: Status,
     expected_ids: Option<HashSet<Bytes>>,
-    expected_minisketch: Option<DummySketch>,
+    expected_minisketch: Option<DummySketch>
 }
 
 impl PeerEgo {
@@ -133,7 +133,7 @@ impl PeerEgo {
                 sink: peer_sink,
                 secret: 1337, // TODO: Randomize
                 expected_ids: None,
-                expected_minisketch: None,
+                expected_minisketch: None
             },
             peer_stream,
         )
@@ -179,8 +179,12 @@ impl PeerEgo {
         self.perceived_oddsketch.clone()
     }
 
+    pub fn get_anticipated_minisketch(&self) -> DummySketch {
+        self.anticipated_minisketch.clone() // TODO: Catch? This panics if reconcile before work is sent
+    }
+
     pub fn get_expected_minisketch(&self) -> DummySketch {
-        self.expected_minisketch.clone().unwrap() // TODO: Catch? This shouldn't ever panic though
+        self.expected_minisketch.clone().unwrap() // TODO: Catch? This panics if reconcile before work is sent
     }
 
     pub fn is_expected_payload(&self, transactions: &HashSet<Transaction>) -> bool {
@@ -198,13 +202,6 @@ impl PeerEgo {
         }
     }
 
-    // Update perception using ego
-    pub fn witness(&mut self, ego: &Ego) {
-        self.perceived_root = ego.root.clone();
-        self.perceived_nonce = ego.nonce.clone();
-        self.perceived_oddsketch = ego.oddsketch.clone();
-    }
-
     // Update expected IDs
     pub fn update_ids(&mut self, ids: HashSet<Bytes>) {
         self.expected_ids = Some(ids)
@@ -215,7 +212,7 @@ impl PeerEgo {
     }
 
     // Update expected minisketch
-    pub fn update_minisketch(&mut self, minisketch: DummySketch) {
+    pub fn update_expected_minisketch(&mut self, minisketch: DummySketch) {
         self.expected_minisketch = Some(minisketch)
     }
 
@@ -253,5 +250,6 @@ impl PeerEgo {
         self.perceived_root = self_ego.root.clone();
         self.perceived_oddsketch = self_ego.oddsketch.clone();
         self.perceived_nonce = self_ego.nonce;
+        self.anticipated_minisketch = self_ego.minisketch.clone();
     }
 }

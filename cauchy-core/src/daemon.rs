@@ -127,7 +127,7 @@ pub fn server(
                     let peer_oddsketch = peer_ego_locked.get_oddsketch();
 
                     // Decode difference
-                    let perception_sketch = peer_ego_locked.get_expected_minisketch();
+                    let perception_sketch = peer_ego_locked.get_anticipated_minisketch();
                     let (excess_actor_ids, missing_actor_ids) =
                         (perception_sketch - minisketch).decode().unwrap();
                     let perception_oddsketch = peer_ego_locked.get_perceived_oddsketch();

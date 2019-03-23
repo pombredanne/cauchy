@@ -20,10 +20,10 @@ pub fn heartbeat_work(
         .filter_map(move |_| {
             let mut peer_ego_lock = peer_ego.lock().unwrap();
             let ego_lock = ego.lock().unwrap();
-            if peer_ego_lock.get_status() == Status::Gossiping {
+            if peer_ego_lock.get_status() != Status::Gossiping {
                 None
             } else {
-                peer_ego_lock.witness(&ego_lock);
+                peer_ego_lock.push_work(&ego_lock);
                 Some(Message::Work {
                     oddsketch: ego_lock.get_oddsketch(),
                     root: ego_lock.get_root(),

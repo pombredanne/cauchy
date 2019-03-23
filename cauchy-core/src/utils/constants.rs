@@ -47,7 +47,7 @@ pub fn default_config() -> CoreConfig {
     CoreConfig {
         NETWORK: Networking {
             WORK_HEARTBEAT_MS: 1_000,
-            RECONCILE_HEARTBEAT_MS: 3_000,
+            RECONCILE_HEARTBEAT_MS: 30_000,
             RECONCILE_TIMEOUT_MS: 5_000,
             SERVER_PORT: 8332,
             RPC_SERVER_PORT: 8333,
