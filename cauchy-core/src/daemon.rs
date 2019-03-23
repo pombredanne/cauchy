@@ -79,7 +79,6 @@ pub fn server(
                 if DAEMON_VERBOSE {
                     println!("received handshake initialisation from {}", socket_addr);
                     println!("replied with handshake finalisation from {}", socket_addr);
-
                 }
                 Some(ego_inner.lock().unwrap().generate_end_handshake(secret))
             }
@@ -127,10 +126,17 @@ pub fn server(
                     let peer_oddsketch = peer_ego_locked.get_oddsketch();
 
                     // Decode difference
-                    let perception_sketch = peer_ego_locked.get_anticipated_minisketch();
-                    let (excess_actor_ids, missing_actor_ids) =
-                        (perception_sketch - minisketch.clone()).decode().unwrap();
+                    let perception_minisketch = peer_ego_locked.get_anticipated_minisketch();
+                    let (excess_actor_ids, missing_actor_ids) = (perception_minisketch
+                        - minisketch.clone())
+                    .decode()
+                    .unwrap();
                     let perception_oddsketch = peer_ego_locked.get_perceived_oddsketch();
+                    println!(
+                        "excess {}, mising {}",
+                        excess_actor_ids.len(),
+                        missing_actor_ids.len()
+                    );
 
                     // Check for fraud
                     if OddSketch::sketch_ids(&excess_actor_ids)
@@ -199,7 +205,11 @@ pub fn server(
                 }
                 // Send transactions
                 if DAEMON_VERBOSE {
-                    println!("replying to {} with {} transactions", socket_addr, txs.len());
+                    println!(
+                        "replying to {} with {} transactions",
+                        socket_addr,
+                        txs.len()
+                    );
                 }
                 Some(Message::Transactions { txs })
             }

@@ -59,13 +59,16 @@ impl Arena {
             .iter()
             .any(|ego| ego.get_status() == Status::StatePull)
         {
-            // TODO: This could be a lot faster
+            // TODO: Make this faster
             let mut best_distance = 256;
             let mut best_index = 0;
             for (i, guard) in peer_locks.iter().enumerate() {
                 let i_distance = peer_locks
                     .iter()
-                    .map(|guard_inner| guard_inner.get_oddsketch().distance(&guard.get_oddsketch()))
+                    .filter_map(|guard_inner| match guard_inner.get_work_site() {
+                        Some(work_site) => Some(work_site.mine(&guard.get_oddsketch())),
+                        None => None,
+                    })
                     .sum();
                 if i_distance < best_distance {
                     best_index = i;
@@ -73,16 +76,18 @@ impl Arena {
                 }
             }
 
-            let self_distance: u32 = peer_locks
+            let self_distance: u16 = peer_locks
                 .iter()
-                .map(|guard_inner| {
-                    guard_inner
-                        .get_oddsketch()
-                        .distance(&ego_locked.get_oddsketch())
+                .filter_map(|guard_inner| match guard_inner.get_work_site() {
+                    Some(work_site) => Some(work_site.mine(&ego_locked.get_oddsketch())),
+                    None => None,
                 })
                 .sum();
+
+            println!("self distance {}", self_distance);
+            println!("best peer distance {}", best_distance);
             if self_distance < best_distance {
-                println!("Leading");
+                println!("leading");
             } else {
                 peer_locks[best_index].update_status(Status::StatePull);
                 peer_locks[best_index].send_msg(Message::Reconcile);

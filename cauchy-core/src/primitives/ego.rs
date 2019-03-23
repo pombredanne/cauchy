@@ -1,10 +1,10 @@
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
-use bytes::Bytes;
-use crossbeam::channel::select;
-use crossbeam::channel;
 use bus::Bus;
+use bytes::Bytes;
+use crossbeam::channel;
+use crossbeam::channel::select;
 use futures::sync::mpsc::{channel, Receiver, Sender};
 use futures::{Future, Sink};
 use secp256k1::{PublicKey, SecretKey, Signature};
@@ -89,27 +89,32 @@ impl Ego {
     }
 
     // Mining updates
-    pub fn mining_updater(ego: Arc<Mutex<Ego>>, mut oddsketch_bus: Bus<(OddSketch, Bytes)>, tx_receive: channel::Receiver<Transaction>, distance_receive: channel::Receiver<(u64, u16)>) {
-            let mut best_distance: u16 = 512;
-            loop {
-                select! {
-                    recv(tx_receive) -> tx => {
-                        let mut ego_locked = ego.lock().unwrap();
-                        let root = Bytes::from(&[0; 32][..]); // TODO: Actually get root
-                        ego_locked.increment(&tx.unwrap(), root.clone());
-                        oddsketch_bus.broadcast((ego_locked.get_oddsketch(), root));
-                        best_distance = 512;
-                    },
-                    recv(distance_receive) -> pair => {
-                        let (nonce, distance) = pair.unwrap();
-                        if distance < best_distance {
-                            ego.lock().unwrap().update_nonce(nonce);
-                            best_distance = distance;
-                        }
+    pub fn mining_updater(
+        ego: Arc<Mutex<Ego>>,
+        mut oddsketch_bus: Bus<(OddSketch, Bytes)>,
+        tx_receive: channel::Receiver<Transaction>,
+        distance_receive: channel::Receiver<(u64, u16)>,
+    ) {
+        let mut best_distance: u16 = 512;
+        loop {
+            select! {
+                recv(tx_receive) -> tx => {
+                    let mut ego_locked = ego.lock().unwrap();
+                    let root = Bytes::from(&[0; 32][..]); // TODO: Actually get root
+                    ego_locked.increment(&tx.unwrap(), root.clone());
+                    oddsketch_bus.broadcast((ego_locked.get_oddsketch(), root));
+                    best_distance = 512;
+                },
+                recv(distance_receive) -> pair => {
+                    let (nonce, distance) = pair.unwrap();
+                    if distance < best_distance {
+                        ego.lock().unwrap().update_nonce(nonce);
+                        best_distance = distance;
                     }
                 }
             }
         }
+    }
 }
 
 #[derive(PartialEq, Clone)]
@@ -140,7 +145,7 @@ pub struct PeerEgo {
     // Reconciliation
     status: Status,
     expected_ids: Option<HashSet<Bytes>>,
-    expected_minisketch: Option<DummySketch> // Post reconciliation our minisketch should match this
+    expected_minisketch: Option<DummySketch>, // Post reconciliation our minisketch should match this
 }
 
 impl PeerEgo {
@@ -160,7 +165,7 @@ impl PeerEgo {
                 sink: peer_sink,
                 secret: 1337, // TODO: Randomize
                 expected_ids: None,
-                expected_minisketch: None
+                expected_minisketch: None,
             },
             peer_stream,
         )
@@ -271,12 +276,11 @@ impl PeerEgo {
     }
 
     // Update perception
-    pub fn push_work(&mut self, self_ego: &Ego) {
+    pub fn push_work(&mut self, ego: &Ego) {
         // Send work
-
-        self.perceived_root = self_ego.root.clone();
-        self.perceived_oddsketch = self_ego.oddsketch.clone();
-        self.perceived_nonce = self_ego.nonce;
-        self.anticipated_minisketch = self_ego.minisketch.clone();
+        self.perceived_root = ego.root.clone();
+        self.perceived_oddsketch = ego.oddsketch.clone();
+        self.perceived_nonce = ego.nonce;
+        self.anticipated_minisketch = ego.minisketch.clone();
     }
 }
