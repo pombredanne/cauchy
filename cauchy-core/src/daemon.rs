@@ -227,7 +227,6 @@ pub fn server(
                     if peer_ego_locked.is_expected_payload(&txs) {
                         // TODO: Send backstage and verify
 
-
                         // Add new txs to database
                         for tx in txs {
                             tx.to_db(tx_db_inner.clone());

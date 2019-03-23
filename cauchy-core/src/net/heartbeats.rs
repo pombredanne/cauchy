@@ -22,11 +22,14 @@ pub fn heartbeat_work(
             let ego_lock = ego.lock().unwrap();
             if peer_ego_lock.get_status() != Status::Gossiping {
                 if HEARTBEAT_VERBOSE {
-                    println!("work heartbeat paused while {:?}", match peer_ego_lock.get_status() {
-                        Status::StatePull => "pulling",
-                        Status::StatePush => "pushing",
-                        _ => unreachable!()
-                    })
+                    println!(
+                        "work heartbeat paused while {:?}",
+                        match peer_ego_lock.get_status() {
+                            Status::StatePull => "pulling",
+                            Status::StatePush => "pushing",
+                            _ => unreachable!(),
+                        }
+                    )
                 }
                 None
             } else {
