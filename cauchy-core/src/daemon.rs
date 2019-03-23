@@ -216,9 +216,8 @@ pub fn server(
                 if DAEMON_VERBOSE {
                     println!("received transactions from {}", socket_addr);
                 }
+                
                 // If received txs from reconciliation target check the payload matches reported
-                // TODO: IDs should be calculated before we read to reduce unnecesarry concurrency on rec_status?
-
                 let mut peer_ego_locked = arc_peer_ego.lock().unwrap();
                 if peer_ego_locked.get_status() == Status::StatePull {
                     // Is reconcile target
@@ -256,9 +255,14 @@ pub fn server(
 
                 // If not gossiping then ignore reconcile request
                 if peer_ego_locked.get_status() != Status::Gossiping {
+                    if DAEMON_VERBOSE {
+                        println!("ignoring due to potential deadlock");
+                    }
+                    // Set to gossiping to avoid potential distributed deadlocks
+                    peer_ego_locked.update_status(Status::Gossiping);
                     return None
                 }
-                
+
                 // Set status to peer push
                 let mut peer_ego_locked = arc_peer_ego.lock().unwrap();
                 peer_ego_locked.update_status(Status::StatePush);
