@@ -1,6 +1,10 @@
 use std::collections::HashSet;
+use std::sync::{Arc, Mutex};
 
 use bytes::Bytes;
+use crossbeam::channel::select;
+use crossbeam::channel;
+use bus::Bus;
 use futures::sync::mpsc::{channel, Receiver, Sender};
 use futures::{Future, Sink};
 use secp256k1::{PublicKey, SecretKey, Signature};
@@ -83,6 +87,29 @@ impl Ego {
         self.minisketch = minisketch;
         self.root = root;
     }
+
+    // Mining updates
+    pub fn mining_updater(ego: Arc<Mutex<Ego>>, mut oddsketch_bus: Bus<(OddSketch, Bytes)>, tx_receive: channel::Receiver<Transaction>, distance_receive: channel::Receiver<(u64, u16)>) {
+            let mut best_distance: u16 = 512;
+            loop {
+                select! {
+                    recv(tx_receive) -> tx => {
+                        let mut ego_locked = ego.lock().unwrap();
+                        let root = Bytes::from(&[0; 32][..]); // TODO: Actually get root
+                        ego_locked.increment(&tx.unwrap(), root.clone());
+                        oddsketch_bus.broadcast((ego_locked.get_oddsketch(), root));
+                        best_distance = 512;
+                    },
+                    recv(distance_receive) -> pair => {
+                        let (nonce, distance) = pair.unwrap();
+                        if distance < best_distance {
+                            ego.lock().unwrap().update_nonce(nonce);
+                            best_distance = distance;
+                        }
+                    }
+                }
+            }
+        }
 }
 
 #[derive(PartialEq, Clone)]

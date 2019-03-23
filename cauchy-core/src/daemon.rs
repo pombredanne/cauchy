@@ -28,7 +28,7 @@ pub fn server(
     arena: Arc<Mutex<Arena>>,
 ) -> impl Future<Item = (), Error = ()> + Send + 'static {
     if DAEMON_VERBOSE {
-        println!("Spawning daemon");
+        println!("spawning daemon");
     }
 
     // Bind socket
@@ -47,7 +47,7 @@ pub fn server(
     let server = incoming.for_each(move |socket| {
         let socket_addr = socket.peer_addr().unwrap();
         if DAEMON_VERBOSE {
-            println!("New server socket to {}", socket_addr);
+            println!("new server socket to {}", socket_addr);
         }
 
         // Construct peer ego
@@ -77,23 +77,24 @@ pub fn server(
         let response_stream = received_stream.filter_map(move |msg| match msg {
             Message::StartHandshake { secret } => {
                 if DAEMON_VERBOSE {
-                    println!("Received handshake initialisation from {}", socket_addr);
+                    println!("received handshake initialisation from {}", socket_addr);
+                    println!("replied with handshake finalisation from {}", socket_addr);
+
                 }
                 Some(ego_inner.lock().unwrap().generate_end_handshake(secret))
             }
             Message::EndHandshake { pubkey, sig } => {
                 if DAEMON_VERBOSE {
-                    println!("Received handshake finalisation from {}", socket_addr);
+                    println!("received handshake finalisation from {}", socket_addr);
                 }
 
                 // If peer correctly signs our secret we upgrade them from a dummy pk
                 arc_peer_ego.lock().unwrap().check_handshake(&sig, &pubkey);
-                // TODO: Reply with return StartHandshake?
                 None
             }
             Message::Nonce { nonce } => {
                 if DAEMON_VERBOSE {
-                    println!("Received nonce from {}", socket_addr);
+                    println!("received nonce from {}", socket_addr);
                 }
 
                 // Update nonce
@@ -106,10 +107,9 @@ pub fn server(
                 nonce,
             } => {
                 if DAEMON_VERBOSE {
-                    println!("Received work from {}", socket_addr);
+                    println!("received work from {}", socket_addr);
                 }
                 // Update work
-
                 arc_peer_ego
                     .lock()
                     .unwrap()
@@ -118,7 +118,7 @@ pub fn server(
             }
             Message::MiniSketch { minisketch } => {
                 if DAEMON_VERBOSE {
-                    println!("Received MiniSketch from {}", socket_addr);
+                    println!("received minisketch from {}", socket_addr);
                 }
 
                 // Only respond if the pk is reconciliation target
@@ -138,7 +138,7 @@ pub fn server(
                         == perception_oddsketch.xor(&peer_oddsketch)
                     {
                         if DAEMON_VERBOSE {
-                            println!("Valid Minisketch");
+                            println!("valid minisketch");
                         }
                         // Set expected IDs
                         peer_ego_locked.update_ids(missing_actor_ids.clone());
@@ -149,7 +149,7 @@ pub fn server(
                         })
                     } else {
                         if DAEMON_VERBOSE {
-                            println!("Fraudulent Minisketch");
+                            println!("fraudulent minisketch");
                         }
                         // Stop reconciliation
                         peer_ego_locked.update_status(Status::Gossiping);
@@ -162,7 +162,7 @@ pub fn server(
             Message::GetTransactions { ids } => {
                 // TODO: Check if reconcilee?
                 if DAEMON_VERBOSE {
-                    println!("Received transaction request from {}", socket_addr);
+                    println!("received transaction request from {}", socket_addr);
                 }
 
                 // Set state to gossiping
@@ -174,7 +174,7 @@ pub fn server(
                 let mut txs = HashSet::with_capacity(ids.len());
                 for id in ids {
                     if DAEMON_VERBOSE {
-                        println!("Searching for transaction {:?}", id);
+                        println!("searching for transaction {:?}", id);
                     }
                     match Transaction::from_db(tx_db_inner.clone(), &id) {
                         Ok(Some(tx)) => {
@@ -185,24 +185,27 @@ pub fn server(
                         }
                         Err(err) => {
                             if DAEMON_VERBOSE {
-                                println!("Database error {:?}", err);
+                                println!("database error {:?}", err);
                             }
                             return None;
                         }
                         Ok(None) => {
                             if DAEMON_VERBOSE {
-                                println!("Transaction {:?} not found", id);
+                                println!("transaction {:?} not found", id);
                             }
                             return None;
                         }
                     }
                 }
                 // Send transactions
+                if DAEMON_VERBOSE {
+                    println!("replying to {} with {} transactions", socket_addr, txs.len());
+                }
                 Some(Message::Transactions { txs })
             }
             Message::Transactions { txs } => {
                 if DAEMON_VERBOSE {
-                    println!("Received transactions from {}", socket_addr);
+                    println!("received transactions from {}", socket_addr);
                 }
                 // If received txs from reconciliation target check the payload matches reported
                 // TODO: IDs should be calculated before we read to reduce unnecesarry concurrency on rec_status?
@@ -229,7 +232,7 @@ pub fn server(
             }
             Message::Reconcile => {
                 if DAEMON_VERBOSE {
-                    println!("Received reconcile from {}", socket_addr);
+                    println!("received reconcile from {}", socket_addr);
                 }
                 // Set status to peer push
                 let mut peer_ego_locked = arc_peer_ego.lock().unwrap();

@@ -17,7 +17,7 @@ use crossbeam::channel;
 
 use core::{
     crypto::signatures::ecdsa, db::rocksdb::RocksDb, db::storing::Storable, db::*,
-    net::heartbeats::*, primitives::arena::*, primitives::ego::*,
+    net::heartbeats::*, primitives::arena::*, primitives::ego::Ego,
     primitives::transaction::Transaction, utils::constants::*, utils::mining, utils::timing::*,
 };
 use futures::lazy;
@@ -38,18 +38,18 @@ fn main() {
     let (local_sk, local_pk) = ecdsa::generate_keypair();
 
     let (distance_send, distance_recv) = channel::unbounded();
-    let mut state_proxy_bus = Bus::new(10);
+    let mut ego_bus = Bus::new(10);
     let n_mining_threads: u64 = CONFIG.MINING.N_MINING_THREADS as u64;
     let nonce_start_base = std::u64::MAX / n_mining_threads;
 
     for i in 0..n_mining_threads {
         let distance_send_inner = distance_send.clone();
-        let mut proxy_recv = state_proxy_bus.add_rx();
+        let mut ego_recv = ego_bus.add_rx();
 
         thread::spawn(move || {
             mining::mine(
                 local_pk,
-                proxy_recv,
+                ego_recv,
                 distance_send_inner,
                 i * nonce_start_base,
             )
@@ -81,6 +81,7 @@ fn main() {
 
     // Update local state
     let (tx_send, tx_recv) = channel::unbounded();
+    thread::spawn(move || Ego::mining_updater(ego, ego_bus, tx_recv, distance_recv));
     // thread::spawn(move || local_status.update_local(state_proxy_bus, tx_recv, distance_recv));
 
     let new_tx_interval = duration_from_millis(CONFIG.DEBUGGING.TEST_TX_INTERVAL);
