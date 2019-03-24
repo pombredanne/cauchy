@@ -279,7 +279,7 @@ impl Decoder for MessageCodec {
             }
             7 => {
                 if DECODING_VERBOSE {
-                    println!("decoding transactions");
+                    println!("decoding reconcile");
                 }
                 src.advance(1);
                 Ok(Some(Message::Reconcile))

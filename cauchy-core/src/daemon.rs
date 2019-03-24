@@ -107,8 +107,10 @@ pub fn server(
                 if DAEMON_VERBOSE {
                     println!("received work from {}", socket_addr);
                 }
-                // Update work
+                // Lock peer ego
                 let mut peer_ego_locked = arc_peer_ego.lock().unwrap();
+
+                // Update work
                 peer_ego_locked.pull_work(oddsketch, nonce, root);
 
                 // Resume gossiping
@@ -119,9 +121,10 @@ pub fn server(
                 if DAEMON_VERBOSE {
                     println!("received minisketch from {}", socket_addr);
                 }
+                // Lock peer ego
+                let mut peer_ego_locked = arc_peer_ego.lock().unwrap();
 
                 // Only respond if the pk is reconciliation target
-                let mut peer_ego_locked = arc_peer_ego.lock().unwrap();
                 if peer_ego_locked.get_status() == Status::StatePull {
                     let peer_oddsketch = peer_ego_locked.get_oddsketch();
 
@@ -171,16 +174,15 @@ pub fn server(
                     println!("received transaction request from {}", socket_addr);
                 }
 
-                // Set state to gossiping
-                // TODO: Update their reported state?
+                // Lock peer ego
                 let mut peer_ego_locked = arc_peer_ego.lock().unwrap();
 
                 // Find transactions
                 let mut txs = HashSet::with_capacity(ids.len());
                 for id in ids {
-                    if DAEMON_VERBOSE {
-                        println!("searching for transaction {:?}", id);
-                    }
+                    // if DAEMON_VERBOSE {
+                    //     println!("searching for transaction {:?}", id);
+                    // }
                     match Transaction::from_db(tx_db_inner.clone(), &id) {
                         Ok(Some(tx)) => {
                             // if DAEMON_VERBOSE {
@@ -192,12 +194,14 @@ pub fn server(
                             if DAEMON_VERBOSE {
                                 println!("database error {:?}", err);
                             }
+                            peer_ego_locked.update_status(Status::Gossiping);
                             return None;
                         }
                         Ok(None) => {
                             if DAEMON_VERBOSE {
                                 println!("transaction {:?} not found", id);
                             }
+                            peer_ego_locked.update_status(Status::Gossiping);
                             return None;
                         }
                     }
@@ -210,15 +214,20 @@ pub fn server(
                         txs.len()
                     );
                 }
+                peer_ego_locked.update_status(Status::Gossiping);
                 Some(Message::Transactions { txs })
             }
             Message::Transactions { txs } => {
                 if DAEMON_VERBOSE {
                     println!("received transactions from {}", socket_addr);
                 }
-                
-                // If received txs from reconciliation target check the payload matches reported
+                // Lock ego and peer ego
+                let mut ego_lock = ego_inner.lock().unwrap();
                 let mut peer_ego_locked = arc_peer_ego.lock().unwrap();
+                peer_ego_locked.update_status(Status::Gossiping);
+
+
+                // If received txs from reconciliation target check the payload matches reported
                 if peer_ego_locked.get_status() == Status::StatePull {
                     // Is reconcile target
                     // Cease reconciliation status
@@ -232,7 +241,7 @@ pub fn server(
                         }
 
                         // Update ego
-                        ego_inner.lock().unwrap().pull(
+                        ego_lock.pull(
                             peer_ego_locked.get_oddsketch(),
                             peer_ego_locked.get_expected_minisketch(),
                             peer_ego_locked.get_root(),
@@ -251,6 +260,7 @@ pub fn server(
                 if DAEMON_VERBOSE {
                     println!("received reconcile from {}", socket_addr);
                 }
+                // Lock peer ego
                 let mut peer_ego_locked = arc_peer_ego.lock().unwrap();
 
                 // If not gossiping then ignore reconcile request
@@ -263,7 +273,7 @@ pub fn server(
                     return None
                 }
 
-                // Set status to peer push
+                // Set status of peer push
                 let mut peer_ego_locked = arc_peer_ego.lock().unwrap();
                 peer_ego_locked.update_status(Status::StatePush);
 

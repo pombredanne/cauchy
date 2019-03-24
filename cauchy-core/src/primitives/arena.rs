@@ -55,7 +55,7 @@ impl Arena {
         let mut peer_locks: Vec<MutexGuard<PeerEgo>> = self
             .peer_egos
             .iter()
-            .map(|(addr, ego)| ego.lock().unwrap())
+            .map(|(_, ego)| ego.lock().unwrap())
             .collect();
 
         // Is a reconcile live?
