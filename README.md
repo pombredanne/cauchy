@@ -9,8 +9,10 @@ cargo build --release
 ```
 
 ## Running a Node
-
-
+After build completed
+```bash
+./target/release/cauchy
+```
 ## Configuration
 A custom configuration file `config.toml` may be added `HOME_DIRECTORY\.cauchy\` directory. 
 
@@ -18,9 +20,9 @@ A custom configuration file `config.toml` may be added `HOME_DIRECTORY\.cauchy\`
 
 ```toml
 [NETWORK]
-WORK_HEARTBEAT_MS = 1_000
+WORK_HEARTBEAT_MS = 2_000
 RECONCILE_HEARTBEAT_MS = 5_000
-RECONCILE_TIMEOUT_MS = 4_000
+RECONCILE_TIMEOUT_MS = 5_000
 SERVER_PORT = 8332
 RPC_SERVER_PORT = 8333
 
@@ -28,5 +30,11 @@ RPC_SERVER_PORT = 8333
 N_MINING_THREADS = 2
 
 [DEBUGGING]
-TEST_TX_INTERVAL_MS = 500
+TEST_TX_INTERVAL = 200
+ARENA_VERBOSE = false
+ENCODING_VERBOSE = false
+DECODING_VERBOSE = false
+PARSING_VERBOSE = false
+DAEMON_VERBOSE = true
+HEARTBEAT_VERBOSE = true
 ```
