@@ -63,7 +63,7 @@ impl Arena {
             .any(|ego| ego.get_status() == Status::StatePull)
         {
             // TODO: Make this faster
-            let mut best_distance = 256;
+            let mut best_distance = 1024;
             let mut best_index = 0;
             for (i, guard) in peer_locks.iter().enumerate() {
                 let i_distance = peer_locks
