@@ -10,7 +10,6 @@ use secp256k1::PublicKey;
 
 use net::messages::Message;
 use primitives::ego::*;
-use utils::constants::ARENA_VERBOSE;
 use utils::errors::ArenaError;
 
 pub struct Arena {

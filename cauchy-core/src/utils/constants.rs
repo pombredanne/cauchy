@@ -3,12 +3,6 @@ pub const PUBKEY_LEN: usize = 33;
 pub const SIG_LEN: usize = 64;
 pub const TX_DB_PATH: &str = ".cauchy/db/";
 pub const SKETCH_CAPACITY: usize = 32; // TODO: This should become dynamic
-pub const HEARTBEAT_VERBOSE: bool = true;
-pub const DAEMON_VERBOSE: bool = true;
-pub const PARSING_VERBOSE: bool = false;
-pub const ARENA_VERBOSE: bool = false;
-pub const ENCODING_VERBOSE: bool = false;
-pub const DECODING_VERBOSE: bool = true;
 
 use std::fs;
 use std::io::Read;
@@ -25,6 +19,12 @@ pub struct Networking {
 #[derive(Deserialize)]
 pub struct Debugging {
     pub TEST_TX_INTERVAL: u64,
+    pub ARENA_VERBOSE: bool,
+    pub HEARTBEAT_VERBOSE: bool,
+    pub DAEMON_VERBOSE: bool,
+    pub ENCODING_VERBOSE: bool,
+    pub DECODING_VERBOSE: bool,
+    pub PARSING_VERBOSE: bool
 }
 
 #[derive(Deserialize)]
@@ -57,6 +57,13 @@ pub fn default_config() -> CoreConfig {
         },
         DEBUGGING: Debugging {
             TEST_TX_INTERVAL: 500,
+            ARENA_VERBOSE: false,
+            HEARTBEAT_VERBOSE: false,
+            DAEMON_VERBOSE: false,
+            ENCODING_VERBOSE: false,
+            DECODING_VERBOSE: false,
+            PARSING_VERBOSE: false
+
         },
     }
 }

@@ -55,14 +55,14 @@ impl Encoder for MessageCodec {
         dst.reserve(1);
         match item {
             Message::StartHandshake { secret } => {
-                if ENCODING_VERBOSE {
+                if CONFIG.DEBUGGING.ENCODING_VERBOSE {
                     println!("encoding starthandshake");
                 }
                 dst.put_u8(0);
                 dst.extend(Bytes::from(VarInt::new(secret)));
             }
             Message::EndHandshake { pubkey, sig } => {
-                if ENCODING_VERBOSE {
+                if CONFIG.DEBUGGING.ENCODING_VERBOSE {
                     println!("encoding endhandshake");
                 }
                 dst.put_u8(1);
@@ -70,7 +70,7 @@ impl Encoder for MessageCodec {
                 dst.extend(bytes_from_sig(sig));
             }
             Message::Nonce { nonce } => {
-                if ENCODING_VERBOSE {
+                if CONFIG.DEBUGGING.ENCODING_VERBOSE {
                     println!("encoding nonce");
                 }
                 dst.put_u8(2);
@@ -81,7 +81,7 @@ impl Encoder for MessageCodec {
                 root,
                 nonce,
             } => {
-                if ENCODING_VERBOSE {
+                if CONFIG.DEBUGGING.ENCODING_VERBOSE {
                     println!("encoding work");
                 }
                 dst.put_u8(3);
@@ -92,14 +92,14 @@ impl Encoder for MessageCodec {
                 dst.extend(Bytes::from(VarInt::new(nonce)));
             }
             Message::MiniSketch { minisketch } => {
-                if ENCODING_VERBOSE {
+                if CONFIG.DEBUGGING.ENCODING_VERBOSE {
                     println!("encoding minisketch");
                 }
                 dst.put_u8(4);
                 dst.extend(Bytes::from(minisketch))
             }
             Message::GetTransactions { ids } => {
-                if ENCODING_VERBOSE {
+                if CONFIG.DEBUGGING.ENCODING_VERBOSE {
                     println!("encoding tx request");
                 }
                 dst.put_u8(5);
@@ -109,7 +109,7 @@ impl Encoder for MessageCodec {
                 }
             }
             Message::Transactions { txs } => {
-                if ENCODING_VERBOSE {
+                if CONFIG.DEBUGGING.ENCODING_VERBOSE {
                     println!("encoding txs");
                 }
                 dst.put_u8(6);
@@ -168,7 +168,7 @@ impl Decoder for MessageCodec {
                 Ok(Some(msg))
             }
             2 => {
-                if DECODING_VERBOSE {
+                if CONFIG.DEBUGGING.DECODING_VERBOSE {
                     println!("decoding nonce");
                 }
                 let (nonce_vi, len) = match VarInt::parse_buf(&mut buf)? {
@@ -183,7 +183,7 @@ impl Decoder for MessageCodec {
                 Ok(Some(msg))
             }
             3 => {
-                if DECODING_VERBOSE {
+                if CONFIG.DEBUGGING.DECODING_VERBOSE {
                     println!("decoding work");
                 }
                 if buf.remaining() < SKETCH_CAPACITY + HASH_LEN {
@@ -209,7 +209,7 @@ impl Decoder for MessageCodec {
                 Ok(Some(msg))
             }
             4 => {
-                if DECODING_VERBOSE {
+                if CONFIG.DEBUGGING.DECODING_VERBOSE {
                     println!("decoding minisketch");
                 }
                 let (minisketch, len) = match DummySketch::parse_buf(&mut buf)? {
@@ -221,7 +221,7 @@ impl Decoder for MessageCodec {
                 Ok(Some(msg))
             }
             5 => {
-                if DECODING_VERBOSE {
+                if CONFIG.DEBUGGING.DECODING_VERBOSE {
                     println!("decoding transaction request");
                 }
                 let (n_tx_ids_vi, n_tx_ids_vi_len) = match VarInt::parse_buf(&mut buf)? {
@@ -229,7 +229,7 @@ impl Decoder for MessageCodec {
                     None => return Ok(None),
                 };
                 let us_n_tx_ids = usize::from(n_tx_ids_vi);
-                if DECODING_VERBOSE {
+                if CONFIG.DEBUGGING.DECODING_VERBOSE {
                     println!("number of txns to decode {}", us_n_tx_ids);
                 }
                 let total_size = us_n_tx_ids * HASH_LEN;
@@ -249,7 +249,7 @@ impl Decoder for MessageCodec {
                 }
             }
             6 => {
-                if DECODING_VERBOSE {
+                if CONFIG.DEBUGGING.DECODING_VERBOSE {
                     println!("decoding transactions");
                 }
                 let (n_tx_vi, n_tx_vi_len) = match VarInt::parse_buf(&mut buf)? {
@@ -257,7 +257,7 @@ impl Decoder for MessageCodec {
                     None => return Ok(None),
                 };
                 let n_tx = usize::from(n_tx_vi);
-                if DECODING_VERBOSE {
+                if CONFIG.DEBUGGING.DECODING_VERBOSE {
                     println!("number of transactions {}", n_tx);
                 }
                 let mut total_size: usize = 0;
@@ -268,7 +268,7 @@ impl Decoder for MessageCodec {
                         None => return Ok(None),
                     };
                     txs.insert(tx);
-                    if DECODING_VERBOSE {
+                    if CONFIG.DEBUGGING.DECODING_VERBOSE {
                         println!("decoded transaction");
                     }
                     total_size += tx_len;
@@ -278,7 +278,7 @@ impl Decoder for MessageCodec {
                 Ok(Some(msg))
             }
             7 => {
-                if DECODING_VERBOSE {
+                if CONFIG.DEBUGGING.DECODING_VERBOSE {
                     println!("decoding reconcile");
                 }
                 src.advance(1);

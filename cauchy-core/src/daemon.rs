@@ -27,7 +27,7 @@ pub fn server(
     socket_recv: mpsc::Receiver<TcpStream>,
     arena: Arc<Mutex<Arena>>,
 ) -> impl Future<Item = (), Error = ()> + Send + 'static {
-    if DAEMON_VERBOSE {
+    if CONFIG.DEBUGGING.DAEMON_VERBOSE {
         println!("spawning daemon");
     }
 
@@ -46,7 +46,7 @@ pub fn server(
 
     let server = incoming.for_each(move |socket| {
         let socket_addr = socket.peer_addr().unwrap();
-        if DAEMON_VERBOSE {
+        if CONFIG.DEBUGGING.DAEMON_VERBOSE {
             println!("new server socket to {}", socket_addr);
         }
 
@@ -75,14 +75,14 @@ pub fn server(
         let ego_inner = ego.clone();
         let response_stream = received_stream.filter_map(move |msg| match msg {
             Message::StartHandshake { secret } => {
-                if DAEMON_VERBOSE {
+                if CONFIG.DEBUGGING.DAEMON_VERBOSE {
                     println!("received handshake initialisation from {}", socket_addr);
                     println!("replied with handshake finalisation from {}", socket_addr);
                 }
                 Some(ego_inner.lock().unwrap().generate_end_handshake(secret))
             }
             Message::EndHandshake { pubkey, sig } => {
-                if DAEMON_VERBOSE {
+                if CONFIG.DEBUGGING.DAEMON_VERBOSE {
                     println!("received handshake finalisation from {}", socket_addr);
                 }
 
@@ -91,7 +91,7 @@ pub fn server(
                 None
             }
             Message::Nonce { nonce } => {
-                if DAEMON_VERBOSE {
+                if CONFIG.DEBUGGING.DAEMON_VERBOSE {
                     println!("received nonce from {}", socket_addr);
                 }
 
@@ -104,7 +104,7 @@ pub fn server(
                 root,
                 nonce,
             } => {
-                if DAEMON_VERBOSE {
+                if CONFIG.DEBUGGING.DAEMON_VERBOSE {
                     println!("received work from {}", socket_addr);
                 }
                 // Lock peer ego
@@ -118,7 +118,7 @@ pub fn server(
                 None
             }
             Message::MiniSketch { minisketch } => {
-                if DAEMON_VERBOSE {
+                if CONFIG.DEBUGGING.DAEMON_VERBOSE {
                     println!("received minisketch from {}", socket_addr);
                 }
                 // Lock peer ego
@@ -146,7 +146,7 @@ pub fn server(
                         .xor(&OddSketch::sketch_ids(&missing_actor_ids))
                         == perception_oddsketch.xor(&peer_oddsketch)
                     {
-                        if DAEMON_VERBOSE {
+                        if CONFIG.DEBUGGING.DAEMON_VERBOSE {
                             println!("valid minisketch");
                         }
                         // Set expected IDs
@@ -157,7 +157,7 @@ pub fn server(
                             ids: missing_actor_ids,
                         })
                     } else {
-                        if DAEMON_VERBOSE {
+                        if CONFIG.DEBUGGING.DAEMON_VERBOSE {
                             println!("fraudulent minisketch");
                         }
                         // Stop reconciliation
@@ -170,7 +170,7 @@ pub fn server(
             }
             Message::GetTransactions { ids } => {
                 // TODO: Check if reconcilee?
-                if DAEMON_VERBOSE {
+                if CONFIG.DEBUGGING.DAEMON_VERBOSE {
                     println!("received transaction request from {}", socket_addr);
                 }
 
@@ -180,25 +180,25 @@ pub fn server(
                 // Find transactions
                 let mut txs = HashSet::with_capacity(ids.len());
                 for id in ids {
-                    // if DAEMON_VERBOSE {
+                    // if CONFIG.DEBUGGING.DAEMON_VERBOSE {
                     //     println!("searching for transaction {:?}", id);
                     // }
                     match Transaction::from_db(tx_db_inner.clone(), &id) {
                         Ok(Some(tx)) => {
-                            // if DAEMON_VERBOSE {
+                            // if CONFIG.DEBUGGING.DAEMON_VERBOSE {
                             //     println!("Found {:?}", id);
                             // }
                             txs.insert(tx);
                         }
                         Err(err) => {
-                            if DAEMON_VERBOSE {
+                            if CONFIG.DEBUGGING.DAEMON_VERBOSE {
                                 println!("database error {:?}", err);
                             }
                             peer_ego_locked.update_status(Status::Gossiping);
                             return None;
                         }
                         Ok(None) => {
-                            if DAEMON_VERBOSE {
+                            if CONFIG.DEBUGGING.DAEMON_VERBOSE {
                                 println!("transaction {:?} not found", id);
                             }
                             peer_ego_locked.update_status(Status::Gossiping);
@@ -207,7 +207,7 @@ pub fn server(
                     }
                 }
                 // Send transactions
-                if DAEMON_VERBOSE {
+                if CONFIG.DEBUGGING.DAEMON_VERBOSE {
                     println!(
                         "replying to {} with {} transactions",
                         socket_addr,
@@ -218,7 +218,7 @@ pub fn server(
                 Some(Message::Transactions { txs })
             }
             Message::Transactions { txs } => {
-                if DAEMON_VERBOSE {
+                if CONFIG.DEBUGGING.DAEMON_VERBOSE {
                     println!("received transactions from {}", socket_addr);
                 }
                 // Lock ego and peer ego
@@ -257,7 +257,7 @@ pub fn server(
                 })
             }
             Message::Reconcile => {
-                if DAEMON_VERBOSE {
+                if CONFIG.DEBUGGING.DAEMON_VERBOSE {
                     println!("received reconcile from {}", socket_addr);
                 }
                 // Lock peer ego
@@ -265,7 +265,7 @@ pub fn server(
 
                 // If not gossiping then ignore reconcile request
                 if peer_ego_locked.get_status() != Status::Gossiping {
-                    if DAEMON_VERBOSE {
+                    if CONFIG.DEBUGGING.DAEMON_VERBOSE {
                         println!("ignoring due to potential deadlock");
                     }
                     // Set to gossiping to avoid potential distributed deadlocks
@@ -277,7 +277,7 @@ pub fn server(
                 peer_ego_locked.update_status(Status::StatePush);
 
                 // Send minisketch
-                if DAEMON_VERBOSE {
+                if CONFIG.DEBUGGING.DAEMON_VERBOSE {
                     println!("replying with minisketch {}", socket_addr);
                 }
                 Some(Message::MiniSketch {

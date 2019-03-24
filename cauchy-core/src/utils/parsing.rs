@@ -15,7 +15,7 @@ pub trait Parsable<U> {
 
 impl Parsable<Transaction> for Transaction {
     fn parse_buf<T: Buf>(buf: &mut T) -> Result<Option<(Transaction, usize)>, Error> {
-        if PARSING_VERBOSE {
+        if CONFIG.DEBUGGING.PARSING_VERBOSE {
             println!("Begin Transaction parsing");
         }
         let (vi_time, vi_time_len) = match VarInt::parse_buf(buf)? {
@@ -42,7 +42,7 @@ impl Parsable<Transaction> for Transaction {
         }
         let mut dst_bin = vec![0; us_bin_len];
         buf.copy_to_slice(&mut dst_bin);
-        if PARSING_VERBOSE {
+        if CONFIG.DEBUGGING.PARSING_VERBOSE {
             println!("Finished Transaction parsing");
         }
         Ok(Some((
@@ -58,7 +58,7 @@ impl Parsable<Transaction> for Transaction {
 
 impl Parsable<VarInt> for VarInt {
     fn parse_buf<T: Buf>(buf: &mut T) -> Result<Option<(VarInt, usize)>, Error> {
-        if PARSING_VERBOSE {
+        if CONFIG.DEBUGGING.PARSING_VERBOSE {
             println!("Begin VarInt parsing");
         }
         let mut n: u64 = 0;
@@ -77,7 +77,7 @@ impl Parsable<VarInt> for VarInt {
             if 0x00 != (k & 0x80) {
                 n += 1;
             } else {
-                if PARSING_VERBOSE {
+                if CONFIG.DEBUGGING.PARSING_VERBOSE {
                     println!("Finished VarInt parsing");
                 }
                 return Ok(Some((VarInt::new(n), len)));
@@ -89,7 +89,7 @@ impl Parsable<VarInt> for VarInt {
 impl Parsable<DummySketch> for DummySketch {
     fn parse_buf<T: Buf>(buf: &mut T) -> Result<Option<(DummySketch, usize)>, Error> {
         // TODO: Catch errors
-        if PARSING_VERBOSE {
+        if CONFIG.DEBUGGING.PARSING_VERBOSE {
             println!("Begin DummySketch parsing");
         }
         let (vi_pos_len, vi_pos_len_len) = match VarInt::parse_buf(buf)? {
@@ -99,7 +99,7 @@ impl Parsable<DummySketch> for DummySketch {
         let us_pos_len = usize::from(vi_pos_len);
         let mut pos_set = HashSet::with_capacity(us_pos_len);
         for i in 0..us_pos_len {
-            if PARSING_VERBOSE {
+            if CONFIG.DEBUGGING.PARSING_VERBOSE {
                 println!("ID {} of {}", i, us_pos_len);
             }
             if buf.remaining() < HASH_LEN {
@@ -109,7 +109,7 @@ impl Parsable<DummySketch> for DummySketch {
             buf.copy_to_slice(&mut dst_aux);
             pos_set.insert(Bytes::from(dst_aux));
         }
-        if PARSING_VERBOSE {
+        if CONFIG.DEBUGGING.PARSING_VERBOSE {
             println!("Finished DummySketch parsing");
         }
         Ok(Some((

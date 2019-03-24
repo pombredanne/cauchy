@@ -6,7 +6,7 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc::Sender;
 
 use net::rpc_messages::*;
-use utils::constants::{CONFIG, DAEMON_VERBOSE};
+use utils::constants::CONFIG;
 use utils::errors::DaemonError;
 
 pub fn rpc_server(
@@ -24,7 +24,7 @@ pub fn rpc_server(
         .map_err(|e| println!("error accepting socket; error = {:?}", e))
         .for_each(move |socket| {
             let socket_addr = socket.peer_addr().unwrap();
-            if DAEMON_VERBOSE {
+            if CONFIG.DEBUGGING.DAEMON_VERBOSE {
                 println!("new rpc cient to {}", socket_addr);
             }
 
@@ -37,7 +37,7 @@ pub fn rpc_server(
             let action = stream
                 .for_each(move |msg| match msg {
                     RPC::AddPeer { addr } => {
-                        if DAEMON_VERBOSE {
+                        if CONFIG.DEBUGGING.DAEMON_VERBOSE {
                             println!("received addpeer {} message from {}", addr, socket_addr);
                         }
                         let socket_sender_inner = socket_sender_inner.clone();

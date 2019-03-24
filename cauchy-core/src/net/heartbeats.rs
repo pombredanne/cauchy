@@ -21,7 +21,7 @@ pub fn heartbeat_work(
             let mut peer_ego_lock = peer_ego.lock().unwrap();
             let ego_lock = ego.lock().unwrap();
             if peer_ego_lock.get_status() != Status::Gossiping {
-                if HEARTBEAT_VERBOSE {
+                if CONFIG.DEBUGGING.HEARTBEAT_VERBOSE {
                     println!(
                         "work heartbeat paused while {:?}",
                         match peer_ego_lock.get_status() {
