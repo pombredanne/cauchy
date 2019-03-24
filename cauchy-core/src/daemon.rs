@@ -274,7 +274,6 @@ pub fn server(
                 }
 
                 // Set status of peer push
-                let mut peer_ego_locked = arc_peer_ego.lock().unwrap();
                 peer_ego_locked.update_status(Status::StatePush);
 
                 // Send minisketch
