@@ -165,6 +165,10 @@ pub fn server(
                         None
                     }
                 } else {
+                    if CONFIG.DEBUGGING.DAEMON_VERBOSE {
+                        println!("received minisketch from non-pull target");
+                    }
+                    peer_ego_locked.update_status(Status::Gossiping);
                     None
                 }
             }
