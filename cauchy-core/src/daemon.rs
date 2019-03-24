@@ -16,7 +16,7 @@ use db::storing::Storable;
 use net::heartbeats::*;
 use net::messages::*;
 use primitives::arena::Arena;
-use primitives::ego::{Ego, PeerEgo, Status};
+use primitives::ego::{Ego, PeerEgo, Status, WorkState};
 use primitives::transaction::Transaction;
 use utils::constants::*;
 use utils::errors::{DaemonError, ImpulseReceiveError};
@@ -228,8 +228,6 @@ pub fn server(
                 // Lock ego and peer ego
                 let mut ego_lock = ego_inner.lock().unwrap();
                 let mut peer_ego_locked = arc_peer_ego.lock().unwrap();
-                peer_ego_locked.update_status(Status::Gossiping);
-
 
                 // If received txs from reconciliation target check the payload matches reported
                 if peer_ego_locked.get_status() == Status::StatePull {
@@ -261,6 +259,7 @@ pub fn server(
                 }
 
                 // Send updated state immediately
+                peer_ego_locked.update_status(Status::Gossiping);
                 Some(Message::Work {
                     oddsketch: peer_ego_locked.get_oddsketch(),
                     root: peer_ego_locked.get_root(),

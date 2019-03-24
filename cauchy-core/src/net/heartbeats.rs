@@ -18,21 +18,16 @@ pub fn heartbeat_work(
 ) -> impl futures::stream::Stream<Item = Message, Error = Error> {
     Interval::new_interval(duration_from_millis(CONFIG.NETWORK.WORK_HEARTBEAT_MS))
         .filter_map(move |_| {
+            // Don't push work to anyone but gossipers
             let mut peer_ego_lock = peer_ego.lock().unwrap();
             let ego_lock = ego.lock().unwrap();
             if peer_ego_lock.get_status() != Status::Gossiping {
                 if CONFIG.DEBUGGING.HEARTBEAT_VERBOSE {
-                    println!(
-                        "work heartbeat paused while {:?}",
-                        match peer_ego_lock.get_status() {
-                            Status::StatePull => "pulling",
-                            Status::StatePush => "pushing",
-                            _ => unreachable!(),
-                        }
-                    )
+                    println!("work heartbeat paused while {}", peer_ego_lock.get_status().to_str())
                 }
                 None
             } else {
+                // Send current work
                 peer_ego_lock.push_work(&ego_lock);
                 Some(Message::Work {
                     oddsketch: ego_lock.get_oddsketch(),

@@ -32,6 +32,41 @@ pub struct Ego {
     current_distance: u16
 }
 
+pub trait WorkState {
+    fn get_oddsketch(&self) -> OddSketch;
+    fn get_root(&self) -> Bytes;
+    fn get_nonce(&self) -> u64;
+    fn update_oddskech(&mut self, oddsketch: OddSketch);
+    fn update_root(&mut self, root: Bytes);
+    fn update_nonce(&mut self, nonce: u64);
+}
+
+impl WorkState for Ego {
+    fn get_oddsketch(&self) -> OddSketch {
+        self.oddsketch.clone()
+    }
+
+    fn get_root(&self) -> Bytes {
+        self.root.clone()
+    }
+
+    fn get_nonce(&self) -> u64 {
+        self.nonce
+    }
+
+    fn update_nonce(&mut self, new_nonce: u64) {
+        self.nonce = new_nonce;
+    }
+
+    fn update_root(&mut self, root: Bytes) {
+        self.root = root;
+    }
+
+    fn update_oddskech(&mut self, oddsketch: OddSketch) {
+        self.oddsketch = oddsketch;
+    }
+}
+
 impl Ego {
     pub fn new(pubkey: PublicKey, seckey: SecretKey) -> Ego {
         Ego {
@@ -59,16 +94,11 @@ impl Ego {
         self.pubkey
     }
 
-    pub fn get_oddsketch(&self) -> OddSketch {
-        self.oddsketch.clone()
-    }
-
-    pub fn get_root(&self) -> Bytes {
-        self.root.clone()
-    }
-
-    pub fn get_nonce(&self) -> u64 {
-        self.nonce
+    pub fn get_work_site(&self) -> WorkSite {
+        WorkSite::new(
+                self.pubkey,
+                self.root.clone(),
+                self.nonce)
     }
 
     pub fn get_minisketch(&self) -> DummySketch {
@@ -83,10 +113,6 @@ impl Ego {
         self.current_distance
     }
 
-    pub fn update_nonce(&mut self, new_nonce: u64) {
-        self.nonce = new_nonce;
-    }
-
     pub fn increment(&mut self, new_tx: &Transaction, new_root: Bytes) {
         self.oddsketch.insert(new_tx);
         self.minisketch.insert(new_tx);
@@ -97,13 +123,6 @@ impl Ego {
         self.oddsketch = oddsketch;
         self.minisketch = minisketch;
         self.root = root;
-    }
-
-    pub fn get_work_site(&self) -> WorkSite {
-        WorkSite::new(
-                self.pubkey,
-                self.root.clone(),
-                self.nonce)
     }
 
     // Mining updates
@@ -147,6 +166,16 @@ pub enum Status {
     Gossiping,
 }
 
+impl Status {
+    pub fn to_str(&self) -> &'static str {
+        match self {
+            Status::StatePush => "pushing",
+            Status::StatePull => "pulling",
+            Status::Gossiping => "gossiping"
+        }
+    }
+}
+
 pub struct PeerEgo {
     pubkey: Option<PublicKey>,
     sink: Sender<Message>,
@@ -169,6 +198,32 @@ pub struct PeerEgo {
     status: Status,
     expected_ids: Option<HashSet<Bytes>>,
     expected_minisketch: Option<DummySketch>, // Post reconciliation our minisketch should match this
+}
+
+impl WorkState for PeerEgo {
+    fn get_oddsketch(&self) -> OddSketch {
+        self.reported_oddsketch.clone()
+    }
+
+    fn get_nonce(&self) -> u64 {
+        self.reported_nonce
+    }
+
+    fn get_root(&self) -> Bytes {
+        self.reported_root.clone()
+    }
+
+    fn update_nonce(&mut self, new_nonce: u64) {
+        self.reported_nonce = new_nonce;
+    }
+
+    fn update_root(&mut self, root: Bytes) {
+        self.reported_root = root;
+    }
+
+    fn update_oddskech(&mut self, oddsketch: OddSketch) {
+        self.reported_oddsketch = oddsketch;
+    }
 }
 
 impl PeerEgo {
@@ -218,18 +273,6 @@ impl PeerEgo {
         self.pubkey
     }
 
-    pub fn get_oddsketch(&self) -> OddSketch {
-        self.reported_oddsketch.clone()
-    }
-
-    pub fn get_nonce(&self) -> u64 {
-        self.reported_nonce
-    }
-
-    pub fn get_root(&self) -> Bytes {
-        self.reported_root.clone()
-    }
-
     pub fn get_perceived_oddsketch(&self) -> OddSketch {
         self.perceived_oddsketch.clone()
     }
@@ -263,6 +306,7 @@ impl PeerEgo {
     }
 
     pub fn update_status(&mut self, status: Status) {
+        println!("Transition from {} to {}", self.status.to_str(), status.to_str());
         self.status = status;
     }
 
@@ -285,10 +329,6 @@ impl PeerEgo {
                 .and_then(|_| futures::future::ok(()))
                 .map_err(|_| panic!()),
         );
-    }
-
-    pub fn set_status(&mut self, status: Status) {
-        self.status = status
     }
 
     // Update reported
