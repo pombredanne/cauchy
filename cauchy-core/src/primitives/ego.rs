@@ -99,6 +99,13 @@ impl Ego {
         self.root = root;
     }
 
+    pub fn get_work_site(&self) -> WorkSite {
+        WorkSite::new(
+                self.pubkey,
+                self.root.clone(),
+                self.nonce)
+    }
+
     // Mining updates
     pub fn mining_updater(
         ego: Arc<Mutex<Ego>>,

@@ -66,7 +66,7 @@ impl Arena {
             let mut best_distance = 1024;
             let mut best_index = 0;
             for (i, guard) in peer_locks.iter().enumerate() {
-                let i_distance = peer_locks
+                let mut i_distance = peer_locks
                     .iter()
                     .filter_map(|guard_inner| {
                         if guard_inner.get_status() != Status::Gossiping {
@@ -79,6 +79,8 @@ impl Arena {
                         }
                     })
                     .sum();
+
+                i_distance += ego_locked.get_work_site().mine(&guard.get_oddsketch());
                 if i_distance < best_distance {
                     best_index = i;
                     best_distance = i_distance;
