@@ -246,6 +246,13 @@ pub fn server(
                             peer_ego_locked.get_expected_minisketch(),
                             peer_ego_locked.get_root(),
                         );
+                        if CONFIG.DEBUGGING.DAEMON_VERBOSE {
+                            println!("reconciliation complete");
+                        }
+                    }
+                } else {
+                    if CONFIG.DEBUGGING.DAEMON_VERBOSE {
+                        println!("non-pulled transactons");
                     }
                 }
 

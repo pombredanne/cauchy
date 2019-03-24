@@ -85,7 +85,7 @@ impl Arena {
                 }
             }
 
-            let self_distance: u16 = peer_locks
+            let mut self_distance: u16 = peer_locks
                 .iter()
                 .filter_map(|guard_inner| {
                     if guard_inner.get_status() != Status::Gossiping {
@@ -98,6 +98,7 @@ impl Arena {
                     }
                 })
                 .sum();
+            self_distance += ego_locked.get_current_distance();
 
             println!("self distance {}", self_distance);
             println!("best peer distance {}", best_distance);

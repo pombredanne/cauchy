@@ -28,6 +28,8 @@ pub struct Ego {
     minisketch: DummySketch,
     root: Bytes,
     nonce: u64,
+
+    current_distance: u16
 }
 
 impl Ego {
@@ -39,6 +41,7 @@ impl Ego {
             minisketch: DummySketch::new(),
             root: Bytes::from(&[0; HASH_LEN][..]),
             nonce: 0,
+            current_distance: 512
         }
     }
 
@@ -72,6 +75,14 @@ impl Ego {
         self.minisketch.clone()
     }
 
+    pub fn update_current_distance(&mut self, new_distance: u16) {
+        self.current_distance = new_distance;
+    }
+
+    pub fn get_current_distance(&self) -> u16 {
+        self.current_distance
+    }
+
     pub fn update_nonce(&mut self, new_nonce: u64) {
         self.nonce = new_nonce;
     }
@@ -103,12 +114,17 @@ impl Ego {
                     let root = Bytes::from(&[0; 32][..]); // TODO: Actually get root
                     ego_locked.increment(&tx.unwrap(), root.clone());
                     oddsketch_bus.broadcast((ego_locked.get_oddsketch(), root));
+                    
                     best_distance = 512;
+                    ego_locked.update_current_distance(512);
                 },
                 recv(distance_receive) -> pair => {
                     let (nonce, distance) = pair.unwrap();
                     if distance < best_distance {
-                        ego.lock().unwrap().update_nonce(nonce);
+                        let mut ego_locked = ego.lock().unwrap();
+                        ego_locked.update_nonce(nonce);
+                        
+                        ego_locked.update_current_distance(best_distance);
                         best_distance = distance;
                     }
                 }
