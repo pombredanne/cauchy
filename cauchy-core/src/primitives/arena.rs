@@ -69,7 +69,7 @@ impl Arena {
                 let mut i_distance = peer_locks
                     .iter()
                     .filter_map(|guard_inner| {
-                        if guard_inner.get_status() != Status::Gossiping {
+                        if guard_inner.get_status() == Status::Gossiping && guard_inner.get_work_status() == WorkStatus::Ready {
                             match guard_inner.get_work_site() {
                                 Some(work_site) => Some(work_site.mine(&guard.get_oddsketch())),
                                 None => None,
@@ -90,7 +90,7 @@ impl Arena {
             let mut self_distance: u16 = peer_locks
                 .iter()
                 .filter_map(|guard_inner| {
-                    if guard_inner.get_status() != Status::Gossiping {
+                    if guard_inner.get_status() == Status::Gossiping && guard_inner.get_work_status() == WorkStatus::Ready {
                         match guard_inner.get_work_site() {
                             Some(work_site) => Some(work_site.mine(&ego_locked.get_oddsketch())),
                             None => None,
