@@ -31,7 +31,7 @@ use tokio::sync::mpsc;
 fn main() {
     // TODO: Do not destroy DB
     let mut opts = Options::default();
-    DB::destroy(&opts, ".cauchy/tests/db_a/");
+    DB::destroy(&opts, TX_DB_PATH);
 
     let tx_db = Arc::new(RocksDb::open_db(TX_DB_PATH).unwrap());
 
@@ -39,22 +39,26 @@ fn main() {
 
     let (distance_send, distance_recv) = channel::unbounded();
     let mut ego_bus = Bus::new(10);
+
+    // Spawn mining threads
     let n_mining_threads: u64 = CONFIG.MINING.N_MINING_THREADS as u64;
-    let nonce_start_base = std::u64::MAX / n_mining_threads;
+    if n_mining_threads != 0 {
+        let nonce_start_base = std::u64::MAX / n_mining_threads;
+        for i in 0..n_mining_threads {
+            let distance_send_inner = distance_send.clone();
+            let mut ego_recv = ego_bus.add_rx();
 
-    for i in 0..n_mining_threads {
-        let distance_send_inner = distance_send.clone();
-        let mut ego_recv = ego_bus.add_rx();
-
-        thread::spawn(move || {
-            mining::mine(
-                local_pk,
-                ego_recv,
-                distance_send_inner,
-                i * nonce_start_base,
-            )
-        });
+            thread::spawn(move || {
+                mining::mine(
+                    local_pk,
+                    ego_recv,
+                    distance_send_inner,
+                    i * nonce_start_base,
+                )
+            });
+        }
     }
+
 
     // Init Ego
     let ego = Arc::new(Mutex::new(Ego::new(local_pk, local_sk)));
@@ -82,7 +86,6 @@ fn main() {
     // Update local state
     let (tx_send, tx_recv) = channel::unbounded();
     thread::spawn(move || Ego::mining_updater(ego, ego_bus, tx_recv, distance_recv));
-    // thread::spawn(move || local_status.update_local(state_proxy_bus, tx_recv, distance_recv));
 
     let new_tx_interval = duration_from_millis(CONFIG.DEBUGGING.TEST_TX_INTERVAL);
 
