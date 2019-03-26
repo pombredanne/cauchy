@@ -267,6 +267,7 @@ pub fn server(
 
                 // Send updated state immediately
                 peer_ego_locked.update_status(Status::Gossiping);
+                peer_ego_locked.update_work_status(WorkStatus::Waiting);
                 Some(Message::Work {
                     oddsketch: peer_ego_locked.get_oddsketch(),
                     root: peer_ego_locked.get_root(),
