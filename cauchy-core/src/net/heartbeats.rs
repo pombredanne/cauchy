@@ -28,6 +28,7 @@ pub fn heartbeat_work(
                 None
             } else {
                 // Send current work
+                peer_ego_lock.update_work_status(WorkStatus::Waiting);
                 peer_ego_lock.commit_work(&ego_lock);
                 Some(Message::Work {
                     oddsketch: ego_lock.get_oddsketch(),
