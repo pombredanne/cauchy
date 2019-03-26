@@ -29,7 +29,7 @@ pub struct Ego {
     root: Bytes,
     nonce: u64,
 
-    current_distance: u16
+    current_distance: u16,
 }
 
 pub trait WorkState {
@@ -76,7 +76,7 @@ impl Ego {
             minisketch: DummySketch::new(),
             root: Bytes::from(&[0; HASH_LEN][..]),
             nonce: 0,
-            current_distance: 512
+            current_distance: 512,
         }
     }
 
@@ -95,10 +95,7 @@ impl Ego {
     }
 
     pub fn get_work_site(&self) -> WorkSite {
-        WorkSite::new(
-                self.pubkey,
-                self.root.clone(),
-                self.nonce)
+        WorkSite::new(self.pubkey, self.root.clone(), self.nonce)
     }
 
     pub fn get_minisketch(&self) -> DummySketch {
@@ -140,7 +137,7 @@ impl Ego {
                     let root = Bytes::from(&[0; 32][..]); // TODO: Actually get root
                     ego_locked.increment(&tx.unwrap(), root.clone());
                     oddsketch_bus.broadcast((ego_locked.get_oddsketch(), root));
-                    
+
                     best_distance = 512;
                     ego_locked.update_current_distance(512);
                 },
@@ -149,7 +146,7 @@ impl Ego {
                     if distance < best_distance {
                         let mut ego_locked = ego.lock().unwrap();
                         ego_locked.update_nonce(nonce);
-                        
+
                         ego_locked.update_current_distance(best_distance);
                         best_distance = distance;
                     }
@@ -169,7 +166,7 @@ pub enum Status {
 #[derive(PartialEq, Clone)]
 pub enum WorkStatus {
     Waiting,
-    Ready
+    Ready,
 }
 
 impl WorkStatus {
@@ -186,7 +183,7 @@ impl Status {
         match self {
             Status::StatePush => "pushing",
             Status::StatePull => "pulling",
-            Status::Gossiping => "gossiping"
+            Status::Gossiping => "gossiping",
         }
     }
 }

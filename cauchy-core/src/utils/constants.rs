@@ -24,7 +24,7 @@ pub struct Debugging {
     pub DAEMON_VERBOSE: bool,
     pub ENCODING_VERBOSE: bool,
     pub DECODING_VERBOSE: bool,
-    pub PARSING_VERBOSE: bool
+    pub PARSING_VERBOSE: bool,
 }
 
 #[derive(Deserialize)]
@@ -62,8 +62,7 @@ pub fn default_config() -> CoreConfig {
             DAEMON_VERBOSE: false,
             ENCODING_VERBOSE: false,
             DECODING_VERBOSE: false,
-            PARSING_VERBOSE: false
-
+            PARSING_VERBOSE: false,
         },
     }
 }

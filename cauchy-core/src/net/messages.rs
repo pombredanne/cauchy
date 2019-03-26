@@ -42,7 +42,7 @@ pub enum Message {
         txs: HashSet<Transaction>,
     }, // 6 || Number of Bytes VarInt || Tx ...
     Reconcile, // 7
-    WorkAck
+    WorkAck,
 }
 
 pub struct MessageCodec;
@@ -285,7 +285,7 @@ impl Decoder for MessageCodec {
                 }
                 src.advance(1);
                 Ok(Some(Message::Reconcile))
-            },
+            }
             8 => {
                 if CONFIG.DEBUGGING.DECODING_VERBOSE {
                     println!("decoding work ack");

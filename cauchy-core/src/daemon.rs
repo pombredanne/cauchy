@@ -288,7 +288,7 @@ pub fn server(
                     }
                     // Set to gossiping to avoid potential distributed deadlocks
                     peer_ego_locked.update_status(Status::Gossiping);
-                    return None
+                    return None;
                 }
 
                 // Set status of peer push
@@ -301,7 +301,7 @@ pub fn server(
                 Some(Message::MiniSketch {
                     minisketch: peer_ego_locked.get_perceived_minisketch(),
                 })
-            },
+            }
             Message::WorkAck => {
                 let mut peer_ego_locked = arc_peer_ego.lock().unwrap();
                 if CONFIG.DEBUGGING.DAEMON_VERBOSE {

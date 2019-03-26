@@ -51,32 +51,31 @@ impl Arena {
     pub fn reconcile_leader(&self) {
         // Lock everything
         let ego_locked = self.ego.lock().unwrap();
-        let mut peer_locks: Vec<MutexGuard<PeerEgo>> = self
+        let mut participants: Vec<MutexGuard<PeerEgo>> = self
             .peer_egos
             .iter()
             .map(|(_, ego)| ego.lock().unwrap())
+            .filter(|guard| {
+                guard.get_status() == Status::Gossiping
+                    && guard.get_work_status() == WorkStatus::Ready
+                    && guard.get_pubkey().is_some()
+            })
             .collect();
 
         // Is a reconcile live?
-        if !peer_locks
+        if !participants
             .iter()
             .any(|ego| ego.get_status() == Status::StatePull)
         {
             // TODO: Make this faster
             let mut best_distance = 1024;
             let mut best_index = 0;
-            for (i, guard) in peer_locks.iter().enumerate() {
-                let mut i_distance = peer_locks
+            for (i, guard) in participants.iter().enumerate() {
+                let mut i_distance = participants
                     .iter()
-                    .filter_map(|guard_inner| {
-                        if guard_inner.get_status() == Status::Gossiping && guard_inner.get_work_status() == WorkStatus::Ready {
-                            match guard_inner.get_work_site() {
-                                Some(work_site) => Some(work_site.mine(&guard.get_oddsketch())),
-                                None => None,
-                            }
-                        } else {
-                            None
-                        }
+                    .filter_map(|guard_inner| match guard_inner.get_work_site() {
+                        Some(work_site) => Some(work_site.mine(&guard.get_oddsketch())),
+                        None => None,
                     })
                     .sum();
 
@@ -87,17 +86,11 @@ impl Arena {
                 }
             }
 
-            let mut self_distance: u16 = peer_locks
+            let mut self_distance: u16 = participants
                 .iter()
-                .filter_map(|guard_inner| {
-                    if guard_inner.get_status() == Status::Gossiping && guard_inner.get_work_status() == WorkStatus::Ready {
-                        match guard_inner.get_work_site() {
-                            Some(work_site) => Some(work_site.mine(&ego_locked.get_oddsketch())),
-                            None => None,
-                        }
-                    } else {
-                        None
-                    }
+                .filter_map(|guard_inner| match guard_inner.get_work_site() {
+                    Some(work_site) => Some(work_site.mine(&ego_locked.get_oddsketch())),
+                    None => None,
                 })
                 .sum();
             self_distance += ego_locked.get_current_distance();
@@ -108,8 +101,8 @@ impl Arena {
                 println!("leading");
             } else {
                 println!("sent reconcile");
-                peer_locks[best_index].update_status(Status::StatePull);
-                peer_locks[best_index].send_msg(Message::Reconcile);
+                participants[best_index].update_status(Status::StatePull);
+                participants[best_index].send_msg(Message::Reconcile);
             }
         }
     }
