@@ -112,9 +112,15 @@ pub fn server(
 
                 // Update work
                 if peer_ego_locked.get_status() == Status::Gossiping {
+                    if CONFIG.DEBUGGING.DAEMON_VERBOSE {
+                        println!("pull work");
+                    }
                     peer_ego_locked.pull_work(oddsketch, nonce, root);
                     Some(Message::WorkAck)
                 } else {
+                    if CONFIG.DEBUGGING.DAEMON_VERBOSE {
+                        println!("ignore work");
+                    }
                     None
                 }
             }

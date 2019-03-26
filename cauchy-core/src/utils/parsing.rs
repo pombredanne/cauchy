@@ -16,7 +16,7 @@ pub trait Parsable<U> {
 impl Parsable<Transaction> for Transaction {
     fn parse_buf<T: Buf>(buf: &mut T) -> Result<Option<(Transaction, usize)>, Error> {
         if CONFIG.DEBUGGING.PARSING_VERBOSE {
-            println!("Begin Transaction parsing");
+            println!("begin Transaction parsing");
         }
         let (vi_time, vi_time_len) = match VarInt::parse_buf(buf)? {
             Some(some) => some,
@@ -43,7 +43,7 @@ impl Parsable<Transaction> for Transaction {
         let mut dst_bin = vec![0; us_bin_len];
         buf.copy_to_slice(&mut dst_bin);
         if CONFIG.DEBUGGING.PARSING_VERBOSE {
-            println!("Finished Transaction parsing");
+            println!("finished Transaction parsing");
         }
         Ok(Some((
             Transaction::new(
@@ -59,7 +59,7 @@ impl Parsable<Transaction> for Transaction {
 impl Parsable<VarInt> for VarInt {
     fn parse_buf<T: Buf>(buf: &mut T) -> Result<Option<(VarInt, usize)>, Error> {
         if CONFIG.DEBUGGING.PARSING_VERBOSE {
-            println!("Begin VarInt parsing");
+            println!("begin varint parsing");
         }
         let mut n: u64 = 0;
         let mut len = 0;
@@ -78,7 +78,7 @@ impl Parsable<VarInt> for VarInt {
                 n += 1;
             } else {
                 if CONFIG.DEBUGGING.PARSING_VERBOSE {
-                    println!("Finished VarInt parsing");
+                    println!("finished varint parsing");
                 }
                 return Ok(Some((VarInt::new(n), len)));
             }
@@ -90,7 +90,7 @@ impl Parsable<DummySketch> for DummySketch {
     fn parse_buf<T: Buf>(buf: &mut T) -> Result<Option<(DummySketch, usize)>, Error> {
         // TODO: Catch errors
         if CONFIG.DEBUGGING.PARSING_VERBOSE {
-            println!("Begin DummySketch parsing");
+            println!("begin minisketch parsing");
         }
         let (vi_pos_len, vi_pos_len_len) = match VarInt::parse_buf(buf)? {
             Some(some) => some,
@@ -110,7 +110,7 @@ impl Parsable<DummySketch> for DummySketch {
             pos_set.insert(Bytes::from(dst_aux));
         }
         if CONFIG.DEBUGGING.PARSING_VERBOSE {
-            println!("Finished DummySketch parsing");
+            println!("finished minisketch parsing");
         }
         Ok(Some((
             DummySketch::sketch_ids(&pos_set),
