@@ -16,7 +16,7 @@ use db::storing::Storable;
 use net::heartbeats::*;
 use net::messages::*;
 use primitives::arena::Arena;
-use primitives::ego::{Ego, PeerEgo, Status, WorkState};
+use primitives::ego::{Ego, PeerEgo, Status, WorkState, WorkStatus};
 use primitives::transaction::Transaction;
 use utils::constants::*;
 use utils::errors::{DaemonError, ImpulseReceiveError};
@@ -111,11 +111,12 @@ pub fn server(
                 let mut peer_ego_locked = arc_peer_ego.lock().unwrap();
 
                 // Update work
-                peer_ego_locked.pull_work(oddsketch, nonce, root);
-
-                // Resume gossiping
-                peer_ego_locked.update_status(Status::Gossiping);
-                None
+                if peer_ego_locked.get_status() == Status::Gossiping {
+                    peer_ego_locked.pull_work(oddsketch, nonce, root);
+                    Some(Message::WorkAck)
+                } else {
+                    None
+                }
             }
             Message::MiniSketch { minisketch } => {
                 if CONFIG.DEBUGGING.DAEMON_VERBOSE {
@@ -129,7 +130,7 @@ pub fn server(
                     let peer_oddsketch = peer_ego_locked.get_oddsketch();
 
                     // Decode difference
-                    let perception_minisketch = peer_ego_locked.get_anticipated_minisketch();
+                    let perception_minisketch = peer_ego_locked.get_perceived_minisketch();
                     let (excess_actor_ids, missing_actor_ids) = (perception_minisketch
                         - minisketch.clone())
                     .decode()
@@ -291,8 +292,17 @@ pub fn server(
                     println!("replying with minisketch {}", socket_addr);
                 }
                 Some(Message::MiniSketch {
-                    minisketch: peer_ego_locked.get_anticipated_minisketch(),
+                    minisketch: peer_ego_locked.get_perceived_minisketch(),
                 })
+            },
+            Message::WorkAck => {
+                let mut peer_ego_locked = arc_peer_ego.lock().unwrap();
+                if CONFIG.DEBUGGING.DAEMON_VERBOSE {
+                    println!("received work ack from {}", socket_addr);
+                }
+                peer_ego_locked.update_work_status(WorkStatus::Ready);
+                peer_ego_locked.push_work();
+                None
             }
         });
 

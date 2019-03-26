@@ -166,6 +166,21 @@ pub enum Status {
     Gossiping,
 }
 
+#[derive(PartialEq, Clone)]
+pub enum WorkStatus {
+    Waiting,
+    Ready
+}
+
+impl WorkStatus {
+    pub fn to_str(&self) -> &'static str {
+        match self {
+            WorkStatus::Waiting => "waiting",
+            WorkStatus::Ready => "ready",
+        }
+    }
+}
+
 impl Status {
     pub fn to_str(&self) -> &'static str {
         match self {
@@ -186,13 +201,18 @@ pub struct PeerEgo {
     reported_root: Bytes,
     reported_nonce: u64,
 
+    // Pending
+    pending_root: Bytes,
+    pending_nonce: u64,
+    pending_oddsketch: OddSketch,
+    pending_minisketch: DummySketch, // The minisketch to send to peer
+    work_status: WorkStatus,
+
     // Perceived
     perceived_root: Bytes,
     perceived_nonce: u64,
     perceived_oddsketch: OddSketch,
-
-    // Anticipated
-    anticipated_minisketch: DummySketch, // The minisketch to send to peer
+    perceived_minisketch: DummySketch, // The minisketch to send to peer
 
     // Reconciliation
     status: Status,
@@ -235,10 +255,15 @@ impl PeerEgo {
                 reported_oddsketch: OddSketch::new(),
                 reported_root: Bytes::from(&[0; HASH_LEN][..]),
                 reported_nonce: 0,
+                pending_root: Bytes::from(&[0; HASH_LEN][..]),
+                pending_nonce: 0,
+                pending_oddsketch: OddSketch::new(),
+                pending_minisketch: DummySketch::new(),
+                work_status: WorkStatus::Ready,
                 perceived_root: Bytes::from(&[0; HASH_LEN][..]),
                 perceived_nonce: 0,
                 perceived_oddsketch: OddSketch::new(),
-                anticipated_minisketch: DummySketch::new(),
+                perceived_minisketch: DummySketch::new(),
                 status: Status::Gossiping,
                 sink: peer_sink,
                 secret: 1337, // TODO: Randomize
@@ -269,6 +294,10 @@ impl PeerEgo {
         self.status.clone()
     }
 
+    pub fn get_work_status(&self) -> WorkStatus {
+        self.work_status.clone()
+    }
+
     pub fn get_pubkey(&self) -> Option<PublicKey> {
         self.pubkey
     }
@@ -277,8 +306,8 @@ impl PeerEgo {
         self.perceived_oddsketch.clone()
     }
 
-    pub fn get_anticipated_minisketch(&self) -> DummySketch {
-        self.anticipated_minisketch.clone() // TODO: Catch? This panics if reconcile before work is sent
+    pub fn get_perceived_minisketch(&self) -> DummySketch {
+        self.perceived_minisketch.clone() // TODO: Catch? This panics if reconcile before work is sent
     }
 
     pub fn get_expected_minisketch(&self) -> DummySketch {
@@ -306,8 +335,13 @@ impl PeerEgo {
     }
 
     pub fn update_status(&mut self, status: Status) {
-        println!("Transition from {} to {}", self.status.to_str(), status.to_str());
+        println!("{} -> {}", self.status.to_str(), status.to_str());
         self.status = status;
+    }
+
+    pub fn update_work_status(&mut self, work_status: WorkStatus) {
+        println!("{} -> {}", self.work_status.to_str(), work_status.to_str());
+        self.work_status = work_status;
     }
 
     // Update expected minisketch
@@ -338,12 +372,20 @@ impl PeerEgo {
         self.reported_root = root;
     }
 
-    // Update perception
-    pub fn push_work(&mut self, ego: &Ego) {
+    // Update pending
+    pub fn commit_work(&mut self, ego: &Ego) {
         // Send work
-        self.perceived_root = ego.root.clone();
-        self.perceived_oddsketch = ego.oddsketch.clone();
-        self.perceived_nonce = ego.nonce;
-        self.anticipated_minisketch = ego.minisketch.clone();
+        self.pending_root = ego.root.clone();
+        self.pending_oddsketch = ego.oddsketch.clone();
+        self.pending_nonce = ego.nonce;
+        self.pending_minisketch = ego.minisketch.clone();
+    }
+
+    pub fn push_work(&mut self) {
+        // Confirm worked was received
+        self.perceived_root = self.pending_root.clone();
+        self.perceived_oddsketch = self.pending_oddsketch.clone();
+        self.perceived_nonce = self.pending_nonce.clone();
+        self.perceived_minisketch = self.pending_minisketch.clone();
     }
 }

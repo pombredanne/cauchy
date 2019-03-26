@@ -42,6 +42,7 @@ pub enum Message {
         txs: HashSet<Transaction>,
     }, // 6 || Number of Bytes VarInt || Tx ...
     Reconcile, // 7
+    WorkAck
 }
 
 pub struct MessageCodec;
@@ -124,6 +125,7 @@ impl Encoder for MessageCodec {
                 dst.extend(payload);
             }
             Message::Reconcile => dst.put_u8(7),
+            Message::WorkAck => dst.put_u8(8),
         }
         Ok(())
     }
@@ -283,6 +285,13 @@ impl Decoder for MessageCodec {
                 }
                 src.advance(1);
                 Ok(Some(Message::Reconcile))
+            },
+            8 => {
+                if CONFIG.DEBUGGING.DECODING_VERBOSE {
+                    println!("decoding work ack");
+                }
+                src.advance(1);
+                Ok(Some(Message::WorkAck))
             }
             _ => {
                 // TODO: Remove malformed msgs
