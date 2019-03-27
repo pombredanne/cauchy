@@ -59,9 +59,9 @@ pub fn server(
         });
 
         let arc_peer_ego = Arc::new(Mutex::new(peer_ego));
-        let mut arena_locked = arena.lock().unwrap();
-        arena_locked.new_peer(&socket_addr, arc_peer_ego.clone());
-        drop(arena_locked);
+        let mut arena_guard = arena.lock().unwrap();
+        arena_guard.new_peer(&socket_addr, arc_peer_ego.clone());
+        drop(arena_guard);
 
         // Start work heartbeat
         let work_heartbeat = heartbeat_work(ego.clone(), arc_peer_ego.clone());
@@ -108,14 +108,14 @@ pub fn server(
                     println!("received work from {}", socket_addr);
                 }
                 // Lock peer ego
-                let mut peer_ego_locked = arc_peer_ego.lock().unwrap();
+                let mut peer_ego_guard = arc_peer_ego.lock().unwrap();
 
                 // Update work
-                if peer_ego_locked.get_status() == Status::Gossiping {
+                if peer_ego_guard.get_status() == Status::Gossiping {
                     if CONFIG.DEBUGGING.DAEMON_VERBOSE {
                         println!("pull work");
                     }
-                    peer_ego_locked.pull_work(oddsketch, nonce, root);
+                    peer_ego_guard.pull_work(oddsketch, nonce, root);
                     Some(Message::WorkAck)
                 } else {
                     if CONFIG.DEBUGGING.DAEMON_VERBOSE {
@@ -129,19 +129,19 @@ pub fn server(
                     println!("received minisketch from {}", socket_addr);
                 }
                 // Lock peer ego
-                let mut peer_ego_locked = arc_peer_ego.lock().unwrap();
+                let mut peer_ego_guard = arc_peer_ego.lock().unwrap();
 
                 // Only respond if the pk is reconciliation target
-                if peer_ego_locked.get_status() == Status::StatePull {
-                    let peer_oddsketch = peer_ego_locked.get_oddsketch();
+                if peer_ego_guard.get_status() == Status::StatePull {
+                    let peer_oddsketch = peer_ego_guard.get_oddsketch();
 
                     // Decode difference
-                    let perception_minisketch = peer_ego_locked.get_perceived_minisketch();
+                    let perception_minisketch = peer_ego_guard.get_perceived_minisketch();
                     let (excess_actor_ids, missing_actor_ids) = (perception_minisketch
                         - minisketch.clone())
                     .decode()
                     .unwrap();
-                    let perception_oddsketch = peer_ego_locked.get_perceived_oddsketch();
+                    let perception_oddsketch = peer_ego_guard.get_perceived_oddsketch();
                     println!(
                         "excess {}, mising {}",
                         excess_actor_ids.len(),
@@ -157,8 +157,8 @@ pub fn server(
                             println!("valid minisketch");
                         }
                         // Set expected IDs
-                        peer_ego_locked.update_ids(missing_actor_ids.clone());
-                        peer_ego_locked.update_expected_minisketch(minisketch);
+                        peer_ego_guard.update_ids(missing_actor_ids.clone());
+                        peer_ego_guard.update_expected_minisketch(minisketch);
 
                         Some(Message::GetTransactions {
                             ids: missing_actor_ids,
@@ -168,14 +168,14 @@ pub fn server(
                             println!("fraudulent minisketch");
                         }
                         // Stop reconciliation
-                        peer_ego_locked.update_status(Status::Gossiping);
+                        peer_ego_guard.update_status(Status::Gossiping);
                         None
                     }
                 } else {
                     if CONFIG.DEBUGGING.DAEMON_VERBOSE {
                         println!("received minisketch from non-pull target");
                     }
-                    peer_ego_locked.update_status(Status::Gossiping);
+                    peer_ego_guard.update_status(Status::Gossiping);
                     None
                 }
             }
@@ -186,7 +186,7 @@ pub fn server(
                 }
 
                 // Lock peer ego
-                let mut peer_ego_locked = arc_peer_ego.lock().unwrap();
+                let mut peer_ego_guard = arc_peer_ego.lock().unwrap();
 
                 // Find transactions
                 let mut txs = HashSet::with_capacity(ids.len());
@@ -205,14 +205,14 @@ pub fn server(
                             if CONFIG.DEBUGGING.DAEMON_VERBOSE {
                                 println!("database error {:?}", err);
                             }
-                            peer_ego_locked.update_status(Status::Gossiping);
+                            peer_ego_guard.update_status(Status::Gossiping);
                             return None;
                         }
                         Ok(None) => {
                             if CONFIG.DEBUGGING.DAEMON_VERBOSE {
                                 println!("transaction {:?} not found", id);
                             }
-                            peer_ego_locked.update_status(Status::Gossiping);
+                            peer_ego_guard.update_status(Status::Gossiping);
                             return None;
                         }
                     }
@@ -225,7 +225,7 @@ pub fn server(
                         txs.len()
                     );
                 }
-                peer_ego_locked.update_status(Status::Gossiping);
+                peer_ego_guard.update_status(Status::Gossiping);
                 Some(Message::Transactions { txs })
             }
             Message::Transactions { txs } => {
@@ -233,15 +233,15 @@ pub fn server(
                     println!("received transactions from {}", socket_addr);
                 }
                 // Lock ego and peer ego
-                let mut ego_lock = ego_inner.lock().unwrap();
-                let mut peer_ego_locked = arc_peer_ego.lock().unwrap();
+                let mut ego_guard = ego_inner.lock().unwrap();
+                let mut peer_ego_guard = arc_peer_ego.lock().unwrap();
 
                 // If received txs from reconciliation target check the payload matches reported
-                if peer_ego_locked.get_status() == Status::StatePull {
+                if peer_ego_guard.get_status() == Status::StatePull {
                     // Is reconcile target
                     // Cease reconciliation status
-                    peer_ego_locked.update_status(Status::Gossiping);
-                    if peer_ego_locked.is_expected_payload(&txs) {
+                    peer_ego_guard.update_status(Status::Gossiping);
+                    if peer_ego_guard.is_expected_payload(&txs) {
                         // TODO: Send backstage and verify
 
                         // Add new txs to database
@@ -250,10 +250,10 @@ pub fn server(
                         }
 
                         // Update ego
-                        ego_lock.pull(
-                            peer_ego_locked.get_oddsketch(),
-                            peer_ego_locked.get_expected_minisketch(),
-                            peer_ego_locked.get_root(),
+                        ego_guard.pull(
+                            peer_ego_guard.get_oddsketch(),
+                            peer_ego_guard.get_expected_minisketch(),
+                            peer_ego_guard.get_root(),
                         );
                         if CONFIG.DEBUGGING.DAEMON_VERBOSE {
                             println!("reconciliation complete");
@@ -266,12 +266,12 @@ pub fn server(
                 }
 
                 // Send updated state immediately
-                peer_ego_locked.update_status(Status::Gossiping);
-                peer_ego_locked.update_work_status(WorkStatus::Waiting);
-                peer_ego_locked.commit_work(&ego_lock);
+                peer_ego_guard.update_status(Status::Gossiping);
+                peer_ego_guard.update_work_status(WorkStatus::Waiting);
+                peer_ego_guard.commit_work(&ego_guard);
                 Some(Message::Work {
-                    oddsketch: peer_ego_locked.get_oddsketch(),
-                    root: peer_ego_locked.get_root(),
+                    oddsketch: peer_ego_guard.get_oddsketch(),
+                    root: peer_ego_guard.get_root(),
                     nonce: 0,
                 })
             }
@@ -280,36 +280,45 @@ pub fn server(
                     println!("received reconcile from {}", socket_addr);
                 }
                 // Lock peer ego
-                let mut peer_ego_locked = arc_peer_ego.lock().unwrap();
+                let mut peer_ego_guard = arc_peer_ego.lock().unwrap();
 
-                // If not gossiping then ignore reconcile request
-                if peer_ego_locked.get_status() != Status::Gossiping {
+                if peer_ego_guard.get_status() == Status::Gossiping {
+                    // Send minisketch
+                    if CONFIG.DEBUGGING.DAEMON_VERBOSE {
+                        println!("replying with minisketch {}", socket_addr);
+                    }
+
+                    // Set status of peer push
+                    peer_ego_guard.update_status(Status::StatePush);
+                    Some(Message::MiniSketch {
+                        minisketch: peer_ego_guard.get_perceived_minisketch(),
+                    })
+                } else {
                     if CONFIG.DEBUGGING.DAEMON_VERBOSE {
                         println!("ignoring due to potential deadlock");
                     }
-                    // Set to gossiping to avoid potential distributed deadlocks
-                    peer_ego_locked.update_status(Status::Gossiping);
-                    return None;
+                    return Some(Message::ReconcileNegAck);
                 }
-
-                // Set status of peer push
-                peer_ego_locked.update_status(Status::StatePush);
-
-                // Send minisketch
-                if CONFIG.DEBUGGING.DAEMON_VERBOSE {
-                    println!("replying with minisketch {}", socket_addr);
-                }
-                Some(Message::MiniSketch {
-                    minisketch: peer_ego_locked.get_perceived_minisketch(),
-                })
             }
             Message::WorkAck => {
-                let mut peer_ego_locked = arc_peer_ego.lock().unwrap();
+                let mut peer_ego_guard = arc_peer_ego.lock().unwrap();
                 if CONFIG.DEBUGGING.DAEMON_VERBOSE {
                     println!("received work ack from {}", socket_addr);
                 }
-                peer_ego_locked.update_work_status(WorkStatus::Ready);
-                peer_ego_locked.push_work();
+                peer_ego_guard.update_work_status(WorkStatus::Ready);
+                peer_ego_guard.push_work();
+                None
+            }
+            Message::ReconcileNegAck => {
+                if CONFIG.DEBUGGING.DAEMON_VERBOSE {
+                    println!("received reconcile negack from {}", socket_addr);
+                }
+                let mut peer_ego_guard = arc_peer_ego.lock().unwrap();
+                if peer_ego_guard.get_status() == Status::StatePull {
+                    peer_ego_guard.update_status(Status::Gossiping);
+                } else {
+                    // TODO: Misbehaviour
+                }
                 None
             }
         });
