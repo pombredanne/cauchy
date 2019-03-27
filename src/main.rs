@@ -59,7 +59,6 @@ fn main() {
         }
     }
 
-
     // Init Ego
     let ego = Arc::new(Mutex::new(Ego::new(local_pk, local_sk)));
 

@@ -43,6 +43,7 @@ pub enum Message {
     }, // 6 || Number of Bytes VarInt || Tx ...
     Reconcile, // 7
     WorkAck,
+    WorkNegAck,
     ReconcileNegAck,
 }
 
@@ -127,7 +128,8 @@ impl Encoder for MessageCodec {
             }
             Message::Reconcile => dst.put_u8(7),
             Message::WorkAck => dst.put_u8(8),
-            Message::ReconcileNegAck => dst.put_u8(9),
+            Message::WorkNegAck => dst.put_u8(9),
+            Message::ReconcileNegAck => dst.put_u8(10),
         }
         Ok(())
     }
@@ -298,6 +300,13 @@ impl Decoder for MessageCodec {
             9 => {
                 if CONFIG.DEBUGGING.DECODING_VERBOSE {
                     println!("decoding work ack");
+                }
+                src.advance(1);
+                Ok(Some(Message::WorkNegAck))
+            }
+            10 => {
+                if CONFIG.DEBUGGING.DECODING_VERBOSE {
+                    println!("decoding reconcile negack");
                 }
                 src.advance(1);
                 Ok(Some(Message::ReconcileNegAck))

@@ -121,7 +121,7 @@ pub fn server(
                     if CONFIG.DEBUGGING.DAEMON_VERBOSE {
                         println!("ignore work");
                     }
-                    None
+                    Some(Message::WorkNegAck)
                 }
             }
             Message::MiniSketch { minisketch } => {
@@ -269,6 +269,11 @@ pub fn server(
                 peer_ego_guard.update_status(Status::Gossiping);
                 peer_ego_guard.update_work_status(WorkStatus::Waiting);
                 peer_ego_guard.commit_work(&ego_guard);
+
+                if CONFIG.DEBUGGING.DAEMON_VERBOSE {
+                    println!("sending work to {}", socket_addr);
+                }
+
                 Some(Message::Work {
                     oddsketch: peer_ego_guard.get_oddsketch(),
                     root: peer_ego_guard.get_root(),
@@ -284,18 +289,19 @@ pub fn server(
 
                 if peer_ego_guard.get_status() == Status::Gossiping {
                     // Send minisketch
+                    // Set status of peer push
+                    peer_ego_guard.update_status(Status::StatePush);
+
                     if CONFIG.DEBUGGING.DAEMON_VERBOSE {
                         println!("replying with minisketch {}", socket_addr);
                     }
 
-                    // Set status of peer push
-                    peer_ego_guard.update_status(Status::StatePush);
                     Some(Message::MiniSketch {
                         minisketch: peer_ego_guard.get_perceived_minisketch(),
                     })
                 } else {
                     if CONFIG.DEBUGGING.DAEMON_VERBOSE {
-                        println!("ignoring due to potential deadlock");
+                        println!("replying with negack {}", socket_addr);
                     }
                     return Some(Message::ReconcileNegAck);
                 }
@@ -307,6 +313,14 @@ pub fn server(
                 }
                 peer_ego_guard.update_work_status(WorkStatus::Ready);
                 peer_ego_guard.push_work();
+                None
+            }
+            Message::WorkNegAck => {
+                let mut peer_ego_guard = arc_peer_ego.lock().unwrap();
+                if CONFIG.DEBUGGING.DAEMON_VERBOSE {
+                    println!("received work ack from {}", socket_addr);
+                }
+                peer_ego_guard.update_work_status(WorkStatus::Ready);
                 None
             }
             Message::ReconcileNegAck => {
