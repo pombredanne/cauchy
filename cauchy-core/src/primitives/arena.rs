@@ -50,7 +50,7 @@ impl Arena {
 
     pub fn reconcile_leader(&self) {
         // Lock everything
-        let ego_locked = self.ego.lock().unwrap();
+        let ego_guard = self.ego.lock().unwrap();
         let mut participants: Vec<MutexGuard<PeerEgo>> = self
             .peer_egos
             .iter()
@@ -79,7 +79,7 @@ impl Arena {
                     })
                     .sum();
 
-                i_distance += ego_locked.get_work_site().mine(&guard.get_oddsketch());
+                i_distance += ego_guard.get_work_site().mine(&guard.get_oddsketch());
                 if i_distance < best_distance {
                     best_index = i;
                     best_distance = i_distance;
@@ -89,11 +89,11 @@ impl Arena {
             let mut self_distance: u16 = participants
                 .iter()
                 .filter_map(|guard_inner| match guard_inner.get_work_site() {
-                    Some(work_site) => Some(work_site.mine(&ego_locked.get_oddsketch())),
+                    Some(work_site) => Some(work_site.mine(&ego_guard.get_oddsketch())),
                     None => None,
                 })
                 .sum();
-            self_distance += ego_locked.get_current_distance();
+            self_distance += ego_guard.get_current_distance();
 
             println!("self distance {}", self_distance);
             println!("best peer distance {}", best_distance);

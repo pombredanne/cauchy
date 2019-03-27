@@ -19,26 +19,26 @@ pub fn heartbeat_work(
     Interval::new_interval(duration_from_millis(CONFIG.NETWORK.WORK_HEARTBEAT_MS))
         .filter_map(move |_| {
             // Don't push work to anyone but gossipers
-            let mut peer_ego_lock = peer_ego.lock().unwrap();
-            let ego_lock = ego.lock().unwrap();
-            if peer_ego_lock.get_status() != Status::Gossiping
-                || peer_ego_lock.get_work_status() == WorkStatus::Waiting
+            let ego_guard = ego.lock().unwrap();
+            let mut peer_ego_guard = peer_ego.lock().unwrap();
+            if peer_ego_guard.get_status() != Status::Gossiping
+                || peer_ego_guard.get_work_status() == WorkStatus::Waiting
             {
                 if CONFIG.DEBUGGING.HEARTBEAT_VERBOSE {
                     println!(
                         "work heartbeat paused while {}",
-                        peer_ego_lock.get_status().to_str()
+                        peer_ego_guard.get_status().to_str()
                     )
                 }
                 None
             } else {
                 // Send current work
-                peer_ego_lock.update_work_status(WorkStatus::Waiting);
-                peer_ego_lock.commit_work(&ego_lock);
+                peer_ego_guard.update_work_status(WorkStatus::Waiting);
+                peer_ego_guard.commit_work(&ego_guard);
                 Some(Message::Work {
-                    oddsketch: ego_lock.get_oddsketch(),
-                    root: ego_lock.get_root(),
-                    nonce: ego_lock.get_nonce(),
+                    oddsketch: ego_guard.get_oddsketch(),
+                    root: ego_guard.get_root(),
+                    nonce: ego_guard.get_nonce(),
                 })
             }
         }) // Wait while reconciling or while sending to reconcilee
