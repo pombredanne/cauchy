@@ -117,13 +117,13 @@ impl Encoder for MessageCodec {
                 }
                 dst.put_u8(6);
                 let mut payload = BytesMut::new();
-                let n_txs = txs.len() as u64;
                 for tx in txs.into_iter() {
                     let raw = Bytes::from(tx);
                     payload.extend(raw);
                 }
 
-                dst.extend(Bytes::from(VarInt::new(n_txs)));
+                let payload_len = payload.len() as u64;
+                dst.extend(Bytes::from(VarInt::new(payload_len)));
                 dst.extend(payload);
             }
             Message::Reconcile => dst.put_u8(7),
@@ -258,18 +258,20 @@ impl Decoder for MessageCodec {
                 if CONFIG.DEBUGGING.DECODING_VERBOSE {
                     println!("decoding transactions");
                 }
-                let (n_tx_vi, n_tx_vi_len) = match VarInt::parse_buf(&mut buf)? {
+                let (payload_len_vi, payload_len_len) = match VarInt::parse_buf(&mut buf)? {
                     Some(some) => some,
                     None => return Ok(None),
                 };
-                let n_tx = usize::from(n_tx_vi);
-                if CONFIG.DEBUGGING.DECODING_VERBOSE {
-                    println!("number of transactions {}", n_tx);
+                let payload_len = usize::from(payload_len_vi);
+
+                if buf.remaining() < payload_len {
+                    return Ok(None)
                 }
-                let mut total_size: usize = 0;
-                let mut txs = HashSet::with_capacity(n_tx);
-                for _i in 0..n_tx {
-                    let (tx, tx_len) = match Transaction::parse_buf(&mut buf)? {
+
+                let mut txs = HashSet::new(); // TODO: Estimate of size here?
+
+                while buf.remaining() > 0 {
+                    let (tx, _) = match Transaction::parse_buf(&mut buf)? {
                         Some(some) => some,
                         None => return Ok(None),
                     };
@@ -277,10 +279,10 @@ impl Decoder for MessageCodec {
                     if CONFIG.DEBUGGING.DECODING_VERBOSE {
                         println!("decoded transaction");
                     }
-                    total_size += tx_len;
                 }
+
                 let msg = Message::Transactions { txs };
-                src.advance(1 + n_tx_vi_len + total_size);
+                src.advance(1 + payload_len_len + payload_len);
                 Ok(Some(msg))
             }
             7 => {
