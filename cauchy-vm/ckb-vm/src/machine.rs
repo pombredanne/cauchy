@@ -1,6 +1,8 @@
 use super::bits::rounddown;
 use super::decoder::build_imac_decoder;
-use super::instructions::{Instruction, Register};
+use super::instructions::{
+    instruction_length, is_basic_block_end_instruction, Instruction, Register,
+};
 use super::memory::{Memory, PROT_EXEC, PROT_READ, PROT_WRITE};
 use super::syscalls::Syscalls;
 use super::{
@@ -9,13 +11,9 @@ use super::{
 };
 use goblin::elf::program_header::{PF_R, PF_W, PF_X, PT_LOAD};
 use goblin::elf::{Elf, Header};
-use std::cmp::max;
+use std::cmp::{max, min};
 use std::fmt::{self, Display};
-use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
-
-use std::fs::File;
-use std::io::{Read, Write};
 
 fn elf_bits(header: &Header) -> Option<usize> {
     // This is documented in ELF specification, we are exacting ELF file
@@ -44,16 +42,33 @@ fn convert_flags(p_flags: u32) -> u32 {
     flags
 }
 
-// This is the core part of RISC-V that only deals with data part, it
-// is extracted from Machine so we can handle lifetime logic in dynamic
-// syscall support.
-pub trait CoreMachine<R: Register, M: Memory> {
-    fn pc(&self) -> R;
-    fn set_pc(&mut self, next_pc: R);
-    fn memory(&self) -> &M;
-    fn memory_mut(&mut self) -> &mut M;
-    fn registers(&self) -> &[R];
-    fn registers_mut(&mut self) -> &mut [R];
+/// This is the core part of RISC-V that only deals with data part, it
+/// is extracted from Machine so we can handle lifetime logic in dynamic
+/// syscall support.
+pub trait CoreMachine {
+    type REG: Register;
+    type MEM: Memory<Self::REG>;
+
+    fn pc(&self) -> &Self::REG;
+    fn set_pc(&mut self, next_pc: Self::REG);
+    fn memory(&self) -> &Self::MEM;
+    fn memory_mut(&mut self) -> &mut Self::MEM;
+    fn registers(&self) -> &[Self::REG];
+    fn set_register(&mut self, idx: usize, value: Self::REG);
+    fn store_retbytes(&mut self, retbytes: Vec::<u8>);
+}
+
+/// This is the core trait describing a full RISC-V machine. Instruction
+/// package only needs to deal with the functions in this trait.
+pub trait Machine: CoreMachine {
+    fn ecall(&mut self) -> Result<(), Error>;
+    fn ebreak(&mut self) -> Result<(), Error>;
+}
+
+/// This traits extend on top of CoreMachine by adding additional support
+/// such as ELF range, cycles which might be needed on Rust side of the logic,
+/// such as runner or syscall implementations.
+pub trait SupportMachine: CoreMachine {
     // End address of elf segment
     fn elf_end(&self) -> usize;
     fn set_elf_end(&mut self, elf_end: usize);
@@ -82,7 +97,7 @@ pub trait CoreMachine<R: Register, M: Memory> {
     fn load_elf(&mut self, program: &[u8]) -> Result<(), Error> {
         let elf = Elf::parse(program).map_err(|_e| Error::ParseError)?;
         let bits = elf_bits(&elf.header).ok_or(Error::InvalidElfBits)?;
-        if bits != R::BITS {
+        if bits != Self::REG::BITS {
             return Err(Error::InvalidElfBits);
         }
         let program_slice = Rc::new(program.to_vec().into_boxed_slice());
@@ -105,7 +120,7 @@ pub trait CoreMachine<R: Register, M: Memory> {
                     .store_byte(aligned_start, padding_start, 0)?;
             }
         }
-        self.set_pc(R::from_u64(elf.header.e_entry));
+        self.set_pc(Self::REG::from_u64(elf.header.e_entry));
         Ok(())
     }
 
@@ -117,32 +132,30 @@ pub trait CoreMachine<R: Register, M: Memory> {
     ) -> Result<(), Error> {
         self.memory_mut()
             .mmap(stack_start, stack_size, PROT_READ | PROT_WRITE, None, 0)?;
-        self.registers_mut()[SP] = R::from_usize(stack_start + stack_size);
+        self.set_register(SP, Self::REG::from_usize(stack_start + stack_size));
         // First value in this array is argc, then it contains the address(pointer)
         // of each argv object.
-        let mut values = vec![R::from_usize(args.len())];
+        let mut values = vec![Self::REG::from_usize(args.len())];
         for arg in args {
             let bytes = arg.as_slice();
-            let len = R::from_usize(bytes.len() + 1);
-            let address = self.registers()[SP].overflowing_sub(len).0;
+            let len = Self::REG::from_usize(bytes.len() + 1);
+            let address = self.registers()[SP].overflowing_sub(&len);
 
             self.memory_mut().store_bytes(address.to_usize(), bytes)?;
             self.memory_mut()
-                .store8(address.to_usize() + bytes.len(), 0)?;
+                .store_byte(address.to_usize() + bytes.len(), 1, 0)?;
 
-            values.push(address);
-            self.registers_mut()[SP] = address;
+            values.push(address.clone());
+            self.set_register(SP, address);
         }
         // Since we are dealing with a stack, we need to push items in reversed
         // order
         for value in values.iter().rev() {
-            let address = self.registers()[SP]
-                .overflowing_sub(R::from_usize(R::BITS / 8))
-                .0;
+            let address =
+                self.registers()[SP].overflowing_sub(&Self::REG::from_usize(Self::REG::BITS / 8));
 
-            self.memory_mut()
-                .store32(address.to_usize(), value.to_u32())?;
-            self.registers_mut()[SP] = address;
+            self.memory_mut().store32(&address, value)?;
+            self.set_register(SP, address);
         }
         if self.registers()[SP].to_usize() < stack_start {
             // args exceed stack size
@@ -151,52 +164,52 @@ pub trait CoreMachine<R: Register, M: Memory> {
         }
         Ok(())
     }
-
-    fn store_retbytes(&mut self, retbytes: Vec<u8>);
-
-    fn get_retbytes(&mut self) -> &Vec<u8>;
 }
 
-pub trait Machine<R: Register, M: Memory>: CoreMachine<R, M> {
-    fn ecall(&mut self) -> Result<(), Error>;
-    fn ebreak(&mut self) -> Result<(), Error>;
-}
-
-pub struct DefaultCoreMachine<R: Register, M: Memory> {
+#[derive(Default)]
+pub struct DefaultCoreMachine<R, M> {
     registers: [R; RISCV_GENERAL_REGISTER_NUMBER],
     pc: R,
     memory: M,
     elf_end: usize,
     cycles: u64,
     max_cycles: Option<u64>,
-    ret_bytes: Vec<u8>,
+    pub ret_bytes: Vec::<u8>
 }
 
-impl<R: Register, M: Memory> CoreMachine<R, M> for DefaultCoreMachine<R, M> {
-    fn pc(&self) -> R {
-        self.pc
+impl<R: Register, M: Memory<R>> CoreMachine for DefaultCoreMachine<R, M> {
+    type REG = R;
+    type MEM = M;
+    fn pc(&self) -> &Self::REG {
+        &self.pc
     }
 
-    fn set_pc(&mut self, next_pc: R) {
+    fn store_retbytes(&mut self, ret_bytes: Vec::<u8>) {
+        self.ret_bytes = ret_bytes;
+    }
+
+    fn set_pc(&mut self, next_pc: Self::REG) {
         self.pc = next_pc;
     }
 
-    fn memory(&self) -> &M {
+    fn memory(&self) -> &Self::MEM {
         &self.memory
     }
 
-    fn memory_mut(&mut self) -> &mut M {
+    fn memory_mut(&mut self) -> &mut Self::MEM {
         &mut self.memory
     }
 
-    fn registers(&self) -> &[R] {
+    fn registers(&self) -> &[Self::REG] {
         &self.registers
     }
 
-    fn registers_mut(&mut self) -> &mut [R] {
-        &mut self.registers
+    fn set_register(&mut self, idx: usize, value: Self::REG) {
+        self.registers[idx] = value;
     }
+}
 
+impl<R: Register, M: Memory<R>> SupportMachine for DefaultCoreMachine<R, M> {
     fn elf_end(&self) -> usize {
         self.elf_end
     }
@@ -216,146 +229,129 @@ impl<R: Register, M: Memory> CoreMachine<R, M> for DefaultCoreMachine<R, M> {
     fn max_cycles(&self) -> Option<u64> {
         self.max_cycles
     }
-
-    fn store_retbytes(&mut self, retbytes: Vec<u8>) {
-        self.ret_bytes = retbytes;
-    }
-
-    fn get_retbytes(&mut self) -> &Vec<u8> {
-        &self.ret_bytes
-    }
 }
 
-impl<R, M> Default for DefaultCoreMachine<R, M>
-where
-    R: Register,
-    M: Memory + Default,
-{
-    fn default() -> DefaultCoreMachine<R, M> {
-        // While a real machine might use whatever random data left in the memory(or
-        // random scrubbed data for security), we are initializing everything to 0 here
-        // for deterministic behavior.
-        DefaultCoreMachine {
-            registers: [R::zero(); RISCV_GENERAL_REGISTER_NUMBER],
-            pc: R::zero(),
-            memory: M::default(),
-            elf_end: 0,
-            cycles: 0,
-            max_cycles: None,
-            ret_bytes: vec![],
-        }
-    }
-}
-
-impl<R, M> DefaultCoreMachine<R, M>
-where
-    R: Register,
-    M: Memory + Default,
-{
-    pub fn new_with_max_cycles(max_cycles: u64) -> DefaultCoreMachine<R, M> {
+impl<R: Register, M: Memory<R> + Default> DefaultCoreMachine<R, M> {
+    pub fn new_with_max_cycles(max_cycles: u64) -> Self {
         Self {
             max_cycles: Some(max_cycles),
-            ..Self::default()
+            ..Default::default()
         }
     }
 }
 
 pub type InstructionCycleFunc = Fn(&Instruction) -> u64;
 
-pub struct DefaultMachine<'a, R: Register, M: Memory> {
-    core: DefaultCoreMachine<R, M>,
+// The number of trace items to keep
+const TRACE_SIZE: usize = 8192;
+// Quick bit-mask to truncate a value in trace size range
+const TRACE_MASK: usize = (TRACE_SIZE - 1);
+// The maximum number of instructions to cache in a trace item
+const TRACE_ITEM_LENGTH: usize = 16;
+const TRACE_ITEM_MAXIMAL_ADDRESS_LENGTH: usize = 4 * TRACE_ITEM_LENGTH;
+// Shifts to truncate a value so 2 traces has the minimal chance of sharing code.
+const TRACE_ADDRESS_SHIFTS: usize = 5;
+
+#[derive(Default)]
+struct Trace {
+    address: usize,
+    length: usize,
+    instruction_count: u8,
+    instructions: [Instruction; TRACE_ITEM_LENGTH],
+}
+
+#[inline(always)]
+fn calculate_slot(addr: usize) -> usize {
+    (addr >> TRACE_ADDRESS_SHIFTS) & TRACE_MASK
+}
+
+#[derive(Default)]
+pub struct DefaultMachine<'a, Inner> {
+    inner: Inner,
 
     // We have run benchmarks on secp256k1 verification, the performance
     // cost of the Box wrapper here is neglectable, hence we are sticking
     // with Box solution for simplicity now. Later if this becomes an issue,
     // we can change to static dispatch.
     instruction_cycle_func: Option<Box<InstructionCycleFunc>>,
-    syscalls: Vec<Box<dyn Syscalls<R, M> + 'a>>,
+    syscalls: Vec<Box<dyn Syscalls<Inner> + 'a>>,
     running: bool,
     exit_code: u8,
+
+    traces: Vec<Trace>,
+    running_trace_slot: usize,
+    running_trace_cleared: bool,
+    ret_bytes : Vec::<u8>,
 }
 
-impl<'a, R: Register, M: Memory> Deref for DefaultMachine<'a, R, M> {
-    type Target = DefaultCoreMachine<R, M>;
+impl<Inner: CoreMachine> CoreMachine for DefaultMachine<'_, Inner> {
+    type REG = <Inner as CoreMachine>::REG;
+    type MEM = Self;
 
-    fn deref(&self) -> &Self::Target {
-        &self.core
+    fn store_retbytes(&mut self, ret_bytes: Vec::<u8>) {
+        self.ret_bytes = ret_bytes;
+    }
+
+    fn pc(&self) -> &Self::REG {
+        &self.inner.pc()
+    }
+
+    fn set_pc(&mut self, next_pc: Self::REG) {
+        self.inner.set_pc(next_pc)
+    }
+
+    fn memory(&self) -> &Self {
+        &self
+    }
+
+    fn memory_mut(&mut self) -> &mut Self {
+        self
+    }
+
+    fn registers(&self) -> &[Self::REG] {
+        self.inner.registers()
+    }
+
+    fn set_register(&mut self, idx: usize, value: Self::REG) {
+        self.inner.set_register(idx, value)
     }
 }
 
-impl<'a, R: Register, M: Memory> DerefMut for DefaultMachine<'a, R, M> {
-    fn deref_mut(&mut self) -> &mut DefaultCoreMachine<R, M> {
-        &mut self.core
-    }
-}
-
-impl<'a, R: Register, M: Memory> CoreMachine<R, M> for DefaultMachine<'a, R, M> {
-    fn pc(&self) -> R {
-        self.pc
-    }
-
-    fn set_pc(&mut self, next_pc: R) {
-        self.pc = next_pc;
-    }
-
-    fn memory(&self) -> &M {
-        &self.memory
-    }
-
-    fn memory_mut(&mut self) -> &mut M {
-        &mut self.memory
-    }
-
-    fn registers(&self) -> &[R] {
-        &self.registers
-    }
-
-    fn registers_mut(&mut self) -> &mut [R] {
-        &mut self.registers
-    }
-
+impl<Inner: SupportMachine> SupportMachine for DefaultMachine<'_, Inner> {
     fn elf_end(&self) -> usize {
-        self.elf_end
+        self.inner.elf_end()
     }
 
     fn set_elf_end(&mut self, elf_end: usize) {
-        self.elf_end = elf_end;
+        self.inner.set_elf_end(elf_end)
     }
 
     fn cycles(&self) -> u64 {
-        self.cycles
+        self.inner.cycles()
     }
 
     fn set_cycles(&mut self, cycles: u64) {
-        self.cycles = cycles;
+        self.inner.set_cycles(cycles)
     }
 
     fn max_cycles(&self) -> Option<u64> {
-        self.max_cycles
-    }
-
-    fn store_retbytes(&mut self, retbytes: Vec<u8>) {
-        self.ret_bytes = retbytes;
-    }
-
-    fn get_retbytes(&mut self) -> &Vec<u8> {
-        &self.ret_bytes
+        self.inner.max_cycles()
     }
 }
 
-impl<'a, R: Register, M: Memory> Machine<R, M> for DefaultMachine<'a, R, M> {
+impl<Inner: SupportMachine> Machine for DefaultMachine<'_, Inner> {
     fn ecall(&mut self) -> Result<(), Error> {
-        let code = self.registers[A7].to_u64();
+        let code = self.registers()[A7].to_u64();
         match code {
             93 => {
                 // exit
-                self.exit_code = self.registers[A0].to_u8();
+                self.exit_code = self.registers()[A0].to_u8();
                 self.running = false;
                 Ok(())
             }
             _ => {
                 for syscall in &mut self.syscalls {
-                    let processed = syscall.ecall(&mut self.core)?;
+                    let processed = syscall.ecall(&mut self.inner)?;
                     if processed {
                         return Ok(());
                     }
@@ -371,15 +367,118 @@ impl<'a, R: Register, M: Memory> Machine<R, M> for DefaultMachine<'a, R, M> {
     }
 }
 
-impl<'a, R, M> Display for DefaultMachine<'a, R, M>
-where
-    R: Register,
-    M: Memory,
-{
+impl<Inner: CoreMachine> Memory<<Inner as CoreMachine>::REG> for DefaultMachine<'_, Inner> {
+    fn mmap(
+        &mut self,
+        addr: usize,
+        size: usize,
+        prot: u32,
+        source: Option<Rc<Box<[u8]>>>,
+        offset: usize,
+    ) -> Result<(), Error> {
+        self.inner
+            .memory_mut()
+            .mmap(addr, size, prot, source, offset)?;
+        self.clear_traces(addr, size);
+        Ok(())
+    }
+
+    fn munmap(&mut self, addr: usize, size: usize) -> Result<(), Error> {
+        self.inner.memory_mut().munmap(addr, size)?;
+        self.clear_traces(addr, size);
+        Ok(())
+    }
+
+    fn store_byte(&mut self, addr: usize, size: usize, value: u8) -> Result<(), Error> {
+        self.inner.memory_mut().store_byte(addr, size, value)?;
+        self.clear_traces(addr, size);
+        Ok(())
+    }
+
+    fn store_bytes(&mut self, addr: usize, value: &[u8]) -> Result<(), Error> {
+        self.inner.memory_mut().store_bytes(addr, value)?;
+        self.clear_traces(addr, value.len());
+        Ok(())
+    }
+
+    fn execute_load16(&mut self, addr: usize) -> Result<u16, Error> {
+        self.inner.memory_mut().execute_load16(addr)
+    }
+
+    fn load8(
+        &mut self,
+        addr: &<Inner as CoreMachine>::REG,
+    ) -> Result<<Inner as CoreMachine>::REG, Error> {
+        self.inner.memory_mut().load8(addr)
+    }
+
+    fn load16(
+        &mut self,
+        addr: &<Inner as CoreMachine>::REG,
+    ) -> Result<<Inner as CoreMachine>::REG, Error> {
+        self.inner.memory_mut().load16(addr)
+    }
+
+    fn load32(
+        &mut self,
+        addr: &<Inner as CoreMachine>::REG,
+    ) -> Result<<Inner as CoreMachine>::REG, Error> {
+        self.inner.memory_mut().load32(addr)
+    }
+
+    fn load64(
+        &mut self,
+        addr: &<Inner as CoreMachine>::REG,
+    ) -> Result<<Inner as CoreMachine>::REG, Error> {
+        self.inner.memory_mut().load64(addr)
+    }
+
+    fn store8(
+        &mut self,
+        addr: &<Inner as CoreMachine>::REG,
+        value: &<Inner as CoreMachine>::REG,
+    ) -> Result<(), Error> {
+        self.inner.memory_mut().store8(addr, value)?;
+        self.clear_traces(addr.to_usize(), 1);
+        Ok(())
+    }
+
+    fn store16(
+        &mut self,
+        addr: &<Inner as CoreMachine>::REG,
+        value: &<Inner as CoreMachine>::REG,
+    ) -> Result<(), Error> {
+        self.inner.memory_mut().store16(addr, value)?;
+        self.clear_traces(addr.to_usize(), 2);
+        Ok(())
+    }
+
+    fn store32(
+        &mut self,
+        addr: &<Inner as CoreMachine>::REG,
+        value: &<Inner as CoreMachine>::REG,
+    ) -> Result<(), Error> {
+        self.inner.memory_mut().store32(addr, value)?;
+        self.clear_traces(addr.to_usize(), 4);
+        Ok(())
+    }
+
+    fn store64(
+        &mut self,
+        addr: &<Inner as CoreMachine>::REG,
+        value: &<Inner as CoreMachine>::REG,
+    ) -> Result<(), Error> {
+        self.inner.memory_mut().store64(addr, value)?;
+        self.clear_traces(addr.to_usize(), 8);
+        Ok(())
+    }
+}
+
+impl<Inner: CoreMachine> Display for DefaultMachine<'_, Inner> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "pc  : 0x{:16X}", self.pc.to_usize())?;
+        writeln!(f, "pc  : 0x{:16X}", self.pc().to_usize())?;
         for (i, name) in REGISTER_ABI_NAMES.iter().enumerate() {
-            write!(f, "{:4}: 0x{:16X}", name, self.registers[i].to_usize())?;
+            write!(f, "{:4}: 0x{:16X}", name, self.registers()[i].to_usize())?;
             if (i + 1) % 4 == 0 {
                 writeln!(f)?;
             } else {
@@ -390,92 +489,165 @@ where
     }
 }
 
-impl<'a, R, M> Default for DefaultMachine<'a, R, M>
-where
-    R: Register,
-    M: Memory + Default,
-{
-    fn default() -> DefaultMachine<'a, R, M> {
-        DefaultMachine {
-            instruction_cycle_func: None,
-            core: DefaultCoreMachine::default(),
-            syscalls: vec![],
-            running: false,
-            exit_code: 0,
+impl<'a, Inner: CoreMachine> DefaultMachine<'a, Inner> {
+    fn clear_traces(&mut self, address: usize, length: usize) {
+        let end = address + length;
+        let minimal_slot =
+            calculate_slot(address.saturating_sub(TRACE_ITEM_MAXIMAL_ADDRESS_LENGTH));
+        let maximal_slot = calculate_slot(end);
+        for slot in minimal_slot..=min(maximal_slot, self.traces.len()) {
+            let slot_address = self.traces[slot].address;
+            let slot_end = slot_address + self.traces[slot].length;
+            if !((end <= slot_address) || (slot_end <= address)) {
+                self.traces[slot] = Trace::default();
+                if self.running_trace_slot == slot {
+                    self.running_trace_cleared = true;
+                }
+            }
         }
     }
 }
 
-impl<'a, R, M> DefaultMachine<'a, R, M>
-where
-    R: Register,
-    M: Memory + Default,
-{
-    pub fn new_with_cost_model(
-        instruction_cycle_func: Box<InstructionCycleFunc>,
-        max_cycles: u64,
-    ) -> DefaultMachine<'a, R, M> {
-        Self {
-            core: DefaultCoreMachine::new_with_max_cycles(max_cycles),
-            instruction_cycle_func: Some(instruction_cycle_func),
-            ..Self::default()
-        }
-    }
-
-    pub fn add_syscall_module(&mut self, syscall: Box<dyn Syscalls<R, M> + 'a>) {
-        self.syscalls.push(syscall);
-    }
-
-    pub fn run(&mut self, program: &[u8], args: &[Vec<u8>]) -> Result<u8, Error> {
+impl<'a, Inner: SupportMachine> DefaultMachine<'a, Inner> {
+    pub fn load_program(mut self, program: &[u8], args: &[Vec<u8>]) -> Result<Self, Error> {
         self.load_elf(program)?;
         for syscall in &mut self.syscalls {
-            syscall.initialize(&mut self.core)?;
+            syscall.initialize(&mut self.inner)?;
         }
         self.initialize_stack(
             args,
             RISCV_MAX_MEMORY - DEFAULT_STACK_SIZE,
             DEFAULT_STACK_SIZE,
         )?;
-        let decoder = build_imac_decoder::<R>();
-        self.running = true;
-        while self.running {
-            let instruction = {
-                let pc = self.pc().to_usize();
-                let memory = self.memory_mut();
-                decoder.decode(memory, pc)?
-            };
-            instruction.execute(self)?;
-            let cycles = self
-                .instruction_cycle_func
-                .as_ref()
-                .map(|f| f(&instruction))
-                .unwrap_or(0);
-            self.add_cycles(cycles)?;
-        }
-        Ok(self.exit_code)
+        Ok(self)
     }
 
-    pub fn resume(&mut self) -> Result<u8, Error> {
-        for syscall in &mut self.syscalls {
-            syscall.initialize(&mut self.core)?;
-        }
+    pub fn take_inner(self) -> Inner {
+        self.inner
+    }
 
-        let decoder = build_imac_decoder::<R>();
-        self.running = true;
-        while self.running {
-            let instruction = {
-                let pc = self.pc().to_usize();
-                let memory = self.memory_mut();
-                decoder.decode(memory, pc)?
-            };
-            instruction.execute(self)?;
-            let cycles = self
-                .instruction_cycle_func
-                .as_ref()
-                .map(|f| f(&instruction))
-                .unwrap_or(0);
-            self.add_cycles(cycles)?;
+    pub fn running(&self) -> bool {
+        self.running
+    }
+
+    pub fn set_running(&mut self, running: bool) {
+        self.running = running;
+    }
+
+    pub fn exit_code(&self) -> u8 {
+        self.exit_code
+    }
+
+    pub fn instruction_cycle_func(&self) -> &Option<Box<InstructionCycleFunc>> {
+        &self.instruction_cycle_func
+    }
+
+    pub fn inner_mut(&mut self) -> &mut Inner {
+        &mut self.inner
+    }
+
+    pub fn interpret(&mut self) -> Result<u8, Error> {
+        let decoder = build_imac_decoder::<Inner::REG>();
+        self.set_running(true);
+        // For current trace size this is acceptable, however we might want
+        // to tweak the code here if we choose to use a larger trace size or
+        // larger trace item length.
+        self.traces.resize_with(TRACE_SIZE, Trace::default);
+        while self.running() {
+            let pc = self.pc().to_usize();
+            let slot = calculate_slot(pc);
+            if pc != self.traces[slot].address {
+                self.traces[slot] = Trace::default();
+                let mut current_pc = pc;
+                let mut i = 0;
+                while i < TRACE_ITEM_LENGTH {
+                    let instruction = decoder.decode(self.memory_mut(), current_pc)?;
+                    let end_instruction = is_basic_block_end_instruction(&instruction);
+                    current_pc += instruction_length(&instruction);
+                    self.traces[slot].instructions[i] = instruction;
+                    i += 1;
+                    if end_instruction {
+                        break;
+                    }
+                }
+                self.traces[slot].address = pc;
+                self.traces[slot].length = current_pc - pc;
+                self.traces[slot].instruction_count = i as u8;
+            }
+            self.running_trace_slot = slot;
+            self.running_trace_cleared = false;
+            for i in 0..self.traces[slot].instruction_count {
+                let i = self.traces[slot].instructions[i as usize].clone();
+                i.execute(self)?;
+                let cycles = self
+                    .instruction_cycle_func
+                    .as_ref()
+                    .map(|f| f(&i))
+                    .unwrap_or(0);
+                self.add_cycles(cycles)?;
+                if self.running_trace_cleared {
+                    break;
+                }
+            }
         }
-        Ok(self.exit_code)
+        Ok(self.exit_code())
+    }
+}
+
+#[derive(Default)]
+pub struct DefaultMachineBuilder<'a, Inner> {
+    inner: Inner,
+    instruction_cycle_func: Option<Box<InstructionCycleFunc>>,
+    syscalls: Vec<Box<dyn Syscalls<Inner> + 'a>>,
+}
+
+impl<'a, Inner> DefaultMachineBuilder<'a, Inner> {
+    pub fn new(inner: Inner) -> Self {
+        Self {
+            inner,
+            instruction_cycle_func: None,
+            syscalls: vec![],
+        }
+    }
+
+    pub fn instruction_cycle_func(
+        mut self,
+        instruction_cycle_func: Box<InstructionCycleFunc>,
+    ) -> Self {
+        self.instruction_cycle_func = Some(instruction_cycle_func);
+        self
+    }
+
+    pub fn syscall(mut self, syscall: Box<dyn Syscalls<Inner> + 'a>) -> Self {
+        self.syscalls.push(syscall);
+        self
+    }
+
+    pub fn build(self) -> DefaultMachine<'a, Inner> {
+        DefaultMachine {
+            inner: self.inner,
+            instruction_cycle_func: self.instruction_cycle_func,
+            syscalls: self.syscalls,
+            running: false,
+            exit_code: 0,
+            traces: vec![],
+            running_trace_slot: usize::max_value(),
+            running_trace_cleared: false,
+            ret_bytes: Vec::<u8>::new(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::bits::power_of_2;
+    use super::*;
+
+    #[test]
+    fn test_trace_constant_rules() {
+        assert!(power_of_2(TRACE_SIZE));
+        assert_eq!(TRACE_MASK, TRACE_SIZE - 1);
+        assert!(power_of_2(TRACE_ITEM_LENGTH));
+        assert!(TRACE_ITEM_LENGTH <= 255);
     }
 }

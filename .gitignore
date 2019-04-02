@@ -11,3 +11,6 @@ Cargo.lock
 
 # Ignore states
 /cauchy-vm/states/
+*.bin
+
+*.ipch

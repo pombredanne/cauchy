@@ -1,6 +1,4 @@
 use super::super::machine::Machine;
-use super::super::memory::Memory;
-use super::register::Register;
 use crate::RISCV_GENERAL_REGISTER_NUMBER;
 
 // Inspired from https://github.com/riscv/riscv-isa-sim/blob/master/riscv/decode.h#L105-L106
@@ -30,18 +28,18 @@ pub fn funct7(instruction_bits: u32) -> u32 {
 }
 
 #[inline(always)]
-pub fn rd(instruction_bits: u32) -> usize {
-    x(instruction_bits, 7, 5, 0) as usize
+pub fn rd(instruction_bits: u32) -> u8 {
+    x(instruction_bits, 7, 5, 0) as u8
 }
 
 #[inline(always)]
-pub fn rs1(instruction_bits: u32) -> usize {
-    x(instruction_bits, 15, 5, 0) as usize
+pub fn rs1(instruction_bits: u32) -> u8 {
+    x(instruction_bits, 15, 5, 0) as u8
 }
 
 #[inline(always)]
-pub fn rs2(instruction_bits: u32) -> usize {
-    x(instruction_bits, 20, 5, 0) as usize
+pub fn rs2(instruction_bits: u32) -> u8 {
+    x(instruction_bits, 20, 5, 0) as u8
 }
 
 #[inline(always)]
@@ -75,12 +73,8 @@ pub fn utype_immediate(instruction_bits: u32) -> i32 {
     xs(instruction_bits, 12, 20, 12) as i32
 }
 
-pub fn update_register<Mac: Machine<R, M>, R: Register, M: Memory>(
-    machine: &mut Mac,
-    register_index: usize,
-    value: R,
-) {
-    let register_index = register_index % RISCV_GENERAL_REGISTER_NUMBER;
+pub fn update_register<M: Machine>(machine: &mut M, register_index: u8, value: M::REG) {
+    let register_index = register_index as usize % RISCV_GENERAL_REGISTER_NUMBER;
     // In RISC-V, x0 is a special zero register with the following properties:
     //
     // * All writes to this register are silently ignored
@@ -89,6 +83,6 @@ pub fn update_register<Mac: Machine<R, M>, R: Register, M: Memory>(
     // The goal here is to maintain a place where we can read zeros to allow for
     // compact encoding. Hence we are ignoring all writes to x0 register here.
     if register_index > 0 {
-        machine.registers_mut()[register_index] = value;
+        machine.set_register(register_index, value);
     }
 }

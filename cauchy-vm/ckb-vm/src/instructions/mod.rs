@@ -8,22 +8,26 @@ pub mod rvc;
 
 pub use self::register::Register;
 use super::machine::Machine;
-use super::memory::Memory;
 use super::Error;
 use std::fmt::{self, Display};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Instruction {
     RVC(rvc::Instruction),
     I(i::Instruction),
     M(m::Instruction),
 }
 
+impl Default for Instruction {
+    fn default() -> Self {
+        // Default instruction is NOP, note that we don't use NOP from RVC,
+        // since it's more likely every chip will implement I than RVC.
+        i::nop()
+    }
+}
+
 impl Instruction {
-    pub fn execute<Mac: Machine<R, M>, R: Register, M: Memory>(
-        &self,
-        machine: &mut Mac,
-    ) -> Result<(), Error> {
+    pub fn execute<Mac: Machine>(&self, machine: &mut Mac) -> Result<(), Error> {
         match self {
             Instruction::I(instruction) => instruction.execute(machine),
             Instruction::M(instruction) => instruction.execute(machine),
@@ -44,15 +48,13 @@ pub type InstructionFactory = fn(instruction_bits: u32) -> Option<Instruction>;
 
 // Instruction execution trait
 pub trait Execute {
-    fn execute<Mac: Machine<R, M>, R: Register, M: Memory>(
-        &self,
-        machine: &mut Mac,
-    ) -> Result<Option<R>, Error>;
+    fn execute<Mac: Machine>(&self, machine: &mut Mac) -> Result<Option<Mac::REG>, Error>;
 }
 
-type RegisterIndex = usize;
+type RegisterIndex = u8;
 type Immediate = i32;
 type UImmediate = u32;
+type UShortImmediate = u16;
 
 //
 //  31       27 26 25 24     20 19    15 14    12 11          7 6      0
@@ -71,7 +73,7 @@ type UImmediate = u32;
 // ======================================================================
 //
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Rtype<I> {
     rs2: RegisterIndex,
     rs1: RegisterIndex,
@@ -85,7 +87,7 @@ impl<I> Rtype<I> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Itype<M, I> {
     rs1: RegisterIndex,
     rd: RegisterIndex,
@@ -99,7 +101,7 @@ impl<M, I> Itype<M, I> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ItypeShift<M, I> {
     rs1: RegisterIndex,
     rd: RegisterIndex,
@@ -113,7 +115,7 @@ impl<M, I> ItypeShift<M, I> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Stype<M, I> {
     rs2: RegisterIndex,
     rs1: RegisterIndex,
@@ -127,7 +129,7 @@ impl<M, I> Stype<M, I> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Btype<M, I> {
     rs2: RegisterIndex,
     rs1: RegisterIndex,
@@ -141,7 +143,7 @@ impl<M, I> Btype<M, I> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Utype<M, I> {
     rd: RegisterIndex,
     imm: M,
@@ -151,5 +153,38 @@ pub struct Utype<M, I> {
 impl<M, I> Utype<M, I> {
     pub fn inst(&self) -> &I {
         &self.inst
+    }
+}
+
+pub fn is_basic_block_end_instruction(i: &Instruction) -> bool {
+    match i {
+        Instruction::I(i) => match i {
+            i::Instruction::I(i) => match i.inst() {
+                i::ItypeInstruction::JALR => true,
+                _ => false,
+            },
+            i::Instruction::B(_) => true,
+            i::Instruction::Env(_) => true,
+            i::Instruction::JAL { .. } => true,
+            _ => false,
+        },
+        Instruction::RVC(i) => match i {
+            rvc::Instruction::BEQZ { .. } => true,
+            rvc::Instruction::BNEZ { .. } => true,
+            rvc::Instruction::JAL { .. } => true,
+            rvc::Instruction::J { .. } => true,
+            rvc::Instruction::JR { .. } => true,
+            rvc::Instruction::JALR { .. } => true,
+            rvc::Instruction::EBREAK => true,
+            _ => false,
+        },
+        Instruction::M(_) => false,
+    }
+}
+
+pub fn instruction_length(i: &Instruction) -> usize {
+    match i {
+        Instruction::RVC(_) => 2,
+        _ => 4,
     }
 }

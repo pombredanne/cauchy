@@ -1,11 +1,10 @@
 use super::super::machine::Machine;
-use super::super::memory::Memory;
 use super::super::Error;
 use super::register::Register;
 use super::utils::{funct3, funct7, opcode, rd, rs1, rs2, update_register};
 use super::{Execute, Instruction as GenericInstruction, Instruction::M};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum RtypeInstruction {
     MUL,
     MULW,
@@ -24,156 +23,95 @@ pub enum RtypeInstruction {
 
 type Rtype = super::Rtype<RtypeInstruction>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Instruction(pub Rtype);
 
 impl Execute for Rtype {
-    fn execute<Mac: Machine<R, M>, R: Register, M: Memory>(
-        &self,
-        machine: &mut Mac,
-    ) -> Result<Option<R>, Error> {
-        let rs1_value = machine.registers()[self.rs1];
-        let rs2_value = machine.registers()[self.rs2];
+    fn execute<Mac: Machine>(&self, machine: &mut Mac) -> Result<Option<Mac::REG>, Error> {
+        let rs1_value = &machine.registers()[self.rs1 as usize];
+        let rs2_value = &machine.registers()[self.rs2 as usize];
         match &self.inst {
             RtypeInstruction::MUL => {
-                let (value, _) = rs1_value.overflowing_mul(rs2_value);
+                let value = rs1_value.overflowing_mul(&rs2_value);
                 update_register(machine, self.rd, value);
             }
             RtypeInstruction::MULW => {
-                let (value, _) = rs1_value
-                    .zero_extend(32)
-                    .overflowing_mul(rs2_value.zero_extend(32));
-                update_register(machine, self.rd, value.sign_extend(32));
+                let value = rs1_value
+                    .zero_extend(&Mac::REG::from_usize(32))
+                    .overflowing_mul(&rs2_value.zero_extend(&Mac::REG::from_usize(32)));
+                update_register(
+                    machine,
+                    self.rd,
+                    value.sign_extend(&Mac::REG::from_usize(32)),
+                );
             }
             RtypeInstruction::MULH => {
-                let value = rs1_value.overflowing_mul_high_signed(rs2_value);
+                let value = rs1_value.overflowing_mul_high_signed(&rs2_value);
                 update_register(machine, self.rd, value);
             }
             RtypeInstruction::MULHSU => {
-                let value = rs1_value.overflowing_mul_high_signed_unsigned(rs2_value);
+                let value = rs1_value.overflowing_mul_high_signed_unsigned(&rs2_value);
                 update_register(machine, self.rd, value);
             }
             RtypeInstruction::MULHU => {
-                let value = rs1_value.overflowing_mul_high_unsigned(rs2_value);
+                let value = rs1_value.overflowing_mul_high_unsigned(&rs2_value);
                 update_register(machine, self.rd, value);
             }
-
-            // +---------------------------------------------------------------------------------------+
-            // | Condition              | Dividend  | Divisor | DIVU[W] | REMU[W] |  DIV[W]   | REM[W] |
-            // +------------------------+-----------+---------+---------+---------+-----------+--------+
-            // | Division by zero       |     x     |    0    | 2**L-1  |    x    |    -1     |   x    |
-            // +------------------------+-----------+---------+---------+---------+-----------+--------+
-            // | Overflow (signed only) | −2**(L−1) |   −1    |    -    |    -    | -2**(L-1) |   0    |
-            // +---------------------------------------------------------------------------------------+
             RtypeInstruction::DIV => {
-                let value = if rs2_value == R::zero() {
-                    // This is documented in RISC-V spec, when divided by
-                    // 0, RISC-V machine would return -1 in DIV instead of
-                    // trapping.
-                    R::zero().overflowing_sub(R::one()).0
-                } else {
-                    let (value, overflow) = rs1_value.overflowing_div_signed(rs2_value);
-                    if overflow {
-                        // This is actually -2^(L - 1), where L is R::BITS, we are
-                        // calculating it using (-1) << (L - 1). -1 can be further
-                        // calculated using R::zero() - R::one()
-                        (R::zero().overflowing_sub(R::one()).0) << (R::BITS - 1)
-                    } else {
-                        value
-                    }
-                };
+                let value = rs1_value.overflowing_div_signed(&rs2_value);
                 update_register(machine, self.rd, value);
             }
             RtypeInstruction::DIVW => {
-                let rs1_value = rs1_value.sign_extend(32);
-                let rs2_value = rs2_value.sign_extend(32);
-                let value = if rs2_value == R::zero() {
-                    // This is documented in RISC-V spec, when divided by
-                    // 0, RISC-V machine would return -1 in DIV instead of
-                    // trapping.
-                    R::zero().overflowing_sub(R::one()).0
-                } else {
-                    let (value, overflow) = rs1_value.overflowing_div_signed(rs2_value);
-                    if overflow {
-                        // This is actually -2^(L - 1), where L is R::BITS, we are
-                        // calculating it using (-1) << (L - 1). -1 can be further
-                        // calculated using R::zero() - R::one()
-                        (R::zero().overflowing_sub(R::one()).0) << (R::BITS - 1)
-                    } else {
-                        value.sign_extend(32)
-                    }
-                };
-                update_register(machine, self.rd, value);
+                let rs1_value = rs1_value.sign_extend(&Mac::REG::from_usize(32));
+                let rs2_value = rs2_value.sign_extend(&Mac::REG::from_usize(32));
+                let value = rs1_value.overflowing_div_signed(&rs2_value);
+                update_register(
+                    machine,
+                    self.rd,
+                    value.sign_extend(&Mac::REG::from_usize(32)),
+                );
             }
             RtypeInstruction::DIVU => {
-                let value = if rs2_value == R::zero() {
-                    // This is documented in RISC-V spec, when divided by
-                    // 0, RISC-V machine would return 2**L - 1 for unsigned integer
-                    // in DIV instead of trapping.
-                    R::max_value()
-                } else {
-                    rs1_value.overflowing_div(rs2_value).0
-                };
+                let value = rs1_value.overflowing_div(&rs2_value);
                 update_register(machine, self.rd, value);
             }
             RtypeInstruction::DIVUW => {
-                let rs1_value = rs1_value.zero_extend(32);
-                let rs2_value = rs2_value.zero_extend(32);
-                let value = if rs2_value == R::zero() {
-                    // This is documented in RISC-V spec, when divided by
-                    // 0, RISC-V machine would return 2**L - 1 for unsigned integer
-                    // in DIV instead of trapping.
-                    R::max_value()
-                } else {
-                    rs1_value.overflowing_div(rs2_value).0
-                };
-                update_register(machine, self.rd, value.sign_extend(32));
+                let rs1_value = rs1_value.zero_extend(&Mac::REG::from_usize(32));
+                let rs2_value = rs2_value.zero_extend(&Mac::REG::from_usize(32));
+                let value = rs1_value.overflowing_div(&rs2_value);
+                update_register(
+                    machine,
+                    self.rd,
+                    value.sign_extend(&Mac::REG::from_usize(32)),
+                );
             }
             RtypeInstruction::REM => {
-                let value = if rs2_value == R::zero() {
-                    rs1_value
-                } else {
-                    let (value, overflow) = rs1_value.overflowing_rem_signed(rs2_value);
-                    if overflow {
-                        R::zero()
-                    } else {
-                        value
-                    }
-                };
+                let value = rs1_value.overflowing_rem_signed(&rs2_value);
                 update_register(machine, self.rd, value);
             }
             RtypeInstruction::REMW => {
-                let rs1_value = rs1_value.sign_extend(32);
-                let rs2_value = rs2_value.sign_extend(32);
-                let value = if rs2_value == R::zero() {
-                    rs1_value
-                } else {
-                    let (value, overflow) = rs1_value.overflowing_rem_signed(rs2_value);
-                    if overflow {
-                        R::zero()
-                    } else {
-                        value
-                    }
-                };
-                update_register(machine, self.rd, value.sign_extend(32));
+                let rs1_value = rs1_value.sign_extend(&Mac::REG::from_usize(32));
+                let rs2_value = rs2_value.sign_extend(&Mac::REG::from_usize(32));
+                let value = rs1_value.overflowing_rem_signed(&rs2_value);
+                update_register(
+                    machine,
+                    self.rd,
+                    value.sign_extend(&Mac::REG::from_usize(32)),
+                );
             }
             RtypeInstruction::REMU => {
-                let value = if rs2_value == R::zero() {
-                    rs1_value
-                } else {
-                    rs1_value.overflowing_rem(rs2_value).0
-                };
+                let value = rs1_value.overflowing_rem(&rs2_value);
                 update_register(machine, self.rd, value);
             }
             RtypeInstruction::REMUW => {
-                let rs1_value = rs1_value.zero_extend(32);
-                let rs2_value = rs2_value.zero_extend(32);
-                let value = if rs2_value == R::zero() {
-                    rs1_value
-                } else {
-                    rs1_value.overflowing_rem(rs2_value).0
-                };
-                update_register(machine, self.rd, value.sign_extend(32));
+                let rs1_value = rs1_value.zero_extend(&Mac::REG::from_usize(32));
+                let rs2_value = rs2_value.zero_extend(&Mac::REG::from_usize(32));
+                let value = rs1_value.overflowing_rem(&rs2_value);
+                update_register(
+                    machine,
+                    self.rd,
+                    value.sign_extend(&Mac::REG::from_usize(32)),
+                );
             }
         }
         Ok(None)
@@ -181,12 +119,9 @@ impl Execute for Rtype {
 }
 
 impl Instruction {
-    pub fn execute<Mac: Machine<R, M>, R: Register, M: Memory>(
-        &self,
-        machine: &mut Mac,
-    ) -> Result<(), Error> {
+    pub fn execute<Mac: Machine>(&self, machine: &mut Mac) -> Result<(), Error> {
         let next_pc = self.0.execute(machine)?;
-        let default_next_pc = machine.pc().overflowing_add(R::from_usize(4)).0;
+        let default_next_pc = machine.pc().overflowing_add(&Mac::REG::from_usize(4));
         machine.set_pc(next_pc.unwrap_or(default_next_pc));
         Ok(())
     }

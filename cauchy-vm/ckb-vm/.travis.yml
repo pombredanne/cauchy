@@ -12,12 +12,12 @@ env:
 matrix:
   include:
     - os: osx
-      rust: 1.31.0
+      rust: 1.33.0
       install:
         - cargo fmt --version || rustup component add rustfmt-preview
         - cargo clippy --version || rustup component add clippy-preview
       env: SUITE=ci
-    - rust: 1.31.0
+    - rust: 1.33.0
       addons:
         apt:
           packages:
@@ -28,6 +28,28 @@ matrix:
             - texinfo
             - libtool
       env: SUITE=ci-quick
+    - rust: 1.33.0
+      addons:
+        apt:
+          packages:
+            - git
+            - build-essential
+      env: SUITE=ci-asm
+    - rust: 1.33.0
+      addons:
+        apt:
+          packages:
+            - git
+            - build-essential
+      env: SUITE=ci-jit
+    - os: osx
+      rust: 1.33.0
+      addons:
+        apt:
+          packages:
+            - git
+            - build-essential
+      env: SUITE=ci-jit
 
 script:
 - make "$SUITE"

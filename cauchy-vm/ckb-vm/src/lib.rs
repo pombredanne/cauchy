@@ -5,13 +5,24 @@ pub mod machine;
 pub mod memory;
 pub mod syscalls;
 
+#[cfg(feature = "jit")]
+mod jit;
+
 pub use crate::{
     instructions::{Instruction, Register},
-    machine::{CoreMachine, DefaultMachine, Machine},
+    machine::{
+        CoreMachine, DefaultCoreMachine, DefaultMachine, DefaultMachineBuilder,
+        InstructionCycleFunc, Machine, SupportMachine,
+    },
     memory::{flat::FlatMemory, mmu::Mmu, sparse::SparseMemory, Memory},
     syscalls::Syscalls,
 };
 use std::io::{Error as IOError, ErrorKind};
+
+#[cfg(feature = "jit")]
+pub use crate::jit::{
+    default_jit_machine, BaselineJitMachine, BaselineJitRunData, DefaultTracer, TcgTracer,
+};
 
 pub const RISCV_PAGESIZE: usize = 1 << 12;
 pub const RISCV_GENERAL_REGISTER_NUMBER: usize = 32;
@@ -54,7 +65,8 @@ pub const A5: usize = 15;
 pub const A6: usize = 16;
 pub const A7: usize = 17;
 
-#[cfg_attr(rustfmt, rustfmt_skip)]
+// Register ABI names
+#[rustfmt::skip]
 pub const REGISTER_ABI_NAMES: [&str; 32] = [
     "zero", "ra", "sp", "gp",
     "tp", "t0", "t1", "t2",
@@ -76,8 +88,10 @@ pub enum Error {
     InvalidEcall(u64),
     InvalidElfBits,
     IO(ErrorKind),
+    Dynasm(i32),
     MaximumMmappingReached,
     InvalidPermission,
+    Unexpected,
     Unimplemented,
 }
 
@@ -87,9 +101,11 @@ impl From<IOError> for Error {
     }
 }
 
-pub fn run<R: Register, M: Memory + Default>(
+pub fn run<R: Register, M: Memory<R> + Default>(
     program: &[u8],
     args: &[Vec<u8>],
 ) -> Result<u8, Error> {
-    DefaultMachine::<R, M>::default().run(program, args)
+    DefaultMachine::<DefaultCoreMachine<R, M>>::default()
+        .load_program(program, args)?
+        .interpret()
 }

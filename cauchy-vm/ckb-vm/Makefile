@@ -1,6 +1,9 @@
 test:
 	cargo test --all -- --nocapture
 
+test-jit:
+	cargo test --all --features=jit -- --nocapture
+
 fmt:
 	cargo fmt --all -- --check
 
@@ -13,6 +16,12 @@ ci: fmt clippy test
 ci-quick: test
 	git diff --exit-code Cargo.lock
 
+ci-jit: test-jit
+	git diff --exit-code Cargo.lock
+
+ci-asm: src/jit/asm.x64.compiled.c
+	git diff --exit-code $<
+
 # For counting lines of code
 stats:
 	@cargo count --version || cargo +nightly install --git https://github.com/kbknapp/cargo-count
@@ -23,6 +32,16 @@ stats:
 security-audit:
 	@cargo audit --version || cargo install cargo-audit
 	@cargo audit
+
+# Following rules are used to update dynasm compiled files
+src/jit/asm.x64.compiled.c: src/jit/asm.x64.c .deps/luajit/src/host/minilua
+	.deps/luajit/src/host/minilua .deps/luajit/dynasm/dynasm.lua -o $@ $<
+
+.deps/luajit/src/host/minilua:
+	rm -rf .deps/luajit && mkdir -p .deps && \
+		git clone https://github.com/LuaJIT/LuaJIT .deps/luajit && \
+		cd .deps/luajit && git checkout v2.1 && \
+		make
 
 .PHONY: test clippy fmt
 .PHONY: ci ci-quick
