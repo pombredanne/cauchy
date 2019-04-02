@@ -55,7 +55,8 @@ pub trait CoreMachine {
     fn memory_mut(&mut self) -> &mut Self::MEM;
     fn registers(&self) -> &[Self::REG];
     fn set_register(&mut self, idx: usize, value: Self::REG);
-    fn store_retbytes(&mut self, retbytes: Vec::<u8>);
+    // fn store_retbytes(&mut self, retbytes: Vec::<u8>);
+    // fn get_retbytes(&mut self) -> Vec::<u8>;
 }
 
 /// This is the core trait describing a full RISC-V machine. Instruction
@@ -174,7 +175,7 @@ pub struct DefaultCoreMachine<R, M> {
     elf_end: usize,
     cycles: u64,
     max_cycles: Option<u64>,
-    pub ret_bytes: Vec::<u8>
+    // ret_bytes: Vec::<u8>
 }
 
 impl<R: Register, M: Memory<R>> CoreMachine for DefaultCoreMachine<R, M> {
@@ -184,9 +185,15 @@ impl<R: Register, M: Memory<R>> CoreMachine for DefaultCoreMachine<R, M> {
         &self.pc
     }
 
-    fn store_retbytes(&mut self, ret_bytes: Vec::<u8>) {
-        self.ret_bytes = ret_bytes;
-    }
+    // fn store_retbytes(&mut self, ret_bytes: Vec::<u8>) {
+    //     self.ret_bytes = ret_bytes.clone();
+    //     println!("set DCM {:?}", self.ret_bytes);
+    // }
+
+    // fn get_retbytes(&mut self) -> Vec::<u8> {
+    //     println!("get DCM {:?}", self.ret_bytes);
+    //     return self.ret_bytes.clone();
+    // }
 
     fn set_pc(&mut self, next_pc: Self::REG) {
         self.pc = next_pc;
@@ -284,13 +291,22 @@ pub struct DefaultMachine<'a, Inner> {
     ret_bytes : Vec::<u8>,
 }
 
+impl<'a, Inner> DefaultMachine<'a, Inner> {
+    pub fn store_retbytes(&mut self, ret_bytes: Vec::<u8>) {
+        self.ret_bytes = ret_bytes;
+        println!("set DM {:?}", self.ret_bytes);
+    }
+
+    pub fn get_retbytes(&mut self) -> Vec::<u8> {
+        println!("get DM {:?}", self.ret_bytes);
+        return self.ret_bytes.clone();
+    }
+}
+
 impl<Inner: CoreMachine> CoreMachine for DefaultMachine<'_, Inner> {
     type REG = <Inner as CoreMachine>::REG;
     type MEM = Self;
 
-    fn store_retbytes(&mut self, ret_bytes: Vec::<u8>) {
-        self.ret_bytes = ret_bytes;
-    }
 
     fn pc(&self) -> &Self::REG {
         &self.inner.pc()

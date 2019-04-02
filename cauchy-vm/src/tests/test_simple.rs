@@ -11,13 +11,28 @@ mod test_simple{
 
     #[test]
     fn test_simple() {
-        let tx_db = RocksDb::open_db(".cauchy/tests/db_vm_test_syscall2/").unwrap();
+        let tx_db = RocksDb::open_db(".cauchy/tests/db_vm_test_simple/").unwrap();
         let mut file = File::open("src/tests/scripts/basic").unwrap();
         let mut script = Vec::new();
         file.read_to_end(&mut script).unwrap();
 
         let msg = Bytes::from(&b"Message"[..]);
-        let vm_test = VM::new(Bytes::from(script), msg, 0, Arc::new(tx_db) );
+        let mut vm_test = VM::new(Bytes::from(script), msg, 0, Arc::new(tx_db) );
         let result = vm_test.run();
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_syscall(){
+        let tx_db = RocksDb::open_db(".cauchy/tests/db_vm_test_syscall/").unwrap();
+        let mut file = File::open("src/tests/scripts/syscall").unwrap();
+        let mut script = Vec::new();
+        file.read_to_end(&mut script).unwrap();
+
+        let msg = Bytes::from(&b"Message"[..]);
+        let mut vm_test = VM::new(Bytes::from(script), msg, 0, Arc::new(tx_db) );
+        let result = vm_test.run();
+        assert!(result.is_ok());
+        assert_eq!(vm_test.get_retbytes(), b"DEADBEEF" );
     }
 }
