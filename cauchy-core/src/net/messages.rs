@@ -7,14 +7,14 @@ use secp256k1::key::PublicKey;
 use secp256k1::Signature;
 use tokio::codec::{Decoder, Encoder};
 
-use crypto::signatures::ecdsa::*;
-use crypto::sketches::dummy_sketch::*;
-use crypto::sketches::odd_sketch::*;
-use primitives::transaction::*;
-use primitives::varint::VarInt;
-use utils::constants::*;
-use utils::errors::MalformedMessageError;
-use utils::parsing::*;
+use crate::{
+    crypto::{
+        signatures::ecdsa::*,
+        sketches::{dummy_sketch::*, odd_sketch::*},
+    },
+    primitives::{transaction::*, varint::VarInt},
+    utils::{constants::*, errors::MalformedMessageError, parsing::*},
+};
 
 pub enum Message {
     StartHandshake {
@@ -265,7 +265,7 @@ impl Decoder for MessageCodec {
                 let payload_len = usize::from(payload_len_vi);
 
                 if buf.remaining() < payload_len {
-                    return Ok(None)
+                    return Ok(None);
                 }
 
                 let mut txs = HashSet::new(); // TODO: Estimate of size here?

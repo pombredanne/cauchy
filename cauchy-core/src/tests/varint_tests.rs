@@ -1,7 +1,7 @@
 mod serialisation {
     use bytes::Bytes;
-    use primitives::varint::VarInt;
-    use utils::serialisation::*;
+
+    use crate::{primitives::varint::VarInt, utils::serialisation::*};
 
     #[test]
     fn test_serialise() {

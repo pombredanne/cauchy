@@ -9,16 +9,17 @@ use futures::sync::mpsc::{channel, Receiver, Sender};
 use futures::{Future, Sink};
 use secp256k1::{PublicKey, SecretKey, Signature};
 
-use crypto::hashes::Identifiable;
-use crypto::signatures::ecdsa;
-use crypto::sketches::dummy_sketch::DummySketch;
-use crypto::sketches::odd_sketch::OddSketch;
-use crypto::sketches::SketchInsertable;
-use net::messages::*;
-use primitives::transaction::Transaction;
-use primitives::varint::VarInt;
-use primitives::work_site::WorkSite;
-use utils::constants::HASH_LEN;
+use crate::{
+    crypto::{
+        hashes::Identifiable,
+        signatures::ecdsa,
+        sketches::{dummy_sketch::DummySketch, odd_sketch::OddSketch, SketchInsertable},
+    },
+    net::messages::*,
+    utils::constants::HASH_LEN,
+};
+
+use super::{transaction::Transaction, varint::VarInt, work_site::WorkSite};
 
 pub struct Ego {
     pubkey: PublicKey,

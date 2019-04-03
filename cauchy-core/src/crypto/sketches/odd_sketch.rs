@@ -1,9 +1,8 @@
 use bytes::{Bytes, BytesMut};
 
-use crypto::sketches::*;
-use crypto::util;
-use utils::byte_ops::*;
-use utils::constants::SKETCH_CAPACITY;
+use crate::{utils::byte_ops::*, utils::constants::SKETCH_CAPACITY};
+
+use super::{super::util, *};
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct OddSketch(pub BytesMut);

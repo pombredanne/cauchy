@@ -1,21 +1,3 @@
-extern crate blake2;
-extern crate bus;
-extern crate bytes;
-extern crate crossbeam;
-extern crate futures;
-extern crate rand;
-extern crate rocksdb;
-extern crate secp256k1;
-extern crate tokio;
-#[macro_use]
-extern crate failure;
-extern crate toml;
-#[macro_use]
-extern crate serde_derive;
-#[macro_use]
-extern crate lazy_static;
-extern crate itertools;
-
 pub mod crypto;
 pub mod daemon;
 pub mod db;

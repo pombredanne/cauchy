@@ -4,8 +4,10 @@ use secp256k1::key::{PublicKey, SecretKey, ONE_KEY};
 use secp256k1::rand::OsRng;
 use secp256k1::{Message, Secp256k1, Signature};
 
-use crypto::hashes::blake2b::*;
-use utils::errors::{InvalidPubkey, InvalidSignature};
+use crate::{
+    crypto::hashes::blake2b::*,
+    utils::errors::{InvalidPubkey, InvalidSignature},
+};
 
 pub fn generate_keypair() -> (SecretKey, PublicKey) {
     let secp = Secp256k1::new();

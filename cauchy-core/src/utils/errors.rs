@@ -1,3 +1,5 @@
+use failure::Fail;
+
 // ECDSA Errors
 #[derive(Debug, Fail)]
 #[fail(display = "invalid signature")]

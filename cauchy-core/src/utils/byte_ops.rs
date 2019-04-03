@@ -1,4 +1,5 @@
 extern crate bytes;
+
 use bytes::{Buf, Bytes, IntoBuf};
 use std::ops::*;
 
@@ -34,7 +35,7 @@ bop!(ByteXor, byte_xor, bitxor);
 
 pub trait Hamming {
     fn hamming_weight(&self) -> u16;
-    fn hamming_distance(&Bytes, &Bytes) -> u16;
+    fn hamming_distance(_: &Bytes, _: &Bytes) -> u16;
 }
 
 impl Hamming for Bytes {
@@ -55,17 +56,17 @@ impl Hamming for Bytes {
 }
 
 pub trait Foldable {
-    fn fold(&self, usize) -> Result<Bytes, String>;
+    fn fold(&self, size: usize) -> Result<Bytes, String>;
 }
 
 impl Foldable for Bytes {
-    fn fold(&self, m: usize) -> Result<Bytes, String> {
+    fn fold(&self, size: usize) -> Result<Bytes, String> {
         let n = self.len();
-        if n % m == 0 {
-            let k = self.len() / m;
-            let mut result = self.slice(0, m);
+        if n % size == 0 {
+            let k = self.len() / size;
+            let mut result = self.slice(0, size);
             for i in 1..k {
-                result = result.byte_xor(self.slice(i * m, (i + 1) * m))
+                result = result.byte_xor(self.slice(i * size, (i + 1) * size))
             }
             Ok(result)
         } else {

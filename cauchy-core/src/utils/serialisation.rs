@@ -1,14 +1,16 @@
 use bytes::{Buf, BufMut, Bytes, BytesMut, IntoBuf};
 use failure::Error;
 
-use crypto::signatures::ecdsa::*;
-use crypto::sketches::dummy_sketch::*;
-use primitives::transaction::Transaction;
-use primitives::varint::VarInt;
-use primitives::work_site::WorkSite;
-use utils::constants::*;
-use utils::errors::{TransactionDeserialisationError, VarIntDeserialisationError};
-use utils::parsing::*;
+use crate::{
+    crypto::{signatures::ecdsa::*, sketches::dummy_sketch::*},
+    primitives::{transaction::Transaction, varint::VarInt, work_site::WorkSite},
+};
+
+use super::{
+    constants::*,
+    errors::{TransactionDeserialisationError, VarIntDeserialisationError},
+    parsing::*,
+};
 
 pub trait TryFrom<T>: Sized {
     type Err;
@@ -58,7 +60,7 @@ impl From<Transaction> for Bytes {
     fn from(tx: Transaction) -> Bytes {
         let mut buf = vec![];
 
-        let vi_time = VarInt::from(*tx.get_time());
+        let vi_time = VarInt::from(tx.get_time());
         buf.put(&Bytes::from(vi_time));
 
         let aux_data = tx.get_aux();

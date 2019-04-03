@@ -1,7 +1,7 @@
 mod blk2b {
     use bytes::Bytes;
-    use crypto::hashes::blake2b::Blk2bHashable;
-    use primitives::transaction::Transaction;
+
+    use crate::{crypto::hashes::blake2b::Blk2bHashable, primitives::transaction::Transaction};
 
     #[test]
     fn test_blk2b_basic() {

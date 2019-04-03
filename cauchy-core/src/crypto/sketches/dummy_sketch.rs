@@ -4,8 +4,7 @@ use std::ops::Sub;
 
 use bytes::Bytes;
 
-use crypto::hashes::*;
-use crypto::sketches::*;
+use super::{super::hashes::*, *};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct DummySketch {

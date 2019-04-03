@@ -1,5 +1,5 @@
 mod operations {
-    use crypto::signatures::ecdsa::*;
+    use crate::crypto::signatures::ecdsa::*;
 
     #[test]
     fn sign_test_pass() {
@@ -39,8 +39,9 @@ mod operations {
 }
 
 mod serialisation {
-    use crypto::signatures::ecdsa::*;
     use secp256k1::Message;
+
+    use crate::crypto::signatures::ecdsa::*;
 
     #[test]
     fn generate_message() {

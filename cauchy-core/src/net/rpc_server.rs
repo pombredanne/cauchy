@@ -5,9 +5,10 @@ use tokio::codec::Framed;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc::Sender;
 
-use net::rpc_messages::*;
-use utils::constants::CONFIG;
-use utils::errors::DaemonError;
+use crate::{
+    net::rpc_messages::*,
+    utils::{constants::CONFIG, errors::DaemonError},
+};
 
 pub fn rpc_server(
     socket_sender: Sender<TcpStream>,

@@ -1,6 +1,7 @@
 mod binary_operations {
     use bytes::Bytes;
-    use utils::byte_ops::*;
+
+    use crate::utils::byte_ops::*;
 
     #[test]
     fn test_and() {
@@ -28,8 +29,8 @@ mod binary_operations {
 }
 
 mod metrics {
+    use crate::utils::byte_ops::*;
     use bytes::Bytes;
-    use utils::byte_ops::*;
 
     #[test]
     fn test_hamming_weight() {
@@ -46,8 +47,8 @@ mod metrics {
 }
 
 mod folding {
+    use crate::utils::byte_ops::*;
     use bytes::Bytes;
-    use utils::byte_ops::*;
 
     #[test]
     fn test_fold_a() {

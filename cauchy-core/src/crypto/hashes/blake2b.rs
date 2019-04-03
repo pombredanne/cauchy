@@ -1,7 +1,7 @@
 use blake2::{Blake2b, Digest};
-
 use bytes::Bytes;
-use utils::constants::HASH_LEN;
+
+use crate::utils::constants::HASH_LEN;
 
 pub trait Blk2bHashable: Into<Bytes> {
     fn blake2b(&self) -> Bytes;

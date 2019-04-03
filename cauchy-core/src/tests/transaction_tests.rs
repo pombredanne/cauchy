@@ -1,9 +1,7 @@
 mod serialisation {
-    extern crate bytes;
-
     use bytes::Bytes;
-    use primitives::transaction::*;
-    use utils::serialisation::*;
+
+    use crate::{primitives::transaction::*, utils::serialisation::*};
 
     #[test]
     fn test_serialise() {

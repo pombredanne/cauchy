@@ -5,12 +5,12 @@ use futures::future::ok;
 use tokio::prelude::*;
 use tokio::timer::Interval;
 
-use net::messages::Message;
-use primitives::arena::*;
-use primitives::ego::*;
-use utils::constants::*;
-use utils::errors::HeartBeatWorkError;
-use utils::timing::*;
+use crate::{
+    primitives::{arena::*, ego::*},
+    utils::{constants::*, errors::HeartBeatWorkError, timing::*},
+};
+
+use super::messages::Message;
 
 pub fn heartbeat_work(
     ego: Arc<Mutex<Ego>>,

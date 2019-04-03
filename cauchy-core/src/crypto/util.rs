@@ -1,6 +1,6 @@
 use bytes::Bytes;
 
-use crypto::hashes::*;
+use super::hashes::*;
 
 pub fn get_bit_pos<T>(value: &T, modulo: usize) -> (u16, usize)
 where

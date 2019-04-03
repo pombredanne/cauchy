@@ -2,15 +2,7 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex, MutexGuard};
 
-use bytes::Bytes;
-use failure::Error;
-use futures::sync::mpsc::Sender;
-use itertools::Itertools;
-use secp256k1::PublicKey;
-
-use net::messages::Message;
-use primitives::ego::*;
-use utils::errors::ArenaError;
+use crate::{net::messages::Message, primitives::ego::*};
 
 pub struct Arena {
     ego: Arc<Mutex<Ego>>,
@@ -32,21 +24,6 @@ impl Arena {
     pub fn remove_peer(&mut self, addr: &SocketAddr) {
         self.peer_egos.remove(addr);
     }
-
-    // // TODO: This seems super dangerous, maybe collect first?
-    // pub fn get_state_push_targets(
-    // ) -> Vec<SocketAddr> {
-    //     peer_egos
-    //         .iter()
-    //         .filter_map(|(addr, ego)| {
-    //             if ego.get_status() == Status::StatePush {
-    //                 Some(*addr)
-    //             } else {
-    //                 None
-    //             }
-    //         })
-    //         .collect()
-    // }
 
     pub fn reconcile_leader(&self) {
         // Lock everything

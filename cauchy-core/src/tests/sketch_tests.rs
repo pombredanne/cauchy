@@ -1,10 +1,11 @@
 mod oddsketch {
     use bytes::Bytes;
-    use crypto::hashes::blake2b::*;
-    use crypto::hashes::*;
-    use crypto::sketches::odd_sketch::*;
-    use crypto::sketches::*;
     use rand::Rng;
+
+    use crate::crypto::{
+        hashes::{blake2b::*, *},
+        sketches::{odd_sketch::*, *},
+    };
 
     #[derive(Clone)]
     pub struct DummyHolder {
@@ -67,12 +68,12 @@ mod oddsketch {
 
 mod sketch_interaction {
     use bytes::Bytes;
-    use crypto::hashes::blake2b::*;
-    use crypto::hashes::*;
-    use crypto::sketches::dummy_sketch::*;
-    use crypto::sketches::odd_sketch::*;
-    use crypto::sketches::*;
     use rand::Rng;
+
+    use crate::crypto::{
+        hashes::{blake2b::*, *},
+        sketches::{dummy_sketch::*, odd_sketch::*, *},
+    };
 
     #[derive(Clone)]
     pub struct DummyHolder {

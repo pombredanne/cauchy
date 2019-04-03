@@ -1,7 +1,6 @@
 use bytes::Bytes;
 
-use crypto::hashes::blake2b::Blk2bHashable;
-use crypto::hashes::*;
+use crate::crypto::hashes::{blake2b::Blk2bHashable, *};
 
 /*
                                       v Auxillary Data               v Binary
@@ -25,16 +24,16 @@ impl Transaction {
         }
     }
 
-    pub fn get_aux(&self) -> &Bytes {
-        &self.aux_data
+    pub fn get_aux(&self) -> Bytes {
+        self.aux_data.clone()
     }
 
-    pub fn get_binary(&self) -> &Bytes {
-        &self.binary
+    pub fn get_binary(&self) -> Bytes {
+        self.binary.clone()
     }
 
-    pub fn get_time(&self) -> &u64 {
-        &self.time
+    pub fn get_time(&self) -> u64 {
+        self.time
     }
 
     pub fn get_binary_hash(&self) -> Bytes {

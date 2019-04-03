@@ -5,8 +5,7 @@ use bytes::Bytes;
 use crossbeam::channel::Sender;
 use secp256k1::PublicKey;
 
-use crypto::sketches::odd_sketch::*;
-use primitives::work_site::WorkSite;
+use crate::{crypto::sketches::odd_sketch::*, primitives::work_site::WorkSite};
 
 pub fn mine(
     public_key: PublicKey,

@@ -1,12 +1,14 @@
 mod db_tests {
-    use bytes::Bytes;
-    use crypto::hashes::*;
-    use db::rocksdb::RocksDb;
-    use db::storing::*;
-    use db::Database;
-    use primitives::transaction::*;
-    use rocksdb::{Options, DB};
     use std::sync::Arc;
+
+    use bytes::Bytes;
+    use rocksdb::{Options, DB};
+
+    use crate::{
+        crypto::hashes::*,
+        db::{rocksdb::RocksDb, storing::*, Database},
+        primitives::transaction::*,
+    };
 
     #[test]
     fn test_rocksdb() {

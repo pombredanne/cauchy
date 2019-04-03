@@ -1,13 +1,14 @@
 use bytes::{Buf, Bytes};
 use failure::Error;
 
-use crypto::sketches::dummy_sketch::*;
-use crypto::sketches::*;
-use primitives::transaction::*;
-use primitives::varint::*;
 use std::collections::HashSet;
-use utils::constants::*;
-use utils::errors::VarIntParseError;
+
+use crate::{
+    crypto::sketches::{dummy_sketch::*, *},
+    primitives::{transaction::*, varint::*},
+};
+
+use super::{constants::*, errors::VarIntParseError};
 
 pub trait Parsable<U> {
     fn parse_buf<T: Buf>(buf: &mut T) -> Result<Option<(U, usize)>, Error>;
