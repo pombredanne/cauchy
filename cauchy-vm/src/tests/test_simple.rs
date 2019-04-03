@@ -1,38 +1,27 @@
-
-mod test_simple{
+mod test_simple {
+    use crate::vm::VM;
+    use bytes::Bytes;
     use core::db::rocksdb::RocksDb;
     use core::db::storing::*;
     use core::db::*;
-    use crate::vm::{VM};
-    use bytes::Bytes;
-    use std::sync::Arc;
     use std::fs::File;
     use std::io::Read;
+    use std::sync::Arc;
+    use futures::sync::{oneshot, mpsc};
+    use futures::sync::mpsc::{Sender, Receiver};
 
     #[test]
     fn test_simple() {
-        let tx_db = RocksDb::open_db(".cauchy/tests/db_vm_test_simple/").unwrap();
+        let store = RocksDb::open_db(".cauchy/tests/db_vm_test_simple/").unwrap();
         let mut file = File::open("src/tests/scripts/basic").unwrap();
         let mut script = Vec::new();
         file.read_to_end(&mut script).unwrap();
 
         let msg = Bytes::from(&b"Message"[..]);
-        let mut vm_test = VM::new(Bytes::from(script), msg, 0, Arc::new(tx_db) );
+        let (msg_sender, msg_recv) = mpsc::channel(1337); // TODO: We can use an unbounded channel if we'd like here? Or perhaps this is part of the limit
+        let (mut vm_test, inbox_send) = VM::new(0, Bytes::from(script), msg_sender, Arc::new(store));
+
         let result = vm_test.run();
         assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_syscall(){
-        let tx_db = RocksDb::open_db(".cauchy/tests/db_vm_test_syscall/").unwrap();
-        let mut file = File::open("src/tests/scripts/syscall").unwrap();
-        let mut script = Vec::new();
-        file.read_to_end(&mut script).unwrap();
-
-        let msg = Bytes::from(&b"Message"[..]);
-        let mut vm_test = VM::new(Bytes::from(script), msg, 0, Arc::new(tx_db) );
-        let result = vm_test.run();
-        assert!(result.is_ok());
-        assert_eq!(vm_test.get_retbytes(), b"DEADBEEF" );
     }
 }

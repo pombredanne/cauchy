@@ -1,0 +1,13 @@
+[package]
+name = "cauchy-stage"
+version = "0.1.0"
+authors = ["Harry <hlbarber93@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+core = { package = "cauchy-core", version = "*", path = "../cauchy-core" }
+vm = { package = "cauchy-vm", version = "*", path = "../cauchy-vm" }
+bytes = "*"
+failure = "*"
+futures = "*"
+tokio = "*"

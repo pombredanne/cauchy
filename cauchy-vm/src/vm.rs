@@ -1,55 +1,57 @@
-extern crate ckb_vm;
+use std::sync::Arc;
+
 use bytes::Bytes;
 use core::db::rocksdb::RocksDb;
 use core::db::storing::*;
 use core::db::*;
-use std::sync::Arc;
+use futures::sync::oneshot;
+use futures::sync::mpsc::{Receiver, Sender, channel};
 
 use ckb_vm::{
-    CoreMachine, DefaultCoreMachine, DefaultMachineBuilder, Memory, Register, Error, SparseMemory, SupportMachine, Syscalls, A0, A1, A2, A3, A4, A5, A6, A7,
+    CoreMachine, DefaultCoreMachine, DefaultMachineBuilder, Error, Memory, Register, SparseMemory,
+    SupportMachine, Syscalls, A0, A1, A2, A3, A4, A5, A6, A7,
 };
 
+use core::primitives::act::{Act, Message};
 
 pub struct VM {
-    script: Bytes,
-    message: Bytes,
     timestamp: u64,
-    tx_db: Arc<RocksDb>,
-    ret_bytes: Vec::<u8>
+    binary: Bytes,
+    msg_sender: Sender<(Message, oneshot::Sender<Act>)>,
+    inbox: Receiver<Message>,
+    store: Arc<RocksDb>,
 }
 
 impl VM {
-    pub fn new(script: Bytes, message: Bytes, timestamp: u64, db: Arc<RocksDb> ) -> VM {
-        VM {
-            script: script,
-            message: message,
-            timestamp: timestamp,
-            tx_db: db,
-            ret_bytes: Vec::<u8>::new(),
-        }
+    pub fn new(timestamp: u64, binary: Bytes, msg_sender: Sender<(Message, oneshot::Sender<Act>)>, store: Arc<RocksDb>) -> (VM, Sender<Message>) {
+        let (inbox_send, inbox) = channel(128);
+        (
+            VM {
+            timestamp,
+            binary,
+            msg_sender,
+            inbox,
+            store,
+        },
+        inbox_send
+        )
     }
 
-    pub fn run(&mut self) -> Result<u8, Error> {
+    pub fn run(&self) -> Result<u8, Error> {
         let mut machine =
-        DefaultMachineBuilder::<DefaultCoreMachine<u64, SparseMemory<u64>>>::default()
-            .syscall(Box::new(CustomSyscall {}))
-            .build();
+            DefaultMachineBuilder::<DefaultCoreMachine<u64, SparseMemory<u64>>>::default()
+                .syscall(Box::new(CustomSyscall {}))
+                .build();
         machine = machine
-            .load_program(&self.script[..], &vec![b"syscall".to_vec()])
+            .load_program(&self.binary[..], &vec![b"syscall".to_vec()])
             .unwrap();
         let result = machine.interpret();
-        self.ret_bytes = machine.get_retbytes();
-        println!("{:?}", self.ret_bytes);
         result
     }
 
-    pub fn get_retbytes(self) -> Vec::<u8> {
-        self.ret_bytes
-    }
 }
 
-pub struct CustomSyscall {
-}
+pub struct CustomSyscall {}
 
 impl<Mac: SupportMachine> Syscalls<Mac> for CustomSyscall {
     fn initialize(&mut self, _machine: &mut Mac) -> Result<(), Error> {
@@ -68,13 +70,19 @@ impl<Mac: SupportMachine> Syscalls<Mac> for CustomSyscall {
                 let mut ret_bytes = Vec::<u8>::new();
 
                 for idx in addr..(addr + sz) {
-                    ret_bytes.push(machine.memory_mut().load8(&Mac::REG::from_u32(idx)).unwrap().to_u8());
+                    ret_bytes.push(
+                        machine
+                            .memory_mut()
+                            .load8(&Mac::REG::from_u32(idx))
+                            .unwrap()
+                            .to_u8(),
+                    );
                 }
                 // machine.store_retbytes(ret_bytes);
                 // println!("{:?}", machine.get_retbytes());
                 Ok(true)
             }
-            _ => Ok(false)
+            _ => Ok(false),
         }
     }
 }

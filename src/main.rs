@@ -1,16 +1,3 @@
-extern crate blake2;
-extern crate bus;
-extern crate bytes;
-extern crate crossbeam;
-extern crate futures;
-extern crate rand;
-extern crate rocksdb;
-extern crate secp256k1;
-extern crate tokio;
-
-extern crate core;
-extern crate vm;
-
 use bus::Bus;
 use bytes::Bytes;
 use crossbeam::channel;
@@ -22,7 +9,7 @@ use core::{
 };
 use futures::lazy;
 use rand::Rng;
-use rocksdb::{Options, DB};
+use ::rocksdb::{Options, DB};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time;

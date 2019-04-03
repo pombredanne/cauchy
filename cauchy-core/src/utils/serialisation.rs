@@ -3,7 +3,7 @@ use failure::Error;
 
 use crate::{
     crypto::{signatures::ecdsa::*, sketches::dummy_sketch::*},
-    primitives::{transaction::Transaction, varint::VarInt, work_site::WorkSite},
+    primitives::{transaction::Transaction, varint::VarInt, work_site::WorkSite, access_pattern::*},
 };
 
 use super::{
@@ -142,5 +142,36 @@ impl From<DummySketch> for Bytes {
             buf.extend(item)
         }
         buf.freeze()
+    }
+}
+
+impl From<ReadPattern> for Bytes {
+    fn from(read_pattern: ReadPattern) -> Bytes {
+        let mut raw = BytesMut::with_capacity(read_pattern.len() * HASH_LEN);
+        for key in read_pattern.iter() {
+            raw.put(key);
+        }
+
+        raw.freeze()
+    }
+}
+
+impl From<Delta> for Bytes {
+    fn from(delta: Delta) -> Bytes {
+        let mut raw = BytesMut::with_capacity(delta.len() * (HASH_LEN + VALUE_LEN));
+        for (key, value) in delta.iter() {
+            raw.put(key);
+            raw.put(value);
+        }
+        raw.freeze()
+    }
+}
+
+impl From<AccessPattern> for Bytes {
+    fn from(access_pattern: AccessPattern) -> Bytes {
+        let mut raw = BytesMut::with_capacity(access_pattern.read_pattern.len() * HASH_LEN + access_pattern.delta.len() * (HASH_LEN + VALUE_LEN));
+        raw.put(Bytes::from(access_pattern.read_pattern));
+        raw.put(Bytes::from(access_pattern.delta));
+        raw.freeze()
     }
 }

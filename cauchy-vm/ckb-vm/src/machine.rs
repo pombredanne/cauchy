@@ -288,16 +288,16 @@ pub struct DefaultMachine<'a, Inner> {
     traces: Vec<Trace>,
     running_trace_slot: usize,
     running_trace_cleared: bool,
-    ret_bytes : Vec::<u8>,
+    ret_bytes: Vec<u8>,
 }
 
 impl<'a, Inner> DefaultMachine<'a, Inner> {
-    pub fn store_retbytes(&mut self, ret_bytes: Vec::<u8>) {
+    pub fn store_retbytes(&mut self, ret_bytes: Vec<u8>) {
         self.ret_bytes = ret_bytes;
         println!("set DM {:?}", self.ret_bytes);
     }
 
-    pub fn get_retbytes(&mut self) -> Vec::<u8> {
+    pub fn get_retbytes(&mut self) -> Vec<u8> {
         println!("get DM {:?}", self.ret_bytes);
         return self.ret_bytes.clone();
     }
@@ -306,7 +306,6 @@ impl<'a, Inner> DefaultMachine<'a, Inner> {
 impl<Inner: CoreMachine> CoreMachine for DefaultMachine<'_, Inner> {
     type REG = <Inner as CoreMachine>::REG;
     type MEM = Self;
-
 
     fn pc(&self) -> &Self::REG {
         &self.inner.pc()

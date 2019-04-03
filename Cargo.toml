@@ -5,6 +5,7 @@ authors = ["Harry <hlbarber93@gmail.com>", "Chris Novick <c.r.novick@protonmail.
 license = "MIT"
 readme = "README.md"
 repository = "https://github.com/cauchyteam/cauchy"
+edition = "2018"
 
 [workspace]
 
@@ -27,8 +28,8 @@ crossbeam = "*"
 futures = "*"
 
 core = { package = "cauchy-core", version = "*", path = "cauchy-core" }
+stage = { package = "cauchy-stage", version = "*", path = "cauchy-stage" }
 vm = { package = "cauchy-vm", version = "*", path = "cauchy-vm" }
-
 
 [dependencies.secp256k1]
 version = "*"
