@@ -3,7 +3,9 @@ use failure::Error;
 
 use crate::{
     crypto::{signatures::ecdsa::*, sketches::dummy_sketch::*},
-    primitives::{transaction::Transaction, varint::VarInt, work_site::WorkSite, access_pattern::*},
+    primitives::{
+        access_pattern::*, transaction::Transaction, varint::VarInt, work_site::WorkSite,
+    },
 };
 
 use super::{
@@ -169,7 +171,10 @@ impl From<Delta> for Bytes {
 
 impl From<AccessPattern> for Bytes {
     fn from(access_pattern: AccessPattern) -> Bytes {
-        let mut raw = BytesMut::with_capacity(access_pattern.read_pattern.len() * HASH_LEN + access_pattern.delta.len() * (HASH_LEN + VALUE_LEN));
+        let mut raw = BytesMut::with_capacity(
+            access_pattern.read_pattern.len() * HASH_LEN
+                + access_pattern.delta.len() * (HASH_LEN + VALUE_LEN),
+        );
         raw.put(Bytes::from(access_pattern.read_pattern));
         raw.put(Bytes::from(access_pattern.delta));
         raw.freeze()

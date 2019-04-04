@@ -11,3 +11,4 @@ ckb-vm = { path = "./ckb-vm"}
 rocksdb = "*"
 bytes = "*"
 futures = "*"
+tokio = "*"

@@ -3,27 +3,31 @@ use std::sync::Arc;
 
 use bytes::{Bytes, BytesMut};
 use core::primitives::transaction::*;
-use futures::sync::{oneshot, mpsc};
-use futures::sync::mpsc::{Sender, Receiver};
-use futures::future::{ok, err};
-use futures::sink::Sink;
 use failure::Error;
+use futures::future::{err, ok};
+use futures::sink::Sink;
+use futures::sync::mpsc::{Receiver, Sender};
+use futures::sync::{mpsc, oneshot};
 use futures::{Future, Stream};
 
-use core::db::*;
-use core::db::rocksdb::*;
-use core::primitives::act::{Act, Message};
 use core::crypto::hashes::Identifiable;
+use core::db::rocksdb::*;
 use core::db::storing::Storable;
+use core::db::*;
+use core::primitives::act::{Act, Message};
 use vm::vm::VM;
-
 
 pub struct Stage {
     db: RocksDb,
 }
 
 impl Stage {
-    pub fn get_value(&self, actor_id: &Bytes, key: &Bytes, time: Option<u64>) -> Result<Option<Bytes>, Error> {
+    pub fn get_value(
+        &self,
+        actor_id: &Bytes,
+        key: &Bytes,
+        time: Option<u64>,
+    ) -> Result<Option<Bytes>, Error> {
         let mut full_key = actor_id.clone();
         full_key.extend_from_slice(key);
         self.db.get(&full_key)
@@ -35,11 +39,13 @@ impl Stage {
 pub struct Performance {
     msg_sender: Sender<Message>,
     store: Arc<RocksDb>,
-    tx_db: Arc<RocksDb>
+    tx_db: Arc<RocksDb>,
 }
 
 impl Performance {
     fn run(&self, tx: Transaction) -> impl Future<Item = (), Error = ()> + Send + '_ {
+        let (root_terminator, _) = oneshot::channel();
+
         // Create the outgoing message channel
         let (msg_send, msg_recv) = mpsc::channel::<(Message, oneshot::Sender<Act>)>(1337);
 
@@ -47,44 +53,54 @@ impl Performance {
         let mut inboxes: HashMap<Bytes, Sender<Message>> = HashMap::new();
 
         // Create new actor from tx binary
-        let (new_vm, finish_recv) = VM::new(tx.get_time(), tx.get_binary(), msg_send.clone(), self.store.clone());
+        let (mut new_vm, finish_recv) = VM::new(
+            tx.get_time(),
+            tx.get_binary(),
+            msg_send.clone(),
+            root_terminator,
+            self.store.clone(),
+        );
 
         // Push aux data to inbox
         let (final_act_send, final_act) = oneshot::channel();
         msg_send
-        .clone()
+            .clone()
             .send((
                 Message::new(Bytes::with_capacity(0), tx.get_id(), tx.get_aux()),
-                final_act_send
+                final_act_send,
             ))
             .map_err(|_| ())
             .and_then(move |_| {
                 // Boot first VM
-                tokio::spawn(ok({new_vm.run();}));
-                
+                tokio::spawn(ok({
+                    new_vm.run();
+                }));
+
                 // For each new message
                 let router = msg_recv.for_each(move |(message, complete_send)| {
                     let sender_id = message.get_sender();
                     match inboxes.get(&sender_id) {
-                        Some(inbox_sender) => {
-                            ok(())
-                            }, // Send message to him
+                        Some(inbox_sender) => ok(()), // Send message to him
                         None => {
                             let tx = match Transaction::from_db(self.tx_db.clone(), &sender_id) {
                                 Ok(Some(tx)) => tx,
                                 Ok(None) => return err(()),
-                                Err(_) => return err(())
+                                Err(_) => return err(()),
                             };
-                            let (new_vm, finish_recv) = VM::new(tx.get_time(), tx.get_binary(), msg_send.clone(), self.store.clone());
+                            // let (new_vm, finish_recv) = VM::new(
+                            //     tx.get_time(),
+                            //     tx.get_binary(),
+                            //     msg_send.clone(),
+                            //     self.store.clone(),
+                            // );
                             // vms.insert(sender, );
                             // let vm = VM::new();
                             ok(())
-                            } // Spawn him
+                        } // Spawn him
                     }
                 });
 
                 ok(())
             })
-
     }
 }

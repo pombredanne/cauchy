@@ -2,6 +2,7 @@ use bus::Bus;
 use bytes::Bytes;
 use crossbeam::channel;
 
+use ::rocksdb::{Options, DB};
 use core::{
     crypto::signatures::ecdsa, db::rocksdb::RocksDb, db::storing::Storable, db::*,
     net::heartbeats::*, primitives::arena::*, primitives::ego::Ego,
@@ -9,7 +10,6 @@ use core::{
 };
 use futures::lazy;
 use rand::Rng;
-use ::rocksdb::{Options, DB};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time;

@@ -1,11 +1,12 @@
 use std::collections::{HashMap, HashSet};
-use std::ops::Add;
 use std::iter::Iterator;
+use std::ops::{Add, AddAssign};
 
 use bytes::Bytes;
 
 use crate::utils::byte_ops::*;
 
+#[derive(Clone)]
 pub struct ReadPattern(HashSet<Bytes>);
 
 impl Add for ReadPattern {
@@ -13,6 +14,12 @@ impl Add for ReadPattern {
 
     fn add(self, other: ReadPattern) -> ReadPattern {
         ReadPattern(self.0.union(&other.0).cloned().collect())
+    }
+}
+
+impl AddAssign for ReadPattern {
+    fn add_assign(&mut self, other: ReadPattern) {
+        self.0 = self.0.union(&other.0).cloned().collect()
     }
 }
 
@@ -30,10 +37,11 @@ impl ReadPattern {
     }
 
     pub fn empty() -> ReadPattern {
-        ReadPattern(HashSet::with_capacity(0))
+        ReadPattern(HashSet::new())
     }
 }
 
+#[derive(Clone)]
 pub struct Delta(HashMap<Bytes, Bytes>);
 
 impl Add for Delta {
@@ -51,6 +59,17 @@ impl Add for Delta {
     }
 }
 
+impl AddAssign for Delta {
+    fn add_assign(&mut self, other: Delta) {
+        for (key, value) in other.0 {
+            match self.0.get(&key) {
+                Some(other_value) => self.0.insert(key, value.byte_xor(other_value.clone())),
+                None => self.0.insert(key, value),
+            };
+        }
+    }
+}
+
 impl Delta {
     pub fn disjoint(&self, other: &Delta) -> bool {
         !other.0.keys().any(|key| self.0.contains_key(key))
@@ -65,13 +84,14 @@ impl Delta {
     }
 
     pub fn empty() -> Delta {
-        Delta(HashMap::with_capacity(0))
+        Delta(HashMap::new())
     }
 }
 
+#[derive(Clone)]
 pub struct AccessPattern {
     pub read_pattern: ReadPattern,
-    pub delta: Delta
+    pub delta: Delta,
 }
 
 impl Add for AccessPattern {
@@ -80,8 +100,15 @@ impl Add for AccessPattern {
     fn add(self, other: AccessPattern) -> AccessPattern {
         AccessPattern {
             read_pattern: self.read_pattern + other.read_pattern,
-            delta: self.delta + other.delta
+            delta: self.delta + other.delta,
         }
+    }
+}
+
+impl AddAssign for AccessPattern {
+    fn add_assign(&mut self, other: AccessPattern) {
+        self.read_pattern += other.read_pattern;
+        self.delta += other.delta;
     }
 }
 
@@ -89,7 +116,7 @@ impl AccessPattern {
     pub fn empty() -> AccessPattern {
         AccessPattern {
             read_pattern: ReadPattern::empty(),
-            delta: Delta::empty()
+            delta: Delta::empty(),
         }
     }
 }
