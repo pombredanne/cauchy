@@ -9,12 +9,11 @@ cargo build --release
 ```
 
 ## Running a Node
-After build completed
 ```bash
 ./target/release/cauchy
 ```
 ## Configuration
-A custom configuration file `config.toml` may be added `HOME_DIRECTORY\.cauchy\` directory. 
+A custom configuration file `config.toml` may be added `$HOME\.cauchy\` directory. 
 
 ### Example
 
