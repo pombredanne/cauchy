@@ -6,11 +6,11 @@ use core::db::storing::*;
 use core::db::*;
 use futures::future::ok;
 use futures::future::Future;
+use futures::sink::Sink;
 use futures::stream::Stream;
 use futures::sync::mpsc::{channel, Receiver, Sender};
 use futures::sync::oneshot;
 use futures::Async;
-use futures::sink::Sink;
 
 use ckb_vm::{
     CoreMachine, DefaultCoreMachine, DefaultMachineBuilder, Error, Memory, Register, SparseMemory,
@@ -38,6 +38,7 @@ impl VM {
         store: Arc<RocksDb>,
     ) -> (VM, Sender<Message>) {
         let (inbox_send, inbox) = channel(128);
+        println!("Got here");
         (
             VM {
                 act: Act::empty(),
@@ -46,14 +47,14 @@ impl VM {
                 msg_sender,
                 inbox,
                 store,
-                terminate_branch
+                terminate_branch,
             },
             inbox_send,
         )
     }
 
     fn inbox_pop(&mut self, live_branch: Option<oneshot::Receiver<Act>>) -> Option<Message> {
-        if let Some(branch) = live_branch {   
+        if let Some(branch) = live_branch {
             let act = branch.wait().unwrap();
             self.act += act;
         }
@@ -64,31 +65,42 @@ impl VM {
         }
     }
 
-    fn msg_send(&mut self, live_branch: Option<oneshot::Receiver<Act>>, msg: Message) -> oneshot::Receiver<Act> {
-        if let Some(branch) = live_branch {   
+    fn msg_send(
+        &mut self,
+        live_branch: Option<oneshot::Receiver<Act>>,
+        msg: Message,
+    ) -> oneshot::Receiver<Act> {
+        if let Some(branch) = live_branch {
             let act = branch.wait().unwrap();
             self.act += act;
         }
 
         let (branch_send, branch_recv) = oneshot::channel();
-        tokio::spawn(self.msg_sender.clone().send((msg, branch_send)).map_err(|_| ()).and_then(|_| ok(())));
+        tokio::spawn(
+            self.msg_sender
+                .clone()
+                .send((msg, branch_send))
+                .map_err(|_| ())
+                .and_then(|_| ok(())),
+        );
         branch_recv
     }
 
-    fn terminate(self) {
+    pub fn terminate(self) {
         self.terminate_branch.send(self.act);
     }
 
     pub fn run(&mut self) -> Result<u8, Error> {
-        let mut machine =
-            DefaultMachineBuilder::<DefaultCoreMachine<u64, SparseMemory<u64>>>::default()
-                .syscall(Box::new(CustomSyscall {}))
-                .build();
-        machine = machine
-            .load_program(&self.binary[..], &vec![b"syscall".to_vec()])
-            .unwrap();
-        let result = machine.interpret();
-        result
+        // let mut machine =
+        //     DefaultMachineBuilder::<DefaultCoreMachine<u64, SparseMemory<u64>>>::default()
+        //         .syscall(Box::new(CustomSyscall {}))
+        //         .build();
+        // machine = machine
+        //     .load_program(&self.binary[..], &vec![b"syscall".to_vec()])
+        //     .unwrap();
+        // let result = machine.interpret();
+        // result
+        Ok(0)
     }
 }
 

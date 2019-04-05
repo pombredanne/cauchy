@@ -43,7 +43,7 @@ pub struct Performance {
 }
 
 impl Performance {
-    fn run(&self, tx: Transaction) -> impl Future<Item = (), Error = ()> + Send + '_ {
+    fn run(&self, tx: Transaction) -> impl Future<Item = Act, Error = ()> + Send + '_ {
         let (root_terminator, _) = oneshot::channel();
 
         // Create the outgoing message channel
@@ -53,7 +53,7 @@ impl Performance {
         let mut inboxes: HashMap<Bytes, Sender<Message>> = HashMap::new();
 
         // Create new actor from tx binary
-        let (mut new_vm, finish_recv) = VM::new(
+        let (mut new_vm, _) = VM::new(
             tx.get_time(),
             tx.get_binary(),
             msg_send.clone(),
@@ -62,7 +62,7 @@ impl Performance {
         );
 
         // Push aux data to inbox
-        let (final_act_send, final_act) = oneshot::channel();
+        let (final_act_send, mut final_act) = oneshot::channel();
         msg_send
             .clone()
             .send((
@@ -74,33 +74,49 @@ impl Performance {
                 // Boot first VM
                 tokio::spawn(ok({
                     new_vm.run();
+                    new_vm.terminate();
                 }));
 
                 // For each new message
-                let router = msg_recv.for_each(move |(message, complete_send)| {
+                let router = msg_recv.for_each(move |(message, branch_terminator)| {
                     let sender_id = message.get_sender();
                     match inboxes.get(&sender_id) {
-                        Some(inbox_sender) => ok(()), // Send message to him
+                        Some(inbox_sender) => {
+                            tokio::spawn(
+                                inbox_sender
+                                    .clone()
+                                    .send(message)
+                                    .map(|_| ())
+                                    .map_err(|_| ()),
+                            );
+                            ok(())
+                        }
                         None => {
                             let tx = match Transaction::from_db(self.tx_db.clone(), &sender_id) {
                                 Ok(Some(tx)) => tx,
                                 Ok(None) => return err(()),
                                 Err(_) => return err(()),
                             };
-                            // let (new_vm, finish_recv) = VM::new(
-                            //     tx.get_time(),
-                            //     tx.get_binary(),
-                            //     msg_send.clone(),
-                            //     self.store.clone(),
-                            // );
-                            // vms.insert(sender, );
-                            // let vm = VM::new();
+                            let (mut new_vm, new_inbox_sender) = VM::new(
+                                tx.get_time(),
+                                tx.get_binary(),
+                                msg_send.clone(),
+                                branch_terminator,
+                                self.store.clone(),
+                            );
+                            inboxes.insert(tx.get_id(), new_inbox_sender);
+                            tokio::spawn(ok({
+                                new_vm.run();
+                                new_vm.terminate();
+                                inboxes.remove(&tx.get_id());
+                            }));
                             ok(())
                         } // Spawn him
                     }
                 });
 
-                ok(())
+                router
+                    .and_then(move |_| final_act.try_recv().map(|opt| opt.unwrap()).map_err(|_| ()))
             })
     }
 }

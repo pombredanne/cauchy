@@ -40,6 +40,10 @@ impl Message {
     pub fn get_sender(&self) -> Bytes {
         self.sender.clone()
     }
+
+    pub fn get_payload(&self) -> Bytes {
+        self.payload.clone()
+    }
 }
 
 impl Add for Act {
