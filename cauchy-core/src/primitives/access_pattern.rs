@@ -33,6 +33,6 @@ impl AccessPattern {
     }
 
     pub fn commute(&self, other: &AccessPattern) -> bool {
-        other.read.iter().any(|key| self.write.contains_key(key)) || self.write.keys().any(|key| other.read.contains(key))
+        !(other.read.iter().any(|key| self.write.contains_key(key)) || self.write.keys().any(|key| other.read.contains(key)))
     }
 }

@@ -13,31 +13,18 @@ use futures::{Future, Stream};
 use core::crypto::hashes::Identifiable;
 use core::db::rocksdb::*;
 use core::db::storing::Storable;
-use core::db::*;
 use core::primitives::act::{Act, Message};
 use vm::vm::VM;
 
 pub struct Stage {
-    db: RocksDb,
+    act: Act // This should not be entirely volatile
 }
 
 impl Stage {
-    pub fn get_value(
-        &self,
-        actor_id: &Bytes,
-        key: &Bytes,
-        time: Option<u64>,
-    ) -> Result<Option<Bytes>, Error> {
-        let mut full_key = actor_id.clone();
-        full_key.extend_from_slice(key);
-        self.db.get(&full_key)
-    }
-
-    // pub fn run_performance()
+    pub fn append_performance() {}
 }
 
 pub struct Performance {
-    msg_sender: Sender<Message>,
     store: Arc<RocksDb>,
     tx_db: Arc<RocksDb>,
 }

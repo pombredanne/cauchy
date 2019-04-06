@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use bus::Bus;
 use bytes::Bytes;
 use crossbeam::channel;
@@ -58,6 +60,9 @@ fn main() {
     // RPC Server
     let rpc_server = core::net::rpc_server::rpc_server(socket_send);
     let reconcile_heartbeat = heartbeat_reconcile(arena.clone());
+
+    // Spawn stage manager
+    let (to_stage, stage_recv) = channel::unbounded::<(HashSet<Transaction>, Bytes)>(); // Send incoming 
 
     // Spawn servers
     thread::spawn(move || {
