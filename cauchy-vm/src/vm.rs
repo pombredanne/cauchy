@@ -41,7 +41,7 @@ impl VM {
         println!("Got here");
         (
             VM {
-                act: Act::empty(),
+                act: Act::new(),
                 timestamp,
                 binary,
                 msg_sender,

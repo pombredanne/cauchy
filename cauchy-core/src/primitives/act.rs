@@ -1,4 +1,5 @@
 use std::ops::{Add, AddAssign};
+use std::collections::{HashMap, HashSet};
 
 use bytes::Bytes;
 
@@ -12,9 +13,9 @@ pub struct Act {
 }
 
 impl Act {
-    pub fn empty() -> Act {
+    pub fn new() -> Act {
         Act {
-            access_pattern: AccessPattern::empty(),
+            access_pattern: AccessPattern::new(),
             messages: Vec::new(),
             operations: 0,
         }
@@ -37,26 +38,16 @@ impl Message {
         }
     }
 
+    pub fn get_receiver(&self) -> Bytes {
+        self.receiver.clone()
+    }
+
     pub fn get_sender(&self) -> Bytes {
         self.sender.clone()
     }
 
     pub fn get_payload(&self) -> Bytes {
         self.payload.clone()
-    }
-}
-
-impl Add for Act {
-    type Output = Act;
-
-    fn add(self, other: Act) -> Act {
-        let mut self_msgs = self.messages;
-        self_msgs.extend(other.messages);
-        Act {
-            access_pattern: self.access_pattern + other.access_pattern,
-            messages: self_msgs,
-            operations: self.operations + other.operations,
-        }
     }
 }
 

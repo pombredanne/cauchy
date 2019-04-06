@@ -147,36 +147,28 @@ impl From<DummySketch> for Bytes {
     }
 }
 
-impl From<ReadPattern> for Bytes {
-    fn from(read_pattern: ReadPattern) -> Bytes {
-        let mut raw = BytesMut::with_capacity(read_pattern.len() * HASH_LEN);
-        for key in read_pattern.iter() {
+impl From<AccessPattern> for Bytes {
+    fn from(access_pattern: AccessPattern) -> Bytes {
+        let vi_read_len = VarInt::new(access_pattern.read.len() as u64);
+        let mut raw = BytesMut::with_capacity(
+            vi_read_len.len() +
+            access_pattern.read.len() * HASH_LEN
+            + access_pattern.write.len() * (HASH_LEN + VALUE_LEN),
+        );
+
+        // Put num of reads
+        raw.put(Bytes::from(vi_read_len));
+
+        // Put read keys
+        for key in access_pattern.read.iter() {
             raw.put(key);
         }
 
-        raw.freeze()
-    }
-}
-
-impl From<Delta> for Bytes {
-    fn from(delta: Delta) -> Bytes {
-        let mut raw = BytesMut::with_capacity(delta.len() * (HASH_LEN + VALUE_LEN));
-        for (key, value) in delta.iter() {
+        // Put writes
+        for (key, value) in access_pattern.write.iter() {
             raw.put(key);
             raw.put(value);
         }
-        raw.freeze()
-    }
-}
-
-impl From<AccessPattern> for Bytes {
-    fn from(access_pattern: AccessPattern) -> Bytes {
-        let mut raw = BytesMut::with_capacity(
-            access_pattern.read_pattern.len() * HASH_LEN
-                + access_pattern.delta.len() * (HASH_LEN + VALUE_LEN),
-        );
-        raw.put(Bytes::from(access_pattern.read_pattern));
-        raw.put(Bytes::from(access_pattern.delta));
         raw.freeze()
     }
 }
