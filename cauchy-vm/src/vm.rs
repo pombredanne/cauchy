@@ -123,27 +123,96 @@ impl<'a, Mac: SupportMachine> Syscalls<Mac> for VMSyscall<'a> {
     fn ecall(&mut self, machine: &mut Mac) -> Result<bool, Error> {
         let code = &machine.registers()[A7];
         let code = code.to_i32();
+
+        // fn read_from_addr<Mac>(addr: u32, size: u32, machine: &Mac) -> Vec<u8> {
+        //     let bytes = Vec::<u8>::new();
+        //     for idx in addr..(addr + size) {
+        //         bytes.push(
+        //             machine
+        //                 .memory()
+        //                 .load8(&Mac::REG::from_u64(idx))
+        //                 .unwrap()
+        //                 .to_u8(),
+        //         );
+        //     }
+        //     bytes
+        // }
+
         match code {
-            //  __vm_reply(data, size)
+            //  __vm_send(txid, txid_size, data, size)
             0xCBFF => {
-                let sz = machine.registers()[A5].to_u32();
-                let addr = machine.registers()[A6].to_u32();
-                let mut msg_data = Vec::<u8>::new();
-                for idx in addr..(addr + sz) {
-                    msg_data.push(
+                let txid_addr = machine.registers()[A3].to_u64();
+                let txid_sz = machine.registers()[A4].to_u64();
+                let data_addr = machine.registers()[A5].to_u64();
+                let data_sz = machine.registers()[A6].to_u64();
+
+                // Load txid
+                let mut txid_bytes = Vec::<u8>::new();
+                for idx in txid_addr..(txid_addr + txid_sz) {
+                    txid_bytes.push(
                         machine
                             .memory_mut()
-                            .load8(&Mac::REG::from_u32(idx))
+                            .load8(&Mac::REG::from_u64(idx))
                             .unwrap()
                             .to_u8(),
                     );
                 }
+
+                // Load data to be sent
+                let mut data_bytes = Vec::<u8>::new();
+                for idx in data_addr..(data_addr + data_sz) {
+                    data_bytes.push(
+                        machine
+                            .memory_mut()
+                            .load8(&Mac::REG::from_u64(idx))
+                            .unwrap()
+                            .to_u8(),
+                    );
+                }
+
                 let msg = Message::new(
-                    Bytes::from(&b"Sender addr"[..]),
-                    Bytes::from(&b"Receiver addr"[..]),
-                    Bytes::from(msg_data),
+                    Bytes::from(&b"Misc Sender data_addr"[..]),
+                    Bytes::from(txid_bytes),
+                    Bytes::from(data_bytes),
                 );
                 self.msg_send(Option::None, msg).poll().unwrap();
+                Ok(true)
+            }
+            // void __vm_recv(txid, txid_sz, data, data_sz)
+            0xCBFE => {
+                if let Some(msg) = self.inbox_pop(Option::None) {
+                    let txid_addr = machine.registers()[A3].to_u64();
+                    let txid_sz_addr = machine.registers()[A4].to_u64();
+                    let data_addr = machine.registers()[A5].to_u64();
+                    let data_sz_addr = machine.registers()[A6].to_u64();
+
+                    // Store txid
+                    let sender = msg.get_sender().to_vec();
+                    machine.memory_mut().store_bytes(txid_addr as usize, &sender).unwrap();
+
+                    // Store txid_sz
+                    let s = sender.len() as u64;
+                     machine.memory_mut().store_bytes(
+                         txid_sz_addr as usize,
+                         &vec![s as u8, (s >> 8) as u8, (s >> 16) as u8, (s >> 24) as u8],//, (s >> 32) as u8,(s >> 40) as u8, (s >> 48) as u8, (s >> 56) as u8]
+                     ).unwrap();
+
+                    // Store data received
+                    let data = msg.get_payload().to_vec();
+                    machine.memory_mut().store_bytes(data_addr as usize, &data).unwrap();
+
+                    // Store data_sz
+                    let s = data.len() as u64;
+                     machine.memory_mut().store_bytes(
+                         data_sz_addr as usize,
+                         &vec![s as u8, (s >> 8) as u8, (s >> 16) as u8, (s >> 24) as u8,]// (s >> 32) as u8,(s >> 40) as u8, (s >> 48) as u8, (s >> 56) as u8]
+                     ).unwrap();
+
+                }
+                else
+                {
+
+                }
                 Ok(true)
             }
             _ => Ok(false),

@@ -56,11 +56,11 @@ mod test_simple {
                 }) // Run the VM
                 .and_then(|_| {
                     msg_recv.for_each(|(msg, _)| {
-                        println!("Received output msg {:?}", msg.get_payload());
+                        println!("Received output msg {:?} sent to {:?}", msg.get_payload(), msg.get_receiver());
                         ok(())
                     })
                 }) // Print the outgoing msgs
-        })
+        });
         // assert!(false);
     }
 }

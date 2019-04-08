@@ -1,13 +1,31 @@
-void __vm_reply(void *addr, int size)
+#include "stdint.h"
+
+void __vm_send(const char *const txid, uint32_t txid_sz, void *const buff, uint32_t size)
 {
     __asm__ volatile(
-        "mv a5, %1\n\t"
-        "mv a6, %0\n\t"
+        "mv a3, %0\n\t"
+        "mv a4, %1\n\t"
+        "mv a5, %2\n\t"
+        "mv a6, %3\n\t"
         "li a7, 0xCBFF\n\t"
         "ecall\n\t"
         : /* no outputs */
-        : "r"(addr), "r"(size)
-        : "a5", "a6", "a7");
+        : "r"(txid), "r"(txid_sz), "r"(buff), "r"(size)
+        : "a3", "a4", "a5", "a6", "a7");
+}
+
+void __vm_recv(char *const txid, uint32_t *const txid_sz, void *const buff, uint32_t *const size)
+{
+    __asm__ volatile(
+        "mv a3, %0\n\t"
+        "mv a4, %1\n\t"
+        "mv a5, %2\n\t"
+        "mv a6, %3\n\t"
+        "li a7, 0xCBFE\n\t"
+        "ecall\n\t"
+        : /* no outputs */
+        : "r"(txid), "r"(txid_sz), "r"(buff), "r"(size)
+        : "a3", "a4", "a5", "a6", "a7");
 }
 
 void __vm_exit(const int ret)
