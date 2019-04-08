@@ -1,1 +1,0 @@
-{"rustc":17511849841084864239,"features":"[]","target":9507771002541254674,"profile":2574335274271406459,"path":13287989036736596427,"deps":[["bare-metal v0.2.4","bare_metal",6867921568345903343],["bit_field v0.9.0","bit_field",1331085615609577775]],"local":[{"Precalculated":"0.5.2"}],"rustflags":["-C","link-arg=-s"],"metadata":14621501601469926270}
