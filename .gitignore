@@ -18,3 +18,5 @@ Cargo.lock
 \.vscode/
 
 cauchy-vm/target/
+
+cauchy-vm/src/tests/scripts_rust/target/
