@@ -2,7 +2,6 @@
 #![no_main]
 #![feature(asm)]
 use core::panic::PanicInfo;
-use riscv;
 
 /// This function is called on panic.
 #[panic_handler]
@@ -14,11 +13,14 @@ fn panic(_info: &PanicInfo) -> ! {
 pub extern "C" fn _start() -> ! {
     loop{
      unsafe {
-        asm!("mv a7, 97\n\t"
-        :
-        :
-        :
-        : "riscv" );
+        asm!("
+        li a0, 8        
+        li a7, 93
+        ecall"
+        : /* no outputs */
+        : 
+        : "a7"
+        :);
     }
     }
 }
