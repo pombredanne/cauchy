@@ -12,8 +12,9 @@ mod test_simple {
     use core::db::rocksdb::RocksDb;
     use core::db::*;
     use core::primitives::act::Message;
+    use core::primitives::transaction::Transaction;
 
-    use crate::vm::VM;
+    use crate::vm::{Mailbox, VM};
 
     #[test]
     fn test_simple() {
@@ -30,33 +31,38 @@ mod test_simple {
         );
         tokio::run({
             // Create inbox
-            let (msg_sender, msg_recv) = mpsc::channel(128);
 
             // Dummy terminator for root
-            let (root_terminator, _) = oneshot::channel();
+            let (parent_branch, _) = oneshot::channel();
 
-            // Create the VM
-            let (mut vm_test, inbox_sender) = VM::new(
-                0,
-                Bytes::from(script),
-                msg_sender,
-                root_terminator,
-                Arc::new(store),
-            );
+            // Init the VM
+            let mut vm = VM::new(Arc::new(store));
 
-            inbox_sender
+            // Construct session
+            let tx = Transaction::new(407548800, Bytes::from(&b"aux"[..]), Bytes::from(script));
+            let (mailbox, inbox_send, outbox_recv) = Mailbox::new();
+
+
+            // Session
+
+
+            inbox_send
                 .clone()
                 .send(msg)
                 .map_err(|_| ())
-                .map(|_| ()) // Send aux to inbox
+                .map(|_| ()) // Send a msg to inbox
                 .and_then(move |_| {
                     ok({
-                        vm_test.run();
+                        vm.run(mailbox, tx, parent_branch);
                     })
                 }) // Run the VM
                 .and_then(|_| {
-                    msg_recv.for_each(|(msg, _)| {
-                        println!("Received output msg {:?} sent to {:?}", msg.get_payload(), msg.get_receiver());
+                    outbox_recv.for_each(|(msg, _)| {
+                        println!(
+                            "Received output msg {:?} sent to {:?}",
+                            msg.get_payload(),
+                            msg.get_receiver()
+                        );
                         ok(())
                     })
                 }) // Print the outgoing msgs

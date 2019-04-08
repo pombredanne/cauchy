@@ -17,106 +17,115 @@ use ckb_vm::{
     SupportMachine, Syscalls, A0, A1, A2, A3, A4, A5, A6, A7,
 };
 
+use core::crypto::hashes::Identifiable;
 use core::primitives::act::{Act, Message};
+use core::primitives::transaction::Transaction;
 
 pub struct VM {
-    timestamp: u64,
-    binary: Bytes,
-    act: Act,
-    msg_sender: Sender<(Message, oneshot::Sender<Act>)>,
-    inbox: Receiver<Message>,
     store: Arc<RocksDb>,
-    terminate_branch: oneshot::Sender<Act>,
 }
 
 impl VM {
-    pub fn new(
-        timestamp: u64,
-        binary: Bytes,
-        msg_sender: Sender<(Message, oneshot::Sender<Act>)>,
-        terminate_branch: oneshot::Sender<Act>,
-        store: Arc<RocksDb>,
-    ) -> (VM, Sender<Message>) {
-        let (inbox_send, inbox) = channel(128);
-        println!("Got here");
-        (
-            VM {
-                act: Act::new(),
-                timestamp,
-                binary,
-                msg_sender,
-                inbox,
-                store,
-                terminate_branch,
-            },
-            inbox_send,
-        )
+    pub fn new(store: Arc<RocksDb>) -> VM {
+        VM { store }
     }
 
-    pub fn terminate(self) {
-        self.terminate_branch.send(self.act);
-    }
+    pub fn run(
+        &mut self,
+        mailbox: Mailbox,
+        tx: Transaction,
+        parent_branch: oneshot::Sender<()>,
+    ) -> (Act, Result<u8, Error>) {
+        // Construct session
+        let mut act = Act::new();
+        let session = Session {
+            mailbox,
+            id: tx.get_id(),
+            timestamp: tx.get_time(),
+            binary_hash: tx.get_binary_hash(),
+            act: &mut act,
+            child_branch: None,
+        };
 
-    pub fn run(&mut self) -> Result<u8, Error> {
+        // Init machine
         let mut machine =
             DefaultMachineBuilder::<DefaultCoreMachine<u64, SparseMemory<u64>>>::default()
-                .syscall(Box::new(VMSyscall {
-                    act: self.act.clone(),
-                    msg_sender: self.msg_sender.clone(),
-                    inbox: self.inbox.by_ref(),
-                    live_branch: None
-                }))
+                .syscall(Box::new(session))
                 .build();
+
+        // Execute binary
         machine = machine
-            .load_program(&self.binary[..], &vec![b"syscall".to_vec()])
+            .load_program(&tx.get_binary(), &vec![b"syscall".to_vec()])
             .unwrap();
         let result = machine.interpret();
-        result
+        drop(machine);
+
+        // Send termination alert to parent
+        parent_branch.send(());
+
+        // Return act and result
+        (act, result)
     }
 }
 
-pub struct VMSyscall<'a> {
-    act: Act,
-    msg_sender: Sender<(Message, oneshot::Sender<Act>)>,
-    inbox: &'a mut Receiver<Message>,
-    live_branch: Option<oneshot::Receiver<Act>>
+pub struct Mailbox {
+    inbox: Receiver<Message>,
+    outbox: Sender<(Message, oneshot::Sender<()>)>,
 }
 
-impl<'a> VMSyscall<'a> {
+impl Mailbox {
+    pub fn new() -> (
+        Mailbox,
+        Sender<Message>,
+        Receiver<(Message, oneshot::Sender<()>)>,
+    ) {
+        let (inbox_send, inbox) = channel(128);
+        let (outbox, outbox_recv) = channel(128);
+
+        (Mailbox { inbox, outbox }, inbox_send, outbox_recv)
+    }
+}
+
+pub struct Session<'a> {
+    mailbox: Mailbox,
+    id: Bytes,
+    timestamp: u64,
+    binary_hash: Bytes,
+    act: &'a mut Act,
+    child_branch: Option<oneshot::Receiver<()>>,
+}
+
+impl<'a> Session<'a> {
     fn inbox_pop(&mut self) -> Option<Message> {
-        if let Some(branch) = self.live_branch.take() {
-            let act = branch.wait().unwrap();
-            self.act += act;
+        if let Some(branch) = self.child_branch.take() {
+            branch.wait().unwrap();
         }
 
-        match self.inbox.poll() {
+        match self.mailbox.inbox.poll() {
             Ok(Async::Ready(msg)) => msg,
             _ => unreachable!(),
         }
     }
 
-    fn msg_send(
-        &mut self,
-        msg: Message,
-    ) {
-        if let Some(branch) = self.live_branch.take() {
-            let act = branch.wait().unwrap();
-            self.act += act;
+    fn msg_send(&mut self, msg: Message) {
+        if let Some(branch) = self.child_branch.take() {
+            branch.wait().unwrap();
         }
 
-        let (branch_send, branch_recv) = oneshot::channel();
-        self.live_branch = Some(branch_recv);
+        let (child_send, child_branch) = oneshot::channel();
+        self.child_branch = Some(child_branch);
         tokio::spawn(
-            self.msg_sender
+            self.mailbox
+                .outbox
                 .clone()
-                .send((msg, branch_send))
+                .send((msg, child_send))
                 .map_err(|_| ())
                 .and_then(|_| ok(())),
         );
     }
 }
 
-impl<'a, Mac: SupportMachine> Syscalls<Mac> for VMSyscall<'a> {
+impl<'a, Mac: SupportMachine> Syscalls<Mac> for Session<'a> {
     fn initialize(&mut self, _machine: &mut Mac) -> Result<(), Error> {
         Ok(())
     }
@@ -176,7 +185,6 @@ impl<'a, Mac: SupportMachine> Syscalls<Mac> for VMSyscall<'a> {
                     Bytes::from(txid_bytes),
                     Bytes::from(data_bytes),
                 );
-                self.msg_send(msg).poll().unwrap();
                 Ok(true)
             }
             // void __vm_recv(txid, txid_sz, data, data_sz)
@@ -189,29 +197,38 @@ impl<'a, Mac: SupportMachine> Syscalls<Mac> for VMSyscall<'a> {
 
                     // Store txid
                     let sender = msg.get_sender().to_vec();
-                    machine.memory_mut().store_bytes(txid_addr as usize, &sender).unwrap();
+                    machine
+                        .memory_mut()
+                        .store_bytes(txid_addr as usize, &sender)
+                        .unwrap();
 
                     // Store txid_sz
                     let s = sender.len() as u64;
-                     machine.memory_mut().store_bytes(
-                         txid_sz_addr as usize,
-                         &vec![s as u8, (s >> 8) as u8, (s >> 16) as u8, (s >> 24) as u8],//, (s >> 32) as u8,(s >> 40) as u8, (s >> 48) as u8, (s >> 56) as u8]
-                     ).unwrap();
+                    machine
+                        .memory_mut()
+                        .store_bytes(
+                            txid_sz_addr as usize,
+                            &vec![s as u8, (s >> 8) as u8, (s >> 16) as u8, (s >> 24) as u8], //, (s >> 32) as u8,(s >> 40) as u8, (s >> 48) as u8, (s >> 56) as u8]
+                        )
+                        .unwrap();
 
                     // Store data received
                     let data = msg.get_payload().to_vec();
-                    machine.memory_mut().store_bytes(data_addr as usize, &data).unwrap();
+                    machine
+                        .memory_mut()
+                        .store_bytes(data_addr as usize, &data)
+                        .unwrap();
 
                     // Store data_sz
                     let s = data.len() as u64;
-                     machine.memory_mut().store_bytes(
-                         data_sz_addr as usize,
-                         &vec![s as u8, (s >> 8) as u8, (s >> 16) as u8, (s >> 24) as u8,]// (s >> 32) as u8,(s >> 40) as u8, (s >> 48) as u8, (s >> 56) as u8]
-                     ).unwrap();
-
-                }
-                else
-                {
+                    machine
+                        .memory_mut()
+                        .store_bytes(
+                            data_sz_addr as usize,
+                            &vec![s as u8, (s >> 8) as u8, (s >> 16) as u8, (s >> 24) as u8], // (s >> 32) as u8,(s >> 40) as u8, (s >> 48) as u8, (s >> 56) as u8]
+                        )
+                        .unwrap();
+                } else {
 
                 }
                 Ok(true)
