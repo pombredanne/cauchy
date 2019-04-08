@@ -53,6 +53,34 @@ impl VM {
         )
     }
 
+    pub fn terminate(self) {
+        self.terminate_branch.send(self.act);
+    }
+
+    pub fn run(&mut self) -> Result<u8, Error> {
+        let mut machine =
+            DefaultMachineBuilder::<DefaultCoreMachine<u64, SparseMemory<u64>>>::default()
+                .syscall(Box::new(VMSyscall {
+                    act: self.act.clone(),
+                    msg_sender: self.msg_sender.clone(),
+                    inbox: self.inbox.by_ref(),
+                }))
+                .build();
+        machine = machine
+            .load_program(&self.binary[..], &vec![b"syscall".to_vec()])
+            .unwrap();
+        let result = machine.interpret();
+        result
+    }
+}
+
+pub struct VMSyscall<'a> {
+    act: Act,
+    msg_sender: Sender<(Message, oneshot::Sender<Act>)>,
+    inbox: &'a mut Receiver<Message>,
+}
+
+impl<'a> VMSyscall<'a> {
     fn inbox_pop(&mut self, live_branch: Option<oneshot::Receiver<Act>>) -> Option<Message> {
         if let Some(branch) = live_branch {
             let act = branch.wait().unwrap();
@@ -85,28 +113,9 @@ impl VM {
         );
         branch_recv
     }
-
-    pub fn terminate(self) {
-        self.terminate_branch.send(self.act);
-    }
-
-    pub fn run(&mut self) -> Result<u8, Error> {
-        // let mut machine =
-        //     DefaultMachineBuilder::<DefaultCoreMachine<u64, SparseMemory<u64>>>::default()
-        //         .syscall(Box::new(CustomSyscall {}))
-        //         .build();
-        // machine = machine
-        //     .load_program(&self.binary[..], &vec![b"syscall".to_vec()])
-        //     .unwrap();
-        // let result = machine.interpret();
-        // result
-        Ok(0)
-    }
 }
 
-pub struct CustomSyscall {}
-
-impl<Mac: SupportMachine> Syscalls<Mac> for CustomSyscall {
+impl<'a, Mac: SupportMachine> Syscalls<Mac> for VMSyscall<'a> {
     fn initialize(&mut self, _machine: &mut Mac) -> Result<(), Error> {
         Ok(())
     }
@@ -115,15 +124,13 @@ impl<Mac: SupportMachine> Syscalls<Mac> for CustomSyscall {
         let code = &machine.registers()[A7];
         let code = code.to_i32();
         match code {
-            //  __vm_retbytes(addr, size)
+            //  __vm_reply(data, size)
             0xCBFF => {
                 let sz = machine.registers()[A5].to_u32();
                 let addr = machine.registers()[A6].to_u32();
-                println!("{:X} {:X}", sz, addr);
-                let mut ret_bytes = Vec::<u8>::new();
-
+                let mut msg_data = Vec::<u8>::new();
                 for idx in addr..(addr + sz) {
-                    ret_bytes.push(
+                    msg_data.push(
                         machine
                             .memory_mut()
                             .load8(&Mac::REG::from_u32(idx))
@@ -131,8 +138,12 @@ impl<Mac: SupportMachine> Syscalls<Mac> for CustomSyscall {
                             .to_u8(),
                     );
                 }
-                // machine.store_retbytes(ret_bytes);
-                // println!("{:?}", machine.get_retbytes());
+                let msg = Message::new(
+                    Bytes::from(&b"Sender addr"[..]),
+                    Bytes::from(&b"Receiver addr"[..]),
+                    Bytes::from(msg_data),
+                );
+                self.msg_send(Option::None, msg).poll().unwrap();
                 Ok(true)
             }
             _ => Ok(false),

@@ -18,7 +18,7 @@ mod test_simple {
     #[test]
     fn test_simple() {
         let store = RocksDb::open_db(".cauchy/tests/db_vm_test_simple/").unwrap();
-        let mut file = File::open("src/tests/scripts/basic").unwrap();
+        let mut file = File::open("src/tests/scripts/syscall").unwrap();
         let mut script = Vec::new();
         file.read_to_end(&mut script).unwrap();
 
@@ -44,13 +44,23 @@ mod test_simple {
                 Arc::new(store),
             );
 
-            inbox_sender.clone().send(msg).map_err(|_| ()).map(|_| ()) // Send aux to inbox
-                .and_then(move |_| ok({vm_test.run();})) // Run the VM
-                .and_then(|_| msg_recv.for_each(|(msg, _)| {
-                    println!("Received output msg {:?}", msg.get_payload());
-                    ok(())
-                })) // Print the outgoing msgs
-
+            inbox_sender
+                .clone()
+                .send(msg)
+                .map_err(|_| ())
+                .map(|_| ()) // Send aux to inbox
+                .and_then(move |_| {
+                    ok({
+                        vm_test.run();
+                    })
+                }) // Run the VM
+                .and_then(|_| {
+                    msg_recv.for_each(|(msg, _)| {
+                        println!("Received output msg {:?}", msg.get_payload());
+                        ok(())
+                    })
+                }) // Print the outgoing msgs
         })
+        // assert!(false);
     }
 }

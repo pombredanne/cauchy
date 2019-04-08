@@ -1,4 +1,4 @@
-void __vm_retbytes(void *addr, int size)
+void __vm_reply(void *addr, int size)
 {
     __asm__ volatile(
         "mv a5, %1\n\t"
@@ -21,6 +21,7 @@ void __vm_exit(const int ret)
         : "a0", "a7");
 }
 
+#if 0
 void __vm_call(const char *txid, void *sendbuff, int sendsize, void *recvbuff, int recvsize)
 {
     __asm__ volatile(
@@ -73,3 +74,4 @@ void __vm_gettime(int *time)
         : "r"(time)
         : "a5", "a7");
 }
+#endif 

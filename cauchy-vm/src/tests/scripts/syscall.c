@@ -2,6 +2,6 @@
 
 _start()
 {
-    __vm_retbytes("DEADBEEF", 8);
+    __vm_reply("DEADBEEF is happyBEEF", 21);
     __vm_exit(0);
 }
