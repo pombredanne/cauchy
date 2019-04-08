@@ -53,7 +53,7 @@ impl PartialOrd for Transaction {
         match self.time.partial_cmp(&other.time) {
             Some(Ordering::Equal) => self.get_id().partial_cmp(&other.get_id()),
             Some(non_equal) => Some(non_equal),
-            None => unreachable!()
+            None => unreachable!(),
         }
     }
 }
@@ -62,6 +62,7 @@ impl Ord for Transaction {
     fn cmp(&self, other: &Transaction) -> Ordering {
         match self.time.cmp(&other.time) {
             Ordering::Equal => self.get_id().cmp(&other.get_id()),
-            other => other
-        }    }
+            other => other,
+        }
+    }
 }

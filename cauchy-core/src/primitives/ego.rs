@@ -3,8 +3,6 @@ use std::sync::{Arc, Mutex};
 
 use bus::Bus;
 use bytes::Bytes;
-use crossbeam::channel;
-use crossbeam::channel::select;
 use futures::sync::mpsc::{channel, Receiver, Sender};
 use futures::{Future, Sink};
 use secp256k1::{PublicKey, SecretKey, Signature};
@@ -126,24 +124,20 @@ impl Ego {
     // Mining updates
     pub fn mining_updater(
         ego: Arc<Mutex<Ego>>,
-        mut oddsketch_bus: Bus<(OddSketch, Bytes)>,
-        tx_receive: channel::Receiver<Transaction>,
-        distance_receive: channel::Receiver<(u64, u16)>,
+        distance_receive: std::sync::mpsc::Receiver<(u64, u16)>,
+        reset_receiver: std::sync::mpsc::Receiver<()>,
     ) {
         let mut best_distance: u16 = 512;
-        loop {
-            select! {
-                recv(tx_receive) -> tx => {
-                    let mut ego_locked = ego.lock().unwrap();
-                    let root = Bytes::from(&[0; 32][..]); // TODO: Actually get root
-                    ego_locked.increment(&tx.unwrap(), root.clone());
-                    oddsketch_bus.broadcast((ego_locked.get_oddsketch(), root));
 
-                    best_distance = 512;
-                    ego_locked.update_current_distance(512);
-                },
-                recv(distance_receive) -> pair => {
-                    let (nonce, distance) = pair.unwrap();
+        loop {
+            if let Ok((nonce, distance)) = distance_receive.recv() {
+                if let Ok(()) = reset_receiver.try_recv() {
+                    let mut ego_locked = ego.lock().unwrap();
+                    ego_locked.update_nonce(nonce);
+
+                    ego_locked.update_current_distance(best_distance);
+                    best_distance = distance;
+                } else {
                     if distance < best_distance {
                         let mut ego_locked = ego.lock().unwrap();
                         ego_locked.update_nonce(nonce);

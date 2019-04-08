@@ -151,9 +151,9 @@ impl From<AccessPattern> for Bytes {
     fn from(access_pattern: AccessPattern) -> Bytes {
         let vi_read_len = VarInt::new(access_pattern.read.len() as u64);
         let mut raw = BytesMut::with_capacity(
-            vi_read_len.len() +
-            access_pattern.read.len() * HASH_LEN
-            + access_pattern.write.len() * (HASH_LEN + VALUE_LEN),
+            vi_read_len.len()
+                + access_pattern.read.len() * HASH_LEN
+                + access_pattern.write.len() * (HASH_LEN + VALUE_LEN),
         );
 
         // Put num of reads

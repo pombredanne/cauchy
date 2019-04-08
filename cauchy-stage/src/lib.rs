@@ -1,6 +1,8 @@
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::collections::{HashMap, HashSet};
+use std::ops::AddAssign;
+use std::sync::{Arc, Mutex};
 
+use bus::Bus;
 use bytes::{Bytes, BytesMut};
 use core::primitives::transaction::*;
 use failure::Error;
@@ -10,65 +12,137 @@ use futures::sync::mpsc::{Receiver, Sender};
 use futures::sync::{mpsc, oneshot};
 use futures::{Future, Stream};
 
-use core::crypto::hashes::Identifiable;
-use core::db::rocksdb::*;
-use core::db::storing::Storable;
-use core::primitives::act::{Act, Message};
-use vm::vm::VM;
+use core::{
+    crypto::{hashes::Identifiable, sketches::odd_sketch::OddSketch},
+    db::{rocksdb::*, storing::Storable},
+    net,
+    primitives::{
+        act::{Act, Message},
+        ego::{Ego, PeerEgo, Status, WorkState, WorkStatus},
+    },
+    utils::constants::CONFIG,
+};
+use vm::vm::{Mailbox, VM};
+
+pub enum Priority {
+    Reconcile,
+    Gossip,
+}
 
 pub struct Stage {
-    act: Act // This should not be entirely volatile
+    act: Act, // This should not be entirely volatile
+    ego: Arc<Mutex<Ego>>,
+    ego_bus: Bus<(OddSketch, Bytes)>,
 }
 
 impl Stage {
     pub fn append_performance() {}
+
+    pub fn manager(self) -> impl Future<Item = (), Error = ()> + Send {
+        ok(())
+    }
+
+    pub fn process_txs(&self, arc_peer_ego: Arc<Mutex<PeerEgo>>, txs: HashSet<Transaction>) {
+        // Lock ego and peer ego
+        let mut ego_guard = self.ego.lock().unwrap();
+        let mut peer_ego_guard = arc_peer_ego.lock().unwrap();
+
+        // If received txs from reconciliation target check the payload matches reported
+        if peer_ego_guard.get_status() == Status::StatePull {
+            // Is reconcile target
+            // Cease reconciliation status
+            peer_ego_guard.update_status(Status::Gossiping);
+            if peer_ego_guard.is_expected_payload(&txs) {
+                // TODO: Send backstage and verify
+
+                if CONFIG.DEBUGGING.STAGE_VERBOSE {
+                    println!("reconcile transactions sent to stage");
+                }
+
+                // Update ego
+                // ego_guard.pull(
+                //     peer_ego_guard.get_oddsketch(),
+                //     peer_ego_guard.get_expected_minisketch(),
+                //     peer_ego_guard.get_root(),
+                // );
+            }
+        } else {
+            if CONFIG.DEBUGGING.STAGE_VERBOSE {
+                println!("non-reconcile transactions sent to stage");
+            }
+        }
+
+        // Send updated state immediately
+        peer_ego_guard.update_status(Status::Gossiping);
+        peer_ego_guard.update_work_status(WorkStatus::Waiting);
+        peer_ego_guard.commit_work(&ego_guard);
+
+        tokio::spawn(
+            peer_ego_guard
+                .get_sink()
+                .send(net::messages::Message::Work {
+                    oddsketch: peer_ego_guard.get_oddsketch(),
+                    root: peer_ego_guard.get_root(),
+                    nonce: 0,
+                })
+                .map_err(|_| ())
+                .and_then(|_| ok(())),
+        );
+    }
 }
 
 pub struct Performance {
-    store: Arc<RocksDb>,
-    tx_db: Arc<RocksDb>,
+    acts: HashMap<Bytes, Act>, // Actor ID: Total Act
 }
 
 impl Performance {
-    fn run(&self, tx: Transaction) -> impl Future<Item = Act, Error = ()> + Send + '_ {
-        let (root_terminator, _) = oneshot::channel();
+    pub fn append(&mut self, id: Bytes, act: Act) {
+        if let Some(old_act) = self.acts.get_mut(&id) {
+            *old_act += act;
+        } else {
+            self.acts.insert(id, act);
+        }
+    }
+}
 
-        // Create the outgoing message channel
-        let (msg_send, msg_recv) = mpsc::channel::<(Message, oneshot::Sender<Act>)>(1337);
-
-        // Create inbox channel holder
-        let mut inboxes: HashMap<Bytes, Sender<Message>> = HashMap::new();
+impl Performance {
+    fn new(
+        tx_db: Arc<RocksDb>,
+        store: Arc<RocksDb>,
+        tx: Transaction,
+    ) -> impl Future<Item = Arc<Mutex<Performance>>, Error = ()> + Send {
+        let performance = Arc::new(Mutex::new(Performance {
+            acts: HashMap::new(),
+        }));
+        let (root_branch, _) = oneshot::channel();
 
         // Create new actor from tx binary
-        let (mut new_vm, _) = VM::new(
-            tx.get_time(),
-            tx.get_binary(),
-            msg_send.clone(),
-            root_terminator,
-            self.store.clone(),
-        );
+        let vm = VM::new(store.clone());
 
-        // Push aux data to inbox
-        let (final_act_send, mut final_act) = oneshot::channel();
-        msg_send
-            .clone()
-            .send((
-                Message::new(Bytes::with_capacity(0), tx.get_id(), tx.get_aux()),
-                final_act_send,
-            ))
-            .map_err(|_| ())
-            .and_then(move |_| {
-                // Boot first VM
-                tokio::spawn(ok({
-                    new_vm.run();
-                    new_vm.terminate();
-                }));
+        // Create mail system
+        let mut inboxes: HashMap<Bytes, Sender<Message>> = HashMap::new();
+        let (outbox, outbox_recv) = mpsc::channel(512);
 
-                // For each new message
-                let router = msg_recv.for_each(move |(message, branch_terminator)| {
-                    let sender_id = message.get_sender();
-                    match inboxes.get(&sender_id) {
+        let id = tx.get_id();
+        let (first_mailbox, inbox_send) = Mailbox::new(outbox.clone());
+        inboxes.insert(id.clone(), inbox_send);
+
+        ok({
+            let (first_act, result) = vm.run(first_mailbox, tx, root_branch);
+            performance.clone().lock().unwrap().append(id, first_act);
+        })
+        .and_then(move |_| {
+            // For each new message
+            let performance_inner = performance.clone();
+            let peformance_final = performance.clone();
+            outbox_recv
+                .for_each(move |(message, parent_branch)| {
+                    // let performance_inner = performance_inner.clone();
+                    let receiver_id = message.get_receiver();
+                    match inboxes.get(&receiver_id) {
+                        // If receiver already live
                         Some(inbox_sender) => {
+                            // Relay message to receiver
                             tokio::spawn(
                                 inbox_sender
                                     .clone()
@@ -78,32 +152,40 @@ impl Performance {
                             );
                             ok(())
                         }
+                        // If receiver sleeping
                         None => {
-                            let tx = match Transaction::from_db(self.tx_db.clone(), &sender_id) {
+                            // Load binary
+                            let tx = match Transaction::from_db(tx_db.clone(), &receiver_id) {
                                 Ok(Some(tx)) => tx,
                                 Ok(None) => return err(()),
                                 Err(_) => return err(()),
                             };
-                            let (mut new_vm, new_inbox_sender) = VM::new(
-                                tx.get_time(),
-                                tx.get_binary(),
-                                msg_send.clone(),
-                                branch_terminator,
-                                self.store.clone(),
-                            );
-                            inboxes.insert(tx.get_id(), new_inbox_sender);
+                            let id = tx.get_id();
+
+                            // Boot receiver
+                            let (new_mailbox, new_inbox_send) = Mailbox::new(outbox.clone());
+
+                            // Add to list of live inboxes
+                            inboxes.insert(tx.get_id(), new_inbox_send);
+
+                            // Run receiver VM
                             tokio::spawn(ok({
-                                new_vm.run();
-                                new_vm.terminate();
-                                inboxes.remove(&tx.get_id());
+                                let (new_act, result) = vm.run(new_mailbox, tx, parent_branch);
+                                performance_inner
+                                    .lock()
+                                    .unwrap()
+                                    .append(id.clone(), new_act);
+
+                                // Remove from live inboxes
+                                inboxes.remove(&id);
                             }));
                             ok(())
-                        } // Spawn him
+                        }
                     }
-                });
-
-                router
-                    .and_then(move |_| final_act.try_recv().map(|opt| opt.unwrap()).map_err(|_| ()))
-            })
+                })
+                .map(move |_| {
+                    performance
+                })
+        })
     }
 }

@@ -29,6 +29,7 @@ pub fn server(
     ego: Arc<Mutex<Ego>>,
     socket_recv: mpsc::Receiver<TcpStream>,
     arena: Arc<Mutex<Arena>>,
+    to_stage: mpsc::Sender<(Arc<Mutex<PeerEgo>>, HashSet<Transaction>)>,
 ) -> impl Future<Item = (), Error = ()> + Send + 'static {
     if CONFIG.DEBUGGING.DAEMON_VERBOSE {
         println!("spawning daemon");
@@ -76,6 +77,7 @@ pub fn server(
         // Filter through received messages
         let tx_db_inner = tx_db.clone();
         let ego_inner = ego.clone();
+        let to_stage_inner = to_stage.clone();
         let response_stream = received_stream.filter_map(move |msg| match msg {
             Message::StartHandshake { secret } => {
                 if CONFIG.DEBUGGING.DAEMON_VERBOSE {
@@ -235,53 +237,23 @@ pub fn server(
                 if CONFIG.DEBUGGING.DAEMON_VERBOSE {
                     println!("received transactions from {}", socket_addr);
                 }
-                // Lock ego and peer ego
-                let mut ego_guard = ego_inner.lock().unwrap();
-                let mut peer_ego_guard = arc_peer_ego.lock().unwrap();
 
-                // If received txs from reconciliation target check the payload matches reported
-                if peer_ego_guard.get_status() == Status::StatePull {
-                    // Is reconcile target
-                    // Cease reconciliation status
-                    peer_ego_guard.update_status(Status::Gossiping);
-                    if peer_ego_guard.is_expected_payload(&txs) {
-                        // TODO: Send backstage and verify
-
-                        // Add new txs to database
-                        for tx in txs {
-                            tx.to_db(tx_db_inner.clone());
-                        }
-
-                        // Update ego
-                        ego_guard.pull(
-                            peer_ego_guard.get_oddsketch(),
-                            peer_ego_guard.get_expected_minisketch(),
-                            peer_ego_guard.get_root(),
-                        );
-                        if CONFIG.DEBUGGING.DAEMON_VERBOSE {
-                            println!("reconciliation complete");
-                        }
-                    }
-                } else {
-                    if CONFIG.DEBUGGING.DAEMON_VERBOSE {
-                        println!("non-pulled transactons");
-                    }
+                // Add new txs to database
+                // TODO: Fix danger here
+                for tx in txs.iter() {
+                    tx.to_db(tx_db_inner.clone());
                 }
 
-                // Send updated state immediately
-                peer_ego_guard.update_status(Status::Gossiping);
-                peer_ego_guard.update_work_status(WorkStatus::Waiting);
-                peer_ego_guard.commit_work(&ego_guard);
+                // Send
 
-                if CONFIG.DEBUGGING.DAEMON_VERBOSE {
-                    println!("sending work to {}", socket_addr);
-                }
-
-                Some(Message::Work {
-                    oddsketch: peer_ego_guard.get_oddsketch(),
-                    root: peer_ego_guard.get_root(),
-                    nonce: 0,
-                })
+                tokio::spawn(
+                    to_stage_inner
+                        .clone()
+                        .send((arc_peer_ego.clone(), txs))
+                        .map_err(|_| ())
+                        .and_then(|_| future::ok(())),
+                );
+                None
             }
             Message::Reconcile => {
                 if CONFIG.DEBUGGING.DAEMON_VERBOSE {

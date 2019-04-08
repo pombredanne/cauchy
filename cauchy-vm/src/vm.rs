@@ -31,7 +31,7 @@ impl VM {
     }
 
     pub fn run(
-        &mut self,
+        &self,
         mailbox: Mailbox,
         tx: Transaction,
         parent_branch: oneshot::Sender<()>,
@@ -74,15 +74,9 @@ pub struct Mailbox {
 }
 
 impl Mailbox {
-    pub fn new() -> (
-        Mailbox,
-        Sender<Message>,
-        Receiver<(Message, oneshot::Sender<()>)>,
-    ) {
+    pub fn new(outbox: Sender<(Message, oneshot::Sender<()>)>) -> (Mailbox, Sender<Message>) {
         let (inbox_send, inbox) = channel(128);
-        let (outbox, outbox_recv) = channel(128);
-
-        (Mailbox { inbox, outbox }, inbox_send, outbox_recv)
+        (Mailbox { inbox, outbox }, inbox_send)
     }
 }
 

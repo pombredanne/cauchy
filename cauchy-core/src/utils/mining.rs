@@ -1,8 +1,8 @@
+use std::sync::mpsc::Sender;
 use std::time;
 
 use bus::BusReader;
 use bytes::Bytes;
-use crossbeam::channel::Sender;
 use secp256k1::PublicKey;
 
 use crate::{crypto::sketches::odd_sketch::*, primitives::work_site::WorkSite};

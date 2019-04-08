@@ -40,11 +40,7 @@ mod test_simple {
 
             // Construct session
             let tx = Transaction::new(407548800, Bytes::from(&b"aux"[..]), Bytes::from(script));
-            let (mailbox, inbox_send, outbox_recv) = Mailbox::new();
-
-
-            // Session
-
+            let (mailbox, inbox_send) = Mailbox::new();
 
             inbox_send
                 .clone()

@@ -24,7 +24,6 @@ blake2 = "*"
 rand = "*"
 tokio = "*"
 bus = "*"
-crossbeam = "*"
 futures = "*"
 
 core = { package = "cauchy-core", version = "*", path = "cauchy-core" }

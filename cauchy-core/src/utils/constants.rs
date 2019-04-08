@@ -29,6 +29,7 @@ pub struct Debugging {
     pub ENCODING_VERBOSE: bool,
     pub DECODING_VERBOSE: bool,
     pub PARSING_VERBOSE: bool,
+    pub STAGE_VERBOSE: bool,
 }
 
 #[derive(Deserialize)]
@@ -67,6 +68,7 @@ pub fn default_config() -> CoreConfig {
             ENCODING_VERBOSE: false,
             DECODING_VERBOSE: false,
             PARSING_VERBOSE: false,
+            STAGE_VERBOSE: true,
         },
     }
 }

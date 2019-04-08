@@ -2,13 +2,20 @@ use std::collections::HashSet;
 
 use bus::Bus;
 use bytes::Bytes;
-use crossbeam::channel;
 
 use ::rocksdb::{Options, DB};
 use core::{
-    crypto::signatures::ecdsa, db::rocksdb::RocksDb, db::storing::Storable, db::*,
-    net::heartbeats::*, primitives::arena::*, primitives::ego::Ego,
-    primitives::transaction::Transaction, utils::constants::*, utils::mining, utils::timing::*,
+    crypto::signatures::ecdsa,
+    db::rocksdb::RocksDb,
+    db::storing::Storable,
+    db::*,
+    net::heartbeats::*,
+    primitives::arena::*,
+    primitives::ego::{Ego, PeerEgo},
+    primitives::transaction::Transaction,
+    utils::constants::*,
+    utils::mining,
+    utils::timing::*,
 };
 use futures::lazy;
 use rand::Rng;
@@ -26,7 +33,7 @@ fn main() {
 
     let (local_sk, local_pk) = ecdsa::generate_keypair();
 
-    let (distance_send, distance_recv) = channel::unbounded();
+    let (distance_send, distance_recv) = std::sync::mpsc::channel();
     let mut ego_bus = Bus::new(10);
 
     // Spawn mining threads
@@ -51,18 +58,26 @@ fn main() {
     // Init Ego
     let ego = Arc::new(Mutex::new(Ego::new(local_pk, local_sk)));
 
+    // Init Arena
     let arena = Arc::new(Mutex::new(Arena::new(ego.clone())));
+
+    // Spawn stage manager
+    let (reset_send, reset_recv) = std::sync::mpsc::channel();
+    let (to_stage, stage_recv) = mpsc::channel::<(Arc<Mutex<PeerEgo>>, HashSet<Transaction>)>(128); // Send incoming
 
     // Server
     let (socket_send, socket_recv) = mpsc::channel::<tokio::net::TcpStream>(128);
-    let server = core::daemon::server(tx_db.clone(), ego.clone(), socket_recv, arena.clone());
+    let server = core::daemon::server(
+        tx_db.clone(),
+        ego.clone(),
+        socket_recv,
+        arena.clone(),
+        to_stage,
+    );
 
     // RPC Server
     let rpc_server = core::net::rpc_server::rpc_server(socket_send);
     let reconcile_heartbeat = heartbeat_reconcile(arena.clone());
-
-    // Spawn stage manager
-    let (to_stage, stage_recv) = channel::unbounded::<(HashSet<Transaction>, Bytes)>(); // Send incoming 
 
     // Spawn servers
     thread::spawn(move || {
@@ -75,15 +90,13 @@ fn main() {
     });
 
     // Update local state
-    let (tx_send, tx_recv) = channel::unbounded();
-    thread::spawn(move || Ego::mining_updater(ego, ego_bus, tx_recv, distance_recv));
+    thread::spawn(move || Ego::mining_updater(ego, distance_recv, reset_recv));
 
     let new_tx_interval = duration_from_millis(CONFIG.DEBUGGING.TEST_TX_INTERVAL);
 
     loop {
         let new_random_tx = random_tx();
         new_random_tx.clone().to_db(tx_db.clone()).unwrap();
-        tx_send.send(new_random_tx);
         thread::sleep(new_tx_interval);
     }
 
