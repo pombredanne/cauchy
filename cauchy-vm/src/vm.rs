@@ -64,6 +64,7 @@ impl VM {
                     act: self.act.clone(),
                     msg_sender: self.msg_sender.clone(),
                     inbox: self.inbox.by_ref(),
+                    live_branch: None
                 }))
                 .build();
         machine = machine
@@ -78,11 +79,12 @@ pub struct VMSyscall<'a> {
     act: Act,
     msg_sender: Sender<(Message, oneshot::Sender<Act>)>,
     inbox: &'a mut Receiver<Message>,
+    live_branch: Option<oneshot::Receiver<Act>>
 }
 
 impl<'a> VMSyscall<'a> {
-    fn inbox_pop(&mut self, live_branch: Option<oneshot::Receiver<Act>>) -> Option<Message> {
-        if let Some(branch) = live_branch {
+    fn inbox_pop(&mut self) -> Option<Message> {
+        if let Some(branch) = self.live_branch.take() {
             let act = branch.wait().unwrap();
             self.act += act;
         }
@@ -95,15 +97,15 @@ impl<'a> VMSyscall<'a> {
 
     fn msg_send(
         &mut self,
-        live_branch: Option<oneshot::Receiver<Act>>,
         msg: Message,
-    ) -> oneshot::Receiver<Act> {
-        if let Some(branch) = live_branch {
+    ) {
+        if let Some(branch) = self.live_branch.take() {
             let act = branch.wait().unwrap();
             self.act += act;
         }
 
         let (branch_send, branch_recv) = oneshot::channel();
+        self.live_branch = Some(branch_recv);
         tokio::spawn(
             self.msg_sender
                 .clone()
@@ -111,7 +113,6 @@ impl<'a> VMSyscall<'a> {
                 .map_err(|_| ())
                 .and_then(|_| ok(())),
         );
-        branch_recv
     }
 }
 
@@ -175,12 +176,12 @@ impl<'a, Mac: SupportMachine> Syscalls<Mac> for VMSyscall<'a> {
                     Bytes::from(txid_bytes),
                     Bytes::from(data_bytes),
                 );
-                self.msg_send(Option::None, msg).poll().unwrap();
+                self.msg_send(msg).poll().unwrap();
                 Ok(true)
             }
             // void __vm_recv(txid, txid_sz, data, data_sz)
             0xCBFE => {
-                if let Some(msg) = self.inbox_pop(Option::None) {
+                if let Some(msg) = self.inbox_pop() {
                     let txid_addr = machine.registers()[A3].to_u64();
                     let txid_sz_addr = machine.registers()[A4].to_u64();
                     let data_addr = machine.registers()[A5].to_u64();
