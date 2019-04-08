@@ -1,0 +1,12 @@
+[package]
+name = "scripts_rust"
+version = "0.1.0"
+authors = ["Bluesun <c.r.novick@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+riscv = "*"
+
+
+[workspace]
+members = []
