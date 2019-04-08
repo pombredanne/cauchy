@@ -183,9 +183,7 @@ impl Performance {
                         }
                     }
                 })
-                .map(move |_| {
-                    performance
-                })
+                .map(move |_| performance)
         })
     }
 }

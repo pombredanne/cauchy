@@ -2,6 +2,7 @@ mod test_simple {
     use std::fs::File;
     use std::io::Read;
     use std::sync::Arc;
+    use std::time::{Duration, Instant};
 
     use bytes::Bytes;
     use futures::future::{ok, Future};
@@ -36,11 +37,12 @@ mod test_simple {
             let (parent_branch, _) = oneshot::channel();
 
             // Init the VM
-            let mut vm = VM::new(Arc::new(store));
+            let vm = VM::new(Arc::new(store));
 
             // Construct session
+            let (outbox, outbox_recv) = mpsc::channel(512);
             let tx = Transaction::new(407548800, Bytes::from(&b"aux"[..]), Bytes::from(script));
-            let (mailbox, inbox_send) = Mailbox::new();
+            let (mailbox, inbox_send) = Mailbox::new(outbox);
 
             inbox_send
                 .clone()
@@ -48,21 +50,30 @@ mod test_simple {
                 .map_err(|_| ())
                 .map(|_| ()) // Send a msg to inbox
                 .and_then(move |_| {
+                    // Complete all spawned branches and print messages
+                    tokio::spawn(
+                        tokio::timer::Delay::new(Instant::now() + Duration::from_secs(5))
+                            .map_err(|_| ())
+                            .and_then(|_| {
+                                outbox_recv.for_each(|(msg, parent_branch)| {
+                                    parent_branch.send(()); // Complete branch
+                                    println!(
+                                        "{:?} received msg {:?} from {:?}",
+                                        msg.get_receiver(),
+                                        msg.get_payload(),
+                                        msg.get_sender()
+                                    );
+                                    ok(())
+                                })
+                            }),
+                    );
+                    // Run the VM
                     ok({
+                        println!("Execution start");
                         vm.run(mailbox, tx, parent_branch);
+                        println!("Execution end");
                     })
-                }) // Run the VM
-                .and_then(|_| {
-                    outbox_recv.for_each(|(msg, _)| {
-                        println!(
-                            "Received output msg {:?} sent to {:?}",
-                            msg.get_payload(),
-                            msg.get_receiver()
-                        );
-                        ok(())
-                    })
-                }) // Print the outgoing msgs
+                })
         });
-        // assert!(false);
     }
 }

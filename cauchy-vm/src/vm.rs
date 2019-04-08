@@ -90,7 +90,7 @@ pub struct Session<'a> {
 }
 
 impl<'a> Session<'a> {
-    fn inbox_pop(&mut self) -> Option<Message> {
+    fn recv(&mut self) -> Option<Message> {
         if let Some(branch) = self.child_branch.take() {
             branch.wait().unwrap();
         }
@@ -101,7 +101,7 @@ impl<'a> Session<'a> {
         }
     }
 
-    fn msg_send(&mut self, msg: Message) {
+    fn send(&mut self, msg: Message) {
         if let Some(branch) = self.child_branch.take() {
             branch.wait().unwrap();
         }
@@ -179,11 +179,12 @@ impl<'a, Mac: SupportMachine> Syscalls<Mac> for Session<'a> {
                     Bytes::from(txid_bytes),
                     Bytes::from(data_bytes),
                 );
+                self.send(msg);
                 Ok(true)
             }
             // void __vm_recv(txid, txid_sz, data, data_sz)
             0xCBFE => {
-                if let Some(msg) = self.inbox_pop() {
+                if let Some(msg) = self.recv() {
                     let txid_addr = machine.registers()[A3].to_u64();
                     let txid_sz_addr = machine.registers()[A4].to_u64();
                     let data_addr = machine.registers()[A5].to_u64();
