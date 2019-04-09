@@ -16,7 +16,7 @@ use std::io::Write;
 
 use ckb_vm::{
     CoreMachine, DefaultCoreMachine, DefaultMachineBuilder, Error, Memory, Register, SparseMemory,
-    SupportMachine, Syscalls, A0, A1, A2, A3, A4, A5, A6, A7,
+    SupportMachine, Syscalls, A0, A1, A2, A3, A4, A5, A6, A7, S1, S2
 };
 
 use core::crypto::hashes::Identifiable;
@@ -178,11 +178,17 @@ impl<'a, Mac: SupportMachine> Syscalls<Mac> for Session<'a> {
 
                 let msg = Message::new(
                     //self.id.clone(),
-                    Bytes::from(&b"Misc Sender data_addr"[..]),
+                    Bytes::from(&b"__vm_send() sender addr"[..]),
                     Bytes::from(txid_bytes),
-                    Bytes::from(data_bytes),
+                    Bytes::from(data_bytes.clone()),
                 );
-                self.send(msg);
+                println!("Sending message of size {:}", data_sz);
+                if (data_sz < 200) {
+                    self.send(msg);
+                }
+                else {
+                    assert!(false);
+                }
                 Ok(true)
             }
             // void __vm_recv(txid, txid_sz, data, data_sz)
@@ -201,14 +207,7 @@ impl<'a, Mac: SupportMachine> Syscalls<Mac> for Session<'a> {
                         .unwrap();
 
                     // Store txid_sz
-                    let s = sender.len() as u64;
-                    machine
-                        .memory_mut()
-                        .store_bytes(
-                            txid_sz_addr as usize,
-                            &vec![s as u8, (s >> 8) as u8, (s >> 16) as u8, (s >> 24) as u8], //, (s >> 32) as u8,(s >> 40) as u8, (s >> 48) as u8, (s >> 56) as u8]
-                        )
-                        .unwrap();
+                    machine.set_register(S1, Mac::REG::from_usize(sender.len()));
 
                     // Store data received
                     let data = msg.get_payload().to_vec();
@@ -218,15 +217,8 @@ impl<'a, Mac: SupportMachine> Syscalls<Mac> for Session<'a> {
                         .unwrap();
 
                     // Store data_sz
-                    let s = data.len() as u64;
-                    machine
-                        .memory_mut()
-                        .store_bytes(
-                            data_sz_addr as usize,
-                            &vec![s as u8, (s >> 8) as u8, (s >> 16) as u8, (s >> 24) as u8], // (s >> 32) as u8,(s >> 40) as u8, (s >> 48) as u8, (s >> 56) as u8]
-                        )
-                        .unwrap();
-                    println!("Receiving message {:X?} of size {:?}", data, s);
+                    machine.set_register(S2, Mac::REG::from_usize(data.len()));
+                    println!("Receiving message {:X?} of size {:?}", data, data.len());
 
                     // Dump memory to file
                     // let mut file = File::create("./memdump.bin").unwrap();

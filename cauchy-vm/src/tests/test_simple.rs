@@ -25,10 +25,10 @@ mod test_simple {
         let mut script = Vec::new();
         file.read_to_end(&mut script).unwrap();
 
-        let payload = Bytes::from(&b"Message"[..]);
+        let payload = Bytes::from(&b"TestFunc Message"[..]);
         let msg = Message::new(
-            Bytes::from(&b"Sender addr"[..]),
-            Bytes::from(&b"Receiver addr"[..]),
+            Bytes::from(&b"TestFunc Sender addr"[..]),
+            Bytes::from(&b"TestFunc Receiver addr"[..]),
             payload,
         );
         tokio::run({
