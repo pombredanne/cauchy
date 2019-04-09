@@ -17,10 +17,11 @@ mod test_simple {
 
     use crate::vm::{Mailbox, VM};
 
-    // #[test]
+     #[test]
     fn test_simple() {
         let store = RocksDb::open_db(".cauchy/tests/db_vm_test_simple/").unwrap();
-        let mut file = File::open("src/tests/scripts/syscall").unwrap();
+        // let mut file = File::open("src/tests/scripts/syscall").unwrap();
+        let mut file = File::open("src/tests/scripts_rust/target/riscv64gc-unknown-none-elf/release/scripts_rust").unwrap();
         let mut script = Vec::new();
         file.read_to_end(&mut script).unwrap();
 
@@ -52,7 +53,7 @@ mod test_simple {
                 .and_then(move |_| {
                     // Complete all spawned branches and print messages
                     tokio::spawn(
-                        tokio::timer::Delay::new(Instant::now() + Duration::from_secs(5))
+                        tokio::timer::Delay::new(Instant::now() + Duration::from_secs(1))
                             .map_err(|_| ())
                             .and_then(|_| {
                                 outbox_recv.for_each(|(msg, parent_branch)| {
@@ -77,10 +78,10 @@ mod test_simple {
         });
     }
 
-    #[test]
+    // #[test]
     fn test_rust() {
         let store = RocksDb::open_db(".cauchy/tests/db_vm_test_rust/").unwrap();
-        let mut file = File::open("/media/veracrypt1/cauchy/cauchy-vm/src/tests/scripts_rust/target/riscv64gc-unknown-none-elf/release/scripts_rust").unwrap();
+        let mut file = File::open("src/tests/scripts_rust/target/riscv64gc-unknown-none-elf/release/scripts_rust").unwrap();
         let mut script = Vec::new();
         file.read_to_end(&mut script).unwrap();
 

@@ -11,6 +11,8 @@ use futures::stream::Stream;
 use futures::sync::mpsc::{channel, Receiver, Sender};
 use futures::sync::oneshot;
 use futures::Async;
+use std::fs::File;
+use std::io::Write;
 
 use ckb_vm::{
     CoreMachine, DefaultCoreMachine, DefaultMachineBuilder, Error, Memory, Register, SparseMemory,
@@ -175,6 +177,7 @@ impl<'a, Mac: SupportMachine> Syscalls<Mac> for Session<'a> {
                 }
 
                 let msg = Message::new(
+                    //self.id.clone(),
                     Bytes::from(&b"Misc Sender data_addr"[..]),
                     Bytes::from(txid_bytes),
                     Bytes::from(data_bytes),
@@ -223,6 +226,22 @@ impl<'a, Mac: SupportMachine> Syscalls<Mac> for Session<'a> {
                             &vec![s as u8, (s >> 8) as u8, (s >> 16) as u8, (s >> 24) as u8], // (s >> 32) as u8,(s >> 40) as u8, (s >> 48) as u8, (s >> 56) as u8]
                         )
                         .unwrap();
+                    println!("Receiving message {:X?} of size {:?}", data, s);
+
+                    // Dump memory to file
+                    // let mut file = File::create("./memdump.bin").unwrap();
+                    // let mut i = 0;
+                    // while {
+                    //     match machine.memory_mut().load8(&Mac::REG::from_u32(i)) {
+                    //         Ok(v) => {
+                    //             file.write(&[v.to_u8()]).unwrap();
+                    //             true
+                    //         }
+                    //         _ => (false),
+                    //     }
+                    // } {
+                    //     i += 1;
+                    // }
                 } else {
 
                 }
