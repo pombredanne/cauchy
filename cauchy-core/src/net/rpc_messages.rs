@@ -1,13 +1,18 @@
 use std::net::SocketAddr;
 
 use bytes::{Buf, BytesMut, IntoBuf};
+use failure::Error;
 use tokio::codec::{Decoder, Encoder};
-use tokio::io::{Error, ErrorKind};
+// use tokio::io::{Error, ErrorKind};
+
+use crate::primitives::transaction::Transaction;
+use crate::utils::parsing::Parsable;
 
 pub struct RPCCodec;
 
 pub enum RPC {
-    AddPeer { addr: SocketAddr }, // 0 || Peer addr
+    AddPeer { addr: SocketAddr },       // 0 || Peer addr
+    NewTransaction { tx: Transaction }, // 1 || Transaction
 }
 
 impl Encoder for RPCCodec {
@@ -15,10 +20,7 @@ impl Encoder for RPCCodec {
     type Error = Error;
 
     fn encode(&mut self, _item: Self::Item, _dst: &mut BytesMut) -> Result<(), Self::Error> {
-        Err(Error::new(
-            ErrorKind::Other,
-            "daemon shouldn't send RPC messages",
-        ))
+        unreachable!() // TODO: Return values
     }
 }
 
@@ -42,6 +44,15 @@ impl Decoder for RPCCodec {
                 let addr = SocketAddr::from((dst_ip, dst_port));
                 src.advance(7);
                 Ok(Some(RPC::AddPeer { addr }))
+            }
+            1 => {
+                // Add transaction to own state
+                let (tx, _) = match Transaction::parse_buf(&mut buf)? {
+                    Some(some) => some,
+                    None => return Ok(None),
+                };
+
+                Ok(Some(RPC::NewTransaction { tx }))
             }
             _ => unreachable!(),
         }

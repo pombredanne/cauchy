@@ -6,6 +6,7 @@ use bytes::Bytes;
 use ::rocksdb::{Options, DB};
 use core::{
     crypto::signatures::ecdsa,
+    daemon::{Origin, Priority},
     db::rocksdb::RocksDb,
     db::storing::Storable,
     db::*,
@@ -63,7 +64,7 @@ fn main() {
 
     // Spawn stage manager
     let (reset_send, reset_recv) = std::sync::mpsc::channel();
-    let (to_stage, stage_recv) = mpsc::channel::<(Arc<Mutex<PeerEgo>>, HashSet<Transaction>)>(128); // Send incoming
+    let (to_stage, stage_recv) = mpsc::channel::<(Origin, HashSet<Transaction>, Priority)>(128); // Send incoming
 
     // Server
     let (socket_send, socket_recv) = mpsc::channel::<tokio::net::TcpStream>(128);
@@ -72,11 +73,11 @@ fn main() {
         ego.clone(),
         socket_recv,
         arena.clone(),
-        to_stage,
+        to_stage.clone(),
     );
 
     // RPC Server
-    let rpc_server = core::net::rpc_server::rpc_server(socket_send);
+    let rpc_server = core::net::rpc_server::rpc_server(socket_send, to_stage.clone());
     let reconcile_heartbeat = heartbeat_reconcile(arena.clone());
 
     // Spawn servers
