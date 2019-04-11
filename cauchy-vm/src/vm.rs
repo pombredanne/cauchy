@@ -235,6 +235,8 @@ impl<'a, Mac: SupportMachine> Syscalls<Mac> for Session<'a> {
                     //     i += 1;
                     // }
                 } else {
+                    machine.set_register(S1, Mac::REG::zero());
+                    machine.set_register(S2, Mac::REG::zero());
 
                 }
                 Ok(true)

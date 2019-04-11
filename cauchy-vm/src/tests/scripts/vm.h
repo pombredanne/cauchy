@@ -1,4 +1,5 @@
 #include "stdint.h"
+#include "stdbool.h"
 
 void __vm_send(const char *const txid, uint32_t txid_sz, void *const buff, uint32_t size)
 {
@@ -14,7 +15,7 @@ void __vm_send(const char *const txid, uint32_t txid_sz, void *const buff, uint3
         : "a3", "a4", "a5", "a6", "a7");
 }
 
-void __vm_recv(char *const txid, uint32_t *const txid_sz, void *const buff, uint32_t *const size)
+bool __vm_recv(char *const txid, uint32_t *const txid_sz, void *const buff, uint32_t *const size)
 {
     __asm__ volatile(
         "mv a3, %2\n\t"
@@ -28,6 +29,8 @@ void __vm_recv(char *const txid, uint32_t *const txid_sz, void *const buff, uint
         : "=r" (*txid_sz), "=r" (*size)
         : "r"(txid), "r"(txid_sz), "r"(buff), "r"(size)
         : "a3", "a4", "a5", "a6", "a7");
+    
+    return (txid_sz != 0);
 }
 
 void __vm_exit(const int ret)

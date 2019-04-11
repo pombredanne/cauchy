@@ -20,8 +20,9 @@ mod test_simple {
      #[test]
     fn test_simple() {
         let store = RocksDb::open_db(".cauchy/tests/db_vm_test_simple/").unwrap();
+        let mut file = File::open("src/tests/scripts/recv_then_sends_to_bob").unwrap();
         // let mut file = File::open("src/tests/scripts/syscall").unwrap();
-        let mut file = File::open("src/tests/scripts_rust/target/riscv64gc-unknown-none-elf/release/scripts_rust").unwrap();
+        // let mut file = File::open("src/tests/scripts_rust/target/riscv64gc-unknown-none-elf/release/scripts_rust").unwrap();
         let mut script = Vec::new();
         file.read_to_end(&mut script).unwrap();
 
