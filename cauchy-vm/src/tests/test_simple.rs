@@ -17,7 +17,7 @@ mod test_simple {
 
     use crate::vm::{Mailbox, VM};
 
-     #[test]
+    #[test]
     fn test_simple() {
         let store = RocksDb::open_db(".cauchy/tests/db_vm_test_simple/").unwrap();
         let mut file = File::open("src/tests/scripts/recv_then_sends_to_bob").unwrap();
@@ -82,7 +82,10 @@ mod test_simple {
     // #[test]
     fn test_rust() {
         let store = RocksDb::open_db(".cauchy/tests/db_vm_test_rust/").unwrap();
-        let mut file = File::open("src/tests/scripts_rust/target/riscv64gc-unknown-none-elf/release/scripts_rust").unwrap();
+        let mut file = File::open(
+            "src/tests/scripts_rust/target/riscv64gc-unknown-none-elf/release/scripts_rust",
+        )
+        .unwrap();
         let mut script = Vec::new();
         file.read_to_end(&mut script).unwrap();
 
@@ -92,7 +95,7 @@ mod test_simple {
             Bytes::from(&b"Receiver addr"[..]),
             payload,
         );
-            // Dummy terminator for root
+        // Dummy terminator for root
         let (parent_branch, _) = oneshot::channel();
 
         // Init the VM
@@ -105,6 +108,5 @@ mod test_simple {
 
         let (_, result) = vm.run(mailbox, tx, parent_branch);
         assert_eq!(result.unwrap(), 8);
-
-    }   
+    }
 }

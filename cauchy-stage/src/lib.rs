@@ -21,28 +21,44 @@ use core::{
         ego::{Ego, PeerEgo, Status, WorkState, WorkStatus},
     },
     utils::constants::CONFIG,
+    daemon::{Origin, Priority}
 };
 use vm::vm::{Mailbox, VM};
 
-pub enum Priority {
-    Reconcile,
-    Gossip,
-}
-
 pub struct Stage {
-    act: Act, // This should not be entirely volatile
     ego: Arc<Mutex<Ego>>,
-    ego_bus: Bus<(OddSketch, Bytes)>,
 }
 
 impl Stage {
     pub fn append_performance() {}
 
-    pub fn manager(self) -> impl Future<Item = (), Error = ()> + Send {
-        ok(())
+    pub fn manager(
+        self,
+        incoming: futures::sync::mpsc::Receiver<(Origin, HashSet<Transaction>, Priority)>,
+        ego_bus: Bus<(OddSketch, Bytes)>,
+    ) -> impl Future<Item = (), Error = ()> + Send {
+        incoming.for_each(move |(origin, txs, priority)| {
+            match origin {
+                Origin::Peer(peer_ego_arc) => {
+                    self.process_txs_from_peer(peer_ego_arc.clone(), txs, priority)
+                }
+                Origin::RPC => self.process_txs_from_rpc(txs, priority),
+            }
+
+            ok(())
+        })
     }
 
-    pub fn process_txs(&self, arc_peer_ego: Arc<Mutex<PeerEgo>>, txs: HashSet<Transaction>) {
+    pub fn process_txs_from_rpc(&self, txs: HashSet<Transaction>, priority: Priority) {
+        let mut ego_guard = self.ego.lock().unwrap();
+    }
+
+    pub fn process_txs_from_peer(
+        &self,
+        arc_peer_ego: Arc<Mutex<PeerEgo>>,
+        txs: HashSet<Transaction>,
+        priority: Priority,
+    ) {
         // Lock ego and peer ego
         let mut ego_guard = self.ego.lock().unwrap();
         let mut peer_ego_guard = arc_peer_ego.lock().unwrap();

@@ -24,12 +24,22 @@ use crate::{
     },
 };
 
+pub enum Priority {
+    Force,
+    Standard,
+}
+
+pub enum Origin {
+    Peer(Arc<Mutex<PeerEgo>>),
+    RPC,
+}
+
 pub fn server(
     tx_db: Arc<RocksDb>,
     ego: Arc<Mutex<Ego>>,
     socket_recv: mpsc::Receiver<TcpStream>,
     arena: Arc<Mutex<Arena>>,
-    to_stage: mpsc::Sender<(Arc<Mutex<PeerEgo>>, HashSet<Transaction>)>,
+    to_stage: mpsc::Sender<(Origin, HashSet<Transaction>, Priority)>,
 ) -> impl Future<Item = (), Error = ()> + Send + 'static {
     if CONFIG.DEBUGGING.DAEMON_VERBOSE {
         println!("spawning daemon");
@@ -239,17 +249,16 @@ pub fn server(
                 }
 
                 // Add new txs to database
-                // TODO: Fix danger here
+                // TODO: Fix danger here and do this incrementally if not pulling
                 for tx in txs.iter() {
                     tx.to_db(tx_db_inner.clone());
                 }
 
                 // Send
-
                 tokio::spawn(
                     to_stage_inner
                         .clone()
-                        .send((arc_peer_ego.clone(), txs))
+                        .send((Origin::Peer(arc_peer_ego.clone()), txs, Priority::Standard)) // TODO: Force vs Standard here
                         .map_err(|_| ())
                         .and_then(|_| future::ok(())),
                 );
