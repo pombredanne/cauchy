@@ -16,9 +16,10 @@ use std::io::Write;
 
 use ckb_vm::{
     CoreMachine, DefaultCoreMachine, DefaultMachineBuilder, Error, Memory, Register, SparseMemory,
-    SupportMachine, Syscalls, A0, A1, A2, A3, A4, A5, A6, A7, S1, S2
+    SupportMachine, Syscalls, A0, A1, A2, A3, A4, A5, A6, A7, S1, S2,
 };
 
+use crate::performance::Performance;
 use core::crypto::hashes::Identifiable;
 use core::primitives::act::{Act, Message};
 use core::primitives::transaction::Transaction;
@@ -36,16 +37,17 @@ impl VM {
         &self,
         mailbox: Mailbox,
         tx: Transaction,
-        parent_branch: oneshot::Sender<()>,
-    ) -> (Act, Result<u8, Error>) {
+        parent_branch: oneshot::Sender<Performance>,
+    ) -> Result<u8, Error> {
         // Construct session
-        let mut act = Act::new();
+        let mut performance = Performance::new();
+        let id = tx.get_id();
         let session = Session {
             mailbox,
-            id: tx.get_id(),
+            id: id.clone(),
             timestamp: tx.get_time(),
             binary_hash: tx.get_binary_hash(),
-            act: &mut act,
+            performance: &mut performance,
             child_branch: None,
         };
 
@@ -63,20 +65,22 @@ impl VM {
         drop(machine);
 
         // Send termination alert to parent
-        parent_branch.send(());
+        parent_branch.send(performance);
 
         // Return act and result
-        (act, result)
+        result
     }
 }
 
 pub struct Mailbox {
     inbox: Receiver<Message>,
-    outbox: Sender<(Message, oneshot::Sender<()>)>,
+    outbox: Sender<(Message, oneshot::Sender<Performance>)>,
 }
 
 impl Mailbox {
-    pub fn new(outbox: Sender<(Message, oneshot::Sender<()>)>) -> (Mailbox, Sender<Message>) {
+    pub fn new(
+        outbox: Sender<(Message, oneshot::Sender<Performance>)>,
+    ) -> (Mailbox, Sender<Message>) {
         let (inbox_send, inbox) = channel(128);
         (Mailbox { inbox, outbox }, inbox_send)
     }
@@ -87,14 +91,15 @@ pub struct Session<'a> {
     id: Bytes,
     timestamp: u64,
     binary_hash: Bytes,
-    act: &'a mut Act,
-    child_branch: Option<oneshot::Receiver<()>>,
+    performance: &'a mut Performance,
+    child_branch: Option<oneshot::Receiver<Performance>>,
 }
 
 impl<'a> Session<'a> {
     fn recv(&mut self) -> Option<Message> {
         if let Some(branch) = self.child_branch.take() {
-            branch.wait().unwrap();
+            let child_perforamnce = branch.wait().unwrap();
+            *self.performance += child_perforamnce;
         }
 
         match self.mailbox.inbox.poll() {
@@ -105,7 +110,8 @@ impl<'a> Session<'a> {
 
     fn send(&mut self, msg: Message) {
         if let Some(branch) = self.child_branch.take() {
-            branch.wait().unwrap();
+            let child_perforamnce = branch.wait().unwrap();
+            *self.performance += child_perforamnce;
         }
 
         let (child_send, child_branch) = oneshot::channel();
@@ -185,8 +191,7 @@ impl<'a, Mac: SupportMachine> Syscalls<Mac> for Session<'a> {
                 println!("Sending message of size {:}", data_sz);
                 if (data_sz < 200) {
                     self.send(msg);
-                }
-                else {
+                } else {
                     assert!(false);
                 }
                 Ok(true)
@@ -220,20 +225,20 @@ impl<'a, Mac: SupportMachine> Syscalls<Mac> for Session<'a> {
                     machine.set_register(S2, Mac::REG::from_usize(data.len()));
                     println!("Receiving message {:X?} of size {:?}", data, data.len());
 
-                    // Dump memory to file
-                    // let mut file = File::create("./memdump.bin").unwrap();
-                    // let mut i = 0;
-                    // while {
-                    //     match machine.memory_mut().load8(&Mac::REG::from_u32(i)) {
-                    //         Ok(v) => {
-                    //             file.write(&[v.to_u8()]).unwrap();
-                    //             true
-                    //         }
-                    //         _ => (false),
-                    //     }
-                    // } {
-                    //     i += 1;
-                    // }
+                // Dump memory to file
+                // let mut file = File::create("./memdump.bin").unwrap();
+                // let mut i = 0;
+                // while {
+                //     match machine.memory_mut().load8(&Mac::REG::from_u32(i)) {
+                //         Ok(v) => {
+                //             file.write(&[v.to_u8()]).unwrap();
+                //             true
+                //         }
+                //         _ => (false),
+                //     }
+                // } {
+                //     i += 1;
+                // }
                 } else {
                     machine.set_register(S1, Mac::REG::zero());
                     machine.set_register(S2, Mac::REG::zero());

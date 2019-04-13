@@ -1,3 +1,4 @@
+pub mod performance;
 pub mod vm;
 
 #[cfg(test)]

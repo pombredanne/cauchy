@@ -15,6 +15,7 @@ mod test_simple {
     use core::primitives::act::Message;
     use core::primitives::transaction::Transaction;
 
+    use crate::performance::Performance;
     use crate::vm::{Mailbox, VM};
 
     #[test]
@@ -58,7 +59,7 @@ mod test_simple {
                             .map_err(|_| ())
                             .and_then(|_| {
                                 outbox_recv.for_each(|(msg, parent_branch)| {
-                                    parent_branch.send(()); // Complete branch
+                                    parent_branch.send(Performance::new()); // Complete branch
                                     println!(
                                         "{:?} received msg {:?} from {:?}",
                                         msg.get_receiver(),
@@ -106,7 +107,7 @@ mod test_simple {
         let tx = Transaction::new(407548800, Bytes::from(&b"aux"[..]), Bytes::from(script));
         let (mailbox, inbox_send) = Mailbox::new(outbox);
 
-        let (_, result) = vm.run(mailbox, tx, parent_branch);
+        let result = vm.run(mailbox, tx, parent_branch);
         assert_eq!(result.unwrap(), 8);
     }
 }
