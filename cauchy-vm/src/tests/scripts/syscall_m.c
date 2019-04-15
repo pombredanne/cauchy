@@ -1,5 +1,9 @@
 #include "vm.h"
 
+void* malloc(size_t size)
+{
+    return _sbrk(size);
+}
 
 void *memset(void *dst, int c, size_t n)
 {
@@ -15,30 +19,23 @@ void *memset(void *dst, int c, size_t n)
 
 void _start()
 {
-    char sender_txid[128];
-    char data[128];
-    char buff[128];
+    char *sender_txid = malloc(128);
+    char *data = malloc(128);
+    char *buff = malloc(17);
     int sender_addr_size = 0;
     int data_size = 0;
 
-    memset(sender_txid, 'A', sizeof(sender_txid));
-    memset(data, 'B', sizeof(data));
-    memset(buff, 'C', sizeof(buff));
+    memset(sender_txid, 'A', 128);
+    memset(data, 'B', 128);
+    memset(buff, 'C', 17);
 
-    __vm_send("TestBasicSend", 13, "DEADBEEF is happyBEEF", 21);
-    
     __vm_recv(sender_txid, &sender_addr_size, data, &data_size);
     __vm_send(sender_txid, sender_addr_size + 10, data, data_size + 10);
     
     __vm_store("TestKey", 7, "TestVal", 7);
     __vm_lookup("TestKey", 7, buff, 7);
+    
     __vm_send("TestKey", 7, buff, 7 + 10 );
-
-    memset(buff, 'D', sizeof(buff));
-    __vm_auxdata(buff, &data_size);
-    __vm_send("TestAux", 7, buff, data_size + 10);
-
-    __vm_sendfromaux(5, 10);
-
+    __vm_send("RECVR", 5, "DEADBEEF is happyBEEF", 21);
     __vm_exit(0);
 }

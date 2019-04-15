@@ -1,21 +1,4 @@
 #include "vm.h"
-#include <sys/types.h>
-#include <stdlib.h>
-
-#define BRK_MIN 0x00800000
-#define BRK_MAX 0x07800000
-
-void*
-_sbrk(ptrdiff_t incr)
-{
-  static uintptr_t p = BRK_MIN;
-  uintptr_t start = p;
-  p += incr;
-  if (p > BRK_MAX) {
-    return (void *) (-1);
-  }
-  return start;
-}
 
 void main(void)
 {

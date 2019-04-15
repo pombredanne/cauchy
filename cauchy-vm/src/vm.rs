@@ -47,6 +47,7 @@ impl VM {
             id: id.clone(),
             timestamp: tx.get_time(),
             binary_hash: tx.get_binary_hash(),
+            aux: tx.get_aux(),
             performance: &mut performance,
             child_branch: None,
             store: self.store.clone(),
@@ -92,6 +93,7 @@ pub struct Session<'a> {
     id: Bytes,
     timestamp: u64,
     binary_hash: Bytes,
+    aux: Bytes,
     performance: &'a mut Performance,
     child_branch: Option<oneshot::Receiver<Performance>>,
     store: Arc<RocksDb>,
@@ -314,6 +316,28 @@ impl<'a, Mac: SupportMachine> Syscalls<Mac> for Session<'a> {
                     .store_bytes(buffer_addr as usize, &value[..buffer_sz])
                     .unwrap();
 
+                Ok(true)
+            },
+            // __vm_auxdata(buff, size)
+            0xCBFB => {
+                let buffer_addr = machine.registers()[A5].to_usize();
+                let buffer_sz = machine.registers()[A6].to_usize();
+
+                machine.memory_mut().store_bytes(buffer_addr, &self.aux.to_vec()).unwrap();
+                machine.set_register(S2, Mac::REG::from_usize(self.aux.len()));
+
+                Ok(true)
+            },
+            // __vm_sendfromaux(txidsz, datasz)
+            0xCBFA => {
+                let txid_sz = machine.registers()[A5].to_usize();
+                let data_sz = machine.registers()[A6].to_usize();
+                let msg = Message::new(
+                    self.id.clone(),
+                    Bytes::from(&self.aux[..txid_sz]),
+                    Bytes::from(&self.aux[txid_sz+1..txid_sz+data_sz]),
+                );
+                self.send(msg);
                 Ok(true)
             }
             _ => Ok(false),
