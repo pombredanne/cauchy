@@ -1,3 +1,5 @@
+use std::convert::TryFrom;
+
 use bytes::{Buf, BufMut, Bytes, BytesMut, IntoBuf};
 use failure::Error;
 
@@ -13,11 +15,6 @@ use super::{
     errors::{TransactionDeserialisationError, VarIntDeserialisationError},
     parsing::*,
 };
-
-pub trait TryFrom<T>: Sized {
-    type Err;
-    fn try_from(_: T) -> Result<Self, Self::Err>;
-}
 
 impl From<VarInt> for Bytes {
     fn from(varint: VarInt) -> Bytes {
@@ -39,8 +36,8 @@ impl From<VarInt> for Bytes {
 }
 
 impl TryFrom<Bytes> for VarInt {
-    type Err = Error;
-    fn try_from(raw: Bytes) -> Result<VarInt, Self::Err> {
+    type Error = Error;
+    fn try_from(raw: Bytes) -> Result<VarInt, Self::Error> {
         let mut n: u64 = 0;
         let mut buf = raw.into_buf();
         loop {
@@ -80,8 +77,8 @@ impl From<Transaction> for Bytes {
 }
 
 impl TryFrom<Bytes> for Transaction {
-    type Err = Error;
-    fn try_from(raw: Bytes) -> Result<Transaction, Self::Err> {
+    type Error = Error;
+    fn try_from(raw: Bytes) -> Result<Transaction, Self::Error> {
         let mut buf = raw.into_buf();
 
         let (vi_time, _) = match VarInt::parse_buf(&mut buf) {
