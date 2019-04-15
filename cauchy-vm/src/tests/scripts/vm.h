@@ -1,4 +1,5 @@
 #include "stdint.h"
+#include "stddef.h"
 #include "stdbool.h"
 
 void __vm_send(const char *const txid, uint32_t txid_sz, void *const buff, uint32_t size)
@@ -27,10 +28,39 @@ bool __vm_recv(char *const txid, uint32_t *const txid_sz, void *const buff, uint
         "mv %0, s1\n\t"
         "mv %1, s2\n\t"
         : "=r" (*txid_sz), "=r" (*size)
-        : "r"(txid), "r"(txid_sz), "r"(buff), "r"(size)
+        : "r"(txid), "r"(*txid_sz), "r"(buff), "r"(*size)
         : "a3", "a4", "a5", "a6", "a7");
     
     return (txid_sz != 0);
+}
+
+void __vm_store(const void *const key, uint32_t key_size, const void *const value, uint32_t value_size)
+{
+    __asm__ volatile(
+        "mv a3, %0\n\t"
+        "mv a4, %1\n\t"
+        "mv a5, %2\n\t"
+        "mv a6, %3\n\t"
+        "li a7, 0xCBFD\n\t"
+        "ecall\n\t"
+        : /* no outputs */
+        : "r"(key), "r"(key_size), "r"(value), "r"(value_size)
+        : "a3", "a4", "a5", "a6", "a7");
+
+}
+
+void __vm_lookup(const void *const key, uint32_t key_size, void *const buffer, uint32_t buffer_size)
+{
+    __asm__ volatile(
+        "mv a3, %0\n\t"
+        "mv a4, %1\n\t"
+        "mv a5, %2\n\t"
+        "mv a6, %3\n\t"
+        "li a7, 0xCBFC\n\t"
+        "ecall\n\t"
+        : /* no outputs */
+        : "r"(key), "r"(key_size), "r"(buffer), "r"(buffer_size)
+        : "a3", "a4", "a5", "a6", "a7");
 }
 
 void __vm_exit(const int ret)
