@@ -49,6 +49,7 @@ impl VM {
             binary_hash: tx.get_binary_hash(),
             performance: &mut performance,
             child_branch: None,
+            store: self.store.clone(),
         };
 
         // Init machine
@@ -93,6 +94,7 @@ pub struct Session<'a> {
     binary_hash: Bytes,
     performance: &'a mut Performance,
     child_branch: Option<oneshot::Receiver<Performance>>,
+    store: Arc<RocksDb>,
 }
 
 impl<'a> Session<'a> {
@@ -183,6 +185,7 @@ impl<'a, Mac: SupportMachine> Syscalls<Mac> for Session<'a> {
                 }
 
                 let msg = Message::new(
+                    // Bytes::from(&b"__vm_send()"[..]),
                     self.id.clone(),
                     Bytes::from(txid_bytes),
                     Bytes::from(data_bytes.clone()),
@@ -200,14 +203,15 @@ impl<'a, Mac: SupportMachine> Syscalls<Mac> for Session<'a> {
             0xCBFE => {
                 if let Some(msg) = self.recv() {
                     let txid_addr = machine.registers()[A3].to_u64();
-                    let txid_sz_addr = machine.registers()[A4].to_u64();
+                    let txid_sz_addr = machine.registers()[A4].to_usize();
                     let data_addr = machine.registers()[A5].to_u64();
-                    let data_sz_addr = machine.registers()[A6].to_u64();
+                    let data_sz_addr = machine.registers()[A6].to_usize();
 
                     // Store txid
                     let sender = msg.get_sender().to_vec();
                     machine
                         .memory_mut()
+                        // TODO: Store at maximum the specified numbytes
                         .store_bytes(txid_addr as usize, &sender)
                         .unwrap();
 
@@ -218,12 +222,13 @@ impl<'a, Mac: SupportMachine> Syscalls<Mac> for Session<'a> {
                     let data = msg.get_payload().to_vec();
                     machine
                         .memory_mut()
+                        // TODO: Store at maximum the specified numbytes
                         .store_bytes(data_addr as usize, &data)
                         .unwrap();
 
                     // Store data_sz
                     machine.set_register(S2, Mac::REG::from_usize(data.len()));
-                    // println!("Receiving message {:X?} of size {:?}", data, data.len());
+                // println!("Receiving message {:X?} of size {:?}", data, data.len());
 
                 // Dump memory to file
                 // let mut file = File::create("./memdump.bin").unwrap();
@@ -242,8 +247,73 @@ impl<'a, Mac: SupportMachine> Syscalls<Mac> for Session<'a> {
                 } else {
                     machine.set_register(S1, Mac::REG::zero());
                     machine.set_register(S2, Mac::REG::zero());
-
                 }
+                Ok(true)
+            }
+            // void __vm_store(key, value)
+            0xCBFD => {
+                let key_addr = machine.registers()[A3].to_u64();
+                let key_sz = machine.registers()[A4].to_u64();
+                let value_addr = machine.registers()[A5].to_u64();
+                let value_sz = machine.registers()[A6].to_u64();
+
+                // Load key
+                let mut key_bytes = self.id.to_vec();
+                for idx in key_addr..(key_addr + key_sz) {
+                    key_bytes.push(
+                        machine
+                            .memory_mut()
+                            .load8(&Mac::REG::from_u64(idx))
+                            .unwrap()
+                            .to_u8(),
+                    );
+                }
+                let mut value_bytes = Vec::<u8>::new();
+                for idx in value_addr..(value_addr + value_sz) {
+                    value_bytes.push(
+                        machine
+                            .memory_mut()
+                            .load8(&Mac::REG::from_u64(idx))
+                            .unwrap()
+                            .to_u8(),
+                    );
+                }
+                let result = self
+                    .store
+                    .put(&Bytes::from(key_bytes), &Bytes::from(value_bytes));
+
+                // TODO: use as return value to __vm_store()
+                assert!(result.is_ok());
+
+                Ok(true)
+            }
+            // void __vm_lookup(key, *value)
+            0xCBFC => {
+                let key_addr = machine.registers()[A3].to_u64();
+                let key_sz = machine.registers()[A4].to_u64();
+                let buffer_addr = machine.registers()[A5].to_u64();
+                let buffer_sz = machine.registers()[A6].to_usize();
+
+                // Load the key
+                let mut key_bytes = self.id.to_vec();
+                for idx in key_addr..(key_addr + key_sz) {
+                    key_bytes.push(
+                        machine
+                            .memory_mut()
+                            .load8(&Mac::REG::from_u64(idx))
+                            .unwrap()
+                            .to_u8(),
+                    );
+                }
+
+                // TODO: Do something useful on error
+                let value = self.store.get(&Bytes::from(key_bytes)).unwrap().unwrap();
+                machine
+                    .memory_mut()
+                    // Store at maximum the specified numbytes
+                    .store_bytes(buffer_addr as usize, &value[..buffer_sz])
+                    .unwrap();
+
                 Ok(true)
             }
             _ => Ok(false),

@@ -21,8 +21,8 @@ mod test_simple {
     #[test]
     fn test_simple() {
         let store = RocksDb::open_db(".cauchy/tests/db_vm_test_simple/").unwrap();
-        let mut file = File::open("src/tests/scripts/recv_then_sends_to_bob").unwrap();
-        // let mut file = File::open("src/tests/scripts/syscall").unwrap();
+        // let mut file = File::open("src/tests/scripts/recv_then_sends_to_bob").unwrap();
+        let mut file = File::open("src/tests/scripts/syscall").unwrap();
         // let mut file = File::open("src/tests/scripts_rust/target/riscv64gc-unknown-none-elf/release/scripts_rust").unwrap();
         let mut script = Vec::new();
         file.read_to_end(&mut script).unwrap();
@@ -109,5 +109,36 @@ mod test_simple {
 
         let result = vm.run(mailbox, tx, parent_branch);
         assert_eq!(result.unwrap(), 8);
+    }
+
+    #[test]
+    fn test_store() {
+        let store = RocksDb::open_db(".cauchy/tests/db_vm_test_store/").unwrap();
+        let mut file = File::open(
+            "src/tests/scripts/basic_store",
+        )
+        .unwrap();
+        let mut script = Vec::new();
+        file.read_to_end(&mut script).unwrap();
+
+        let payload = Bytes::from(&b"Message"[..]);
+        let msg = Message::new(
+            Bytes::from(&b"Sender addr"[..]),
+            Bytes::from(&b"Receiver addr"[..]),
+            payload,
+        );
+        // Dummy terminator for root
+        let (parent_branch, _) = oneshot::channel();
+
+        // Init the VM
+        let vm = VM::new(Arc::new(store));
+
+        // Construct session
+        let (outbox, outbox_recv) = mpsc::channel(512);
+        let tx = Transaction::new(407548800, Bytes::from(&b"aux"[..]), Bytes::from(script));
+        let (mailbox, inbox_send) = Mailbox::new(outbox);
+
+        let result = vm.run(mailbox, tx, parent_branch);
+        assert_eq!(result.unwrap(), 0);
     }
 }
