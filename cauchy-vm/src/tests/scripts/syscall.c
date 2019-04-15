@@ -15,9 +15,9 @@ void *memset(void *dst, int c, size_t n)
 
 void _start()
 {
-    char sender_txid[128];
-    char data[128];
-    char buff[128];
+    char sender_txid[32];
+    char data[32];
+    char buff[32];
     int sender_addr_size = 0;
     int data_size = 0;
 

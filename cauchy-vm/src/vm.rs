@@ -323,6 +323,7 @@ impl<'a, Mac: SupportMachine> Syscalls<Mac> for Session<'a> {
                 let buffer_addr = machine.registers()[A5].to_usize();
                 let buffer_sz = machine.registers()[A6].to_usize();
 
+                // TODO: Limit to buffer_sz
                 machine.memory_mut().store_bytes(buffer_addr, &self.aux.to_vec()).unwrap();
                 machine.set_register(S2, Mac::REG::from_usize(self.aux.len()));
 
