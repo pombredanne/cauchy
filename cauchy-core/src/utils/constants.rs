@@ -2,7 +2,8 @@ pub const HASH_LEN: usize = 32;
 pub const VALUE_LEN: usize = 256;
 pub const PUBKEY_LEN: usize = 33;
 pub const SIG_LEN: usize = 64;
-pub const TX_DB_PATH: &str = ".cauchy/db/";
+pub const TX_DB_PATH: &str = ".cauchy/tx_db/";
+pub const STORE_PATH: &str = ".cauchy/store_db/";
 pub const SKETCH_CAPACITY: usize = 32; // TODO: This should become dynamic
 
 use std::fs;

@@ -24,13 +24,22 @@ use core::{
     utils::constants::CONFIG,
 };
 use vm::vm::{Mailbox, VM};
+use vm::performance::Performance;
 
 pub struct Stage {
     ego: Arc<Mutex<Ego>>,
+    tx_db: Arc<RocksDb>,
+    store: Arc<RocksDb>
 }
 
 impl Stage {
-    pub fn append_performance() {}
+    pub fn new(ego: Arc<Mutex<Ego>>, tx_db: Arc<RocksDb>, store: Arc<RocksDb>) -> Stage {
+        Stage {
+            ego,
+            tx_db,
+            store
+        }
+    }
 
     pub fn manager(
         self,
@@ -51,6 +60,11 @@ impl Stage {
 
     pub fn process_txs_from_rpc(&self, txs: HashSet<Transaction>, priority: Priority) {
         let mut ego_guard = self.ego.lock().unwrap();
+        for tx in txs {
+            Performance::from_tx(self.tx_db.clone(), self.store.clone(), tx);
+        }
+
+        // TODO: Add to state function called here
     }
 
     pub fn process_txs_from_peer(
@@ -74,6 +88,8 @@ impl Stage {
                 if CONFIG.DEBUGGING.STAGE_VERBOSE {
                     println!("reconcile transactions sent to stage");
                 }
+
+                // TODO: Add to state function called here
 
                 // Update ego
                 // ego_guard.pull(

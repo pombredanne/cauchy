@@ -47,11 +47,11 @@ impl Decoder for RPCCodec {
             }
             1 => {
                 // Add transaction to own state
-                let (tx, _) = match Transaction::parse_buf(&mut buf)? {
+                let (tx, tx_len) = match Transaction::parse_buf(&mut buf)? {
                     Some(some) => some,
                     None => return Ok(None),
                 };
-
+                src.advance(tx_len + 1);
                 Ok(Some(RPC::NewTransaction { tx }))
             }
             _ => unreachable!(),

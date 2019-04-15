@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 use futures::{future, Future, Sink, Stream};
 use tokio::codec::Framed;
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::mpsc::Sender;
+use futures::sync::mpsc::Sender;
 
 use crate::{
     daemon::{Origin, Priority},
@@ -68,10 +68,12 @@ pub fn rpc_server(
                     if CONFIG.DEBUGGING.DAEMON_VERBOSE {
                         println!("received new transaction from {}", socket_addr);
                     }
+                    let mut txs = HashSet::new();
+                    txs.insert(tx);
                     let to_stage_inner = to_stage_inner.clone();
                     tokio::spawn(
                         to_stage_inner
-                            .send((Origin::RPC, HashSet::new(), Priority::Standard))
+                            .send((Origin::RPC, txs, Priority::Standard))
                             .and_then(|_| future::ok(()))
                             .map(|_| ())
                             .or_else(|e| {

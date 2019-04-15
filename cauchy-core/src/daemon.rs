@@ -7,7 +7,7 @@ use futures::Future;
 use tokio::codec::Framed;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::prelude::*;
-use tokio::sync::mpsc;
+use futures::sync::mpsc;
 
 use crate::{
     crypto::sketches::{odd_sketch::*, *},

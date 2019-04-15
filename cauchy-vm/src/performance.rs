@@ -54,7 +54,6 @@ impl Performance {
         store: Arc<RocksDb>,
         tx: Transaction,
     ) -> impl Future<Item = Performance, Error = ()> + Send {
-        let performance = Performance::new();
         let (root_send, root_recv) = oneshot::channel();
 
         // Create new actor from tx binary

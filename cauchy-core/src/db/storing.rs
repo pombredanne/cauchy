@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::convert::TryFrom;
 
 use bytes::Bytes;
 use failure::Error;
