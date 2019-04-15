@@ -61,7 +61,7 @@ mod test_simple {
                                 outbox_recv.for_each(|(msg, parent_branch)| {
                                     parent_branch.send(Performance::new()); // Complete branch
                                     println!(
-                                        "{:?} received msg {:?} from {:?}",
+                                        "{:?} received msg {:?} from {:X?}",
                                         msg.get_receiver(),
                                         msg.get_payload(),
                                         msg.get_sender()

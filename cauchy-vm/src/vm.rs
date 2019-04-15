@@ -183,17 +183,17 @@ impl<'a, Mac: SupportMachine> Syscalls<Mac> for Session<'a> {
                 }
 
                 let msg = Message::new(
-                    //self.id.clone(),
-                    Bytes::from(&b"__vm_send() sender addr"[..]),
+                    self.id.clone(),
                     Bytes::from(txid_bytes),
                     Bytes::from(data_bytes.clone()),
                 );
-                println!("Sending message of size {:}", data_sz);
-                if (data_sz < 200) {
-                    self.send(msg);
-                } else {
-                    assert!(false);
-                }
+                self.send(msg);
+                // println!("Sending message of size {:}", data_sz);
+                // if data_sz < 200 {
+                //     self.send(msg);
+                // } else {
+                //     assert!(false);
+                // }
                 Ok(true)
             }
             // void __vm_recv(txid, txid_sz, data, data_sz)
@@ -223,7 +223,7 @@ impl<'a, Mac: SupportMachine> Syscalls<Mac> for Session<'a> {
 
                     // Store data_sz
                     machine.set_register(S2, Mac::REG::from_usize(data.len()));
-                    println!("Receiving message {:X?} of size {:?}", data, data.len());
+                    // println!("Receiving message {:X?} of size {:?}", data, data.len());
 
                 // Dump memory to file
                 // let mut file = File::create("./memdump.bin").unwrap();
