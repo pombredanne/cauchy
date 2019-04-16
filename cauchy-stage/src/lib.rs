@@ -23,22 +23,18 @@ use core::{
     },
     utils::constants::CONFIG,
 };
-use vm::vm::{Mailbox, VM};
 use vm::performance::Performance;
+use vm::vm::{Mailbox, VM};
 
 pub struct Stage {
     ego: Arc<Mutex<Ego>>,
     tx_db: Arc<RocksDb>,
-    store: Arc<RocksDb>
+    store: Arc<RocksDb>,
 }
 
 impl Stage {
     pub fn new(ego: Arc<Mutex<Ego>>, tx_db: Arc<RocksDb>, store: Arc<RocksDb>) -> Stage {
-        Stage {
-            ego,
-            tx_db,
-            store
-        }
+        Stage { ego, tx_db, store }
     }
 
     pub fn manager(

@@ -1,8 +1,6 @@
 use std::sync::Arc;
 
 use bytes::Bytes;
-use rand::rngs::ThreadRng;
-use rand::RngCore;
 use core::db::rocksdb::RocksDb;
 use core::db::storing::*;
 use core::db::*;
@@ -13,6 +11,8 @@ use futures::stream::Stream;
 use futures::sync::mpsc::{channel, Receiver, Sender};
 use futures::sync::oneshot;
 use futures::Async;
+use rand::rngs::ThreadRng;
+use rand::RngCore;
 use std::fs::File;
 use std::io::Write;
 
@@ -356,14 +356,17 @@ impl<'a, Mac: SupportMachine> Syscalls<Mac> for Session<'a> {
                 );
                 self.send(msg);
                 Ok(true)
-            },
+            }
             // __vm_rand(buff, size)
             0xCBF9 => {
                 let buffer_addr = machine.registers()[A5].to_usize();
                 let buffer_sz = machine.registers()[A6].to_usize();
-                let mut bytes : Vec::<u8> = vec![0;buffer_sz];
+                let mut bytes: Vec<u8> = vec![0; buffer_sz];
                 ThreadRng::default().fill_bytes(&mut bytes);
-                machine.memory_mut().store_bytes(buffer_addr, &bytes).unwrap();
+                machine
+                    .memory_mut()
+                    .store_bytes(buffer_addr, &bytes)
+                    .unwrap();
                 Ok(true)
             }
             _ => Ok(false),

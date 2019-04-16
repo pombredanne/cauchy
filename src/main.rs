@@ -21,11 +21,11 @@ use core::{
 use stage::Stage;
 
 use futures::lazy;
+use futures::sync::mpsc;
 use rand::Rng;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time;
-use futures::sync::mpsc;
 
 fn main() {
     // TODO: Do not destroy DB
