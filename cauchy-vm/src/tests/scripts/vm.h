@@ -107,6 +107,19 @@ void __vm_sendfromaux(uint32_t txidsz, uint32_t datasz)
     );
 }
 
+void __vm_rand(void *const buffer, uint32_t size)
+{
+    __asm__ volatile(
+        "mv a5, %0\n\t"
+        "mv a6, %1\n\t"
+        "li a7, 0xCBF9\n\t"
+        "ecall\n\t"
+        : /* no output */
+        : "r"(buffer), "r"(size)
+        : "a5", "a6", "a7"
+    );
+}
+
 void __vm_exit(const int ret)
 {
     __asm__ volatile(

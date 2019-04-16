@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
 use bytes::Bytes;
+use rand::rngs::ThreadRng;
+use rand::RngCore;
 use core::db::rocksdb::RocksDb;
 use core::db::storing::*;
 use core::db::*;
@@ -317,18 +319,21 @@ impl<'a, Mac: SupportMachine> Syscalls<Mac> for Session<'a> {
                     .unwrap();
 
                 Ok(true)
-            },
+            }
             // __vm_auxdata(buff, size)
             0xCBFB => {
                 let buffer_addr = machine.registers()[A5].to_usize();
                 let buffer_sz = machine.registers()[A6].to_usize();
 
                 // TODO: Limit to buffer_sz
-                machine.memory_mut().store_bytes(buffer_addr, &self.aux.to_vec()).unwrap();
+                machine
+                    .memory_mut()
+                    .store_bytes(buffer_addr, &self.aux.to_vec())
+                    .unwrap();
                 machine.set_register(S2, Mac::REG::from_usize(self.aux.len()));
 
                 Ok(true)
-            },
+            }
             // __vm_sendfromaux(txidsz, datasz)
             0xCBFA => {
                 let txid_sz = machine.registers()[A5].to_usize();
@@ -336,9 +341,18 @@ impl<'a, Mac: SupportMachine> Syscalls<Mac> for Session<'a> {
                 let msg = Message::new(
                     self.id.clone(),
                     Bytes::from(&self.aux[..txid_sz]),
-                    Bytes::from(&self.aux[txid_sz+1..txid_sz+data_sz]),
+                    Bytes::from(&self.aux[txid_sz + 1..txid_sz + data_sz]),
                 );
                 self.send(msg);
+                Ok(true)
+            },
+            // __vm_rand(buff, size)
+            0xCBF9 => {
+                let buffer_addr = machine.registers()[A5].to_usize();
+                let buffer_sz = machine.registers()[A6].to_usize();
+                let mut bytes : Vec::<u8> = vec![0;buffer_sz];
+                ThreadRng::default().fill_bytes(&mut bytes);
+                machine.memory_mut().store_bytes(buffer_addr, &bytes).unwrap();
                 Ok(true)
             }
             _ => Ok(false),

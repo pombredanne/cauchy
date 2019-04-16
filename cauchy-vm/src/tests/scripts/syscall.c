@@ -40,5 +40,8 @@ void _start()
 
     __vm_sendfromaux(32, 32+64);
 
+    __vm_rand(buff, 32);
+    __vm_send("TestRand", 8, buff, 32+64);
+
     __vm_exit(0);
 }
