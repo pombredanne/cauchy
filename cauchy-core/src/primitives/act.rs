@@ -7,7 +7,7 @@ use super::access_pattern::*;
 
 #[derive(Clone)]
 pub struct Act {
-    access_pattern: AccessPattern,
+    pub access_pattern: AccessPattern,
     messages: Vec<Message>,
     operations: u64,
 }

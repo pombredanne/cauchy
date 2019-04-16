@@ -131,6 +131,18 @@ impl<'a> Session<'a> {
                 .and_then(|_| ok(())),
         );
     }
+
+    fn put_store(&mut self, key: Bytes, value: Bytes) -> Result<(), failure::Error> {
+        let result = self.store.put(&key, &value);
+        self.performance.add_write(&self.id, key, value);
+        result
+    }
+
+    fn get_store(&mut self, key: Bytes) -> Result<Option<Bytes>, failure::Error> {
+        let value = self.store.get(&key);
+        self.performance.add_read(&self.id, key);
+        value
+    }
 }
 
 impl<'a, Mac: SupportMachine> Syscalls<Mac> for Session<'a> {
@@ -282,9 +294,8 @@ impl<'a, Mac: SupportMachine> Syscalls<Mac> for Session<'a> {
                             .to_u8(),
                     );
                 }
-                let result = self
-                    .store
-                    .put(&Bytes::from(key_bytes), &Bytes::from(value_bytes));
+
+                let result = self.put_store(Bytes::from(key_bytes), Bytes::from(value_bytes));
 
                 // TODO: use as return value to __vm_store()
                 assert!(result.is_ok());
@@ -311,7 +322,7 @@ impl<'a, Mac: SupportMachine> Syscalls<Mac> for Session<'a> {
                 }
 
                 // TODO: Do something useful on error
-                let value = self.store.get(&Bytes::from(key_bytes)).unwrap().unwrap();
+                let value = self.get_store(Bytes::from(key_bytes)).unwrap().unwrap();
                 machine
                     .memory_mut()
                     // Store at maximum the specified numbytes
