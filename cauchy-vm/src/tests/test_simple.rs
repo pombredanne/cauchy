@@ -23,6 +23,7 @@ mod test_simple {
         let store = RocksDb::open_db(".cauchy/tests/db_vm_test_simple/").unwrap();
         // let mut file = File::open("src/tests/scripts/recv_then_sends_to_bob").unwrap();
         let mut file = File::open("src/tests/scripts/syscall").unwrap();
+        // let mut file = File::open("src/tests/scripts/auxsend").unwrap();
         // let mut file = File::open("src/tests/scripts_rust/target/riscv64gc-unknown-none-elf/release/scripts_rust").unwrap();
         let mut script = Vec::new();
         file.read_to_end(&mut script).unwrap();
@@ -44,7 +45,7 @@ mod test_simple {
 
             // Construct session
             let (outbox, outbox_recv) = mpsc::channel(512);
-            let tx = Transaction::new(407548800, Bytes::from(&b"AAAAABBBBBBBBBBC"[..]), Bytes::from(script));
+            let tx = Transaction::new(407548800, Bytes::from(&b"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCD"[..]), Bytes::from(script));
             let (mailbox, inbox_send) = Mailbox::new(outbox);
 
             inbox_send

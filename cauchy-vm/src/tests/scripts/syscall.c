@@ -17,7 +17,7 @@ void _start()
 {
     char sender_txid[32];
     char data[32];
-    char buff[32];
+    char buff[32+64];
     int sender_addr_size = 0;
     int data_size = 0;
 
@@ -36,9 +36,9 @@ void _start()
 
     memset(buff, 'D', sizeof(buff));
     __vm_auxdata(buff, &data_size);
-    __vm_send("TestAux", 7, buff, data_size + 10);
+    __vm_send("TestAux", 7, buff, data_size);
 
-    __vm_sendfromaux(5, 10);
+    __vm_sendfromaux(32, 32+64);
 
     __vm_exit(0);
 }
