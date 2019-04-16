@@ -5,7 +5,10 @@ use bus::BusReader;
 use bytes::Bytes;
 use secp256k1::PublicKey;
 
-use crate::{crypto::sketches::odd_sketch::*, primitives::work_site::WorkSite};
+use crate::{
+    crypto::sketches::{odd_sketch::OddSketch, SketchInsertable},
+    primitives::work_site::WorkSite,
+};
 
 pub fn mine(
     public_key: PublicKey,
@@ -19,10 +22,12 @@ pub fn mine(
     let mut best_distance: u16 = 512;
 
     let mut current_distance: u16;
-    let (mut current_oddsketch, mut current_root) = proxy_recv.recv().unwrap();
+
+    // TODO: Load from disk here
+    let mut current_oddsketch = OddSketch::new();
+    let mut current_root = Bytes::new();
 
     let work_site = WorkSite::new(public_key, current_root, start_nonce);
-
     loop {
         {
             match proxy_recv.try_recv() {

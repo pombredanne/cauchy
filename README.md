@@ -13,7 +13,7 @@ cargo build --release
 ./target/release/cauchy
 ```
 ## Configuration
-A custom configuration file `config.toml` may be added `$HOME\.cauchy\` directory. 
+Configuration is performed via a adding a `config.toml` to your `$HOME\.cauchy\` directory. 
 
 ### Example
 
@@ -40,7 +40,7 @@ STAGE_VERBOSE = false
 ```
 
 
-## RISCV Build Tools for C/C++ Scripts (Linux Only)
+## RISC-V Build Tools for C/C++ Scripts (Linux Only)
 Full instructions can be found [here](https://github.com/riscv/riscv-gnu-toolchain).  As an example, the gist for Ubuntu is
 
 ```bash
@@ -56,7 +56,7 @@ Further, binaries should be compiled with the following GCC flags:
 -nostdlib -s -Os
 ```
 
-## RISCV Build Tools for Rust Scripts
+## RISC-V Build Tools for Rust Scripts
 The nightly build of Rust has support for the `riscv64gc-unknown-none-elf` target.  You can switch to nightlies and install this target like this:
 
 ```bash

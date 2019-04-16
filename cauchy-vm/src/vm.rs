@@ -1,8 +1,6 @@
 use std::sync::Arc;
 
 use bytes::Bytes;
-use rand::rngs::ThreadRng;
-use rand::RngCore;
 use core::db::rocksdb::RocksDb;
 use core::db::storing::*;
 use core::db::*;
@@ -13,6 +11,8 @@ use futures::stream::Stream;
 use futures::sync::mpsc::{channel, Receiver, Sender};
 use futures::sync::oneshot;
 use futures::Async;
+use rand::rngs::ThreadRng;
+use rand::RngCore;
 use std::fs::File;
 use std::io::Write;
 
@@ -130,6 +130,18 @@ impl<'a> Session<'a> {
                 .map_err(|_| ())
                 .and_then(|_| ok(())),
         );
+    }
+
+    fn put_store(&mut self, key: Bytes, value: Bytes) -> Result<(), failure::Error> {
+        let result = self.store.put(&key, &value);
+        self.performance.add_write(&self.id, key, value);
+        result
+    }
+
+    fn get_store(&mut self, key: Bytes) -> Result<Option<Bytes>, failure::Error> {
+        let value = self.store.get(&key);
+        self.performance.add_read(&self.id, key);
+        value
     }
 }
 
@@ -282,9 +294,8 @@ impl<'a, Mac: SupportMachine> Syscalls<Mac> for Session<'a> {
                             .to_u8(),
                     );
                 }
-                let result = self
-                    .store
-                    .put(&Bytes::from(key_bytes), &Bytes::from(value_bytes));
+
+                let result = self.put_store(Bytes::from(key_bytes), Bytes::from(value_bytes));
 
                 // TODO: use as return value to __vm_store()
                 assert!(result.is_ok());
@@ -311,7 +322,7 @@ impl<'a, Mac: SupportMachine> Syscalls<Mac> for Session<'a> {
                 }
 
                 // TODO: Do something useful on error
-                let value = self.store.get(&Bytes::from(key_bytes)).unwrap().unwrap();
+                let value = self.get_store(Bytes::from(key_bytes)).unwrap().unwrap();
                 machine
                     .memory_mut()
                     // Store at maximum the specified numbytes
@@ -345,14 +356,17 @@ impl<'a, Mac: SupportMachine> Syscalls<Mac> for Session<'a> {
                 );
                 self.send(msg);
                 Ok(true)
-            },
+            }
             // __vm_rand(buff, size)
             0xCBF9 => {
                 let buffer_addr = machine.registers()[A5].to_usize();
                 let buffer_sz = machine.registers()[A6].to_usize();
-                let mut bytes : Vec::<u8> = vec![0;buffer_sz];
+                let mut bytes: Vec<u8> = vec![0; buffer_sz];
                 ThreadRng::default().fill_bytes(&mut bytes);
-                machine.memory_mut().store_bytes(buffer_addr, &bytes).unwrap();
+                machine
+                    .memory_mut()
+                    .store_bytes(buffer_addr, &bytes)
+                    .unwrap();
                 Ok(true)
             }
             _ => Ok(false),

@@ -17,7 +17,7 @@ use core::primitives::transaction::Transaction;
 
 use crate::vm::{Mailbox, VM};
 
-pub struct Performance(HashMap<Bytes, Act>); // Actor ID: Total Act
+pub struct Performance(pub HashMap<Bytes, Act>); // Actor ID: Total Act
 
 impl Performance {
     pub fn append(&mut self, id: Bytes, act: Act) {
@@ -47,6 +47,28 @@ impl AddAssign for Performance {
 impl Performance {
     pub fn new() -> Performance {
         Performance(HashMap::new())
+    }
+
+    pub fn add_read(&mut self, id: &Bytes, key: Bytes) {
+        let act = match self.0.get_mut(id) {
+            Some(some) => some,
+            None => {
+                self.0.insert(id.clone(), Act::new());
+                self.0.get_mut(id).unwrap()
+            }
+        };
+        act.access_pattern.read.insert(key);
+    }
+
+    pub fn add_write(&mut self, id: &Bytes, key: Bytes, value: Bytes) {
+        let act = match self.0.get_mut(id) {
+            Some(some) => some,
+            None => {
+                self.0.insert(id.clone(), Act::new());
+                self.0.get_mut(id).unwrap()
+            }
+        };
+        act.access_pattern.write.insert(key, value);
     }
 
     pub fn from_tx(

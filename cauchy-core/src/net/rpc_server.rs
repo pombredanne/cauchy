@@ -2,10 +2,10 @@ use std::collections::HashSet;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 
+use futures::sync::mpsc::Sender;
 use futures::{future, Future, Sink, Stream};
 use tokio::codec::Framed;
 use tokio::net::{TcpListener, TcpStream};
-use futures::sync::mpsc::Sender;
 
 use crate::{
     daemon::{Origin, Priority},

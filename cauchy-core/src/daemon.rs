@@ -3,11 +3,11 @@ use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 
 use failure::Error;
+use futures::sync::mpsc;
 use futures::Future;
 use tokio::codec::Framed;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::prelude::*;
-use futures::sync::mpsc;
 
 use crate::{
     crypto::sketches::{odd_sketch::*, *},
