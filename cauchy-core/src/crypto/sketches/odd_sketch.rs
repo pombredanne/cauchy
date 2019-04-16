@@ -11,6 +11,7 @@ impl SketchInsertable for OddSketch {
     fn new() -> OddSketch {
         OddSketch(BytesMut::from(&[0; SKETCH_CAPACITY][..]))
     }
+
     fn insert<T>(&mut self, item: &T)
     where
         T: Identifiable,

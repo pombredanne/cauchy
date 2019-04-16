@@ -41,23 +41,23 @@ fn main() {
     let mut ego_bus = Bus::new(10);
 
     // Spawn mining threads
-    // let n_mining_threads: u64 = CONFIG.MINING.N_MINING_THREADS as u64;
-    // if n_mining_threads != 0 {
-    //     let nonce_start_base = std::u64::MAX / n_mining_threads;
-    //     for i in 0..n_mining_threads {
-    //         let distance_send_inner = distance_send.clone();
-    //         let mut ego_recv = ego_bus.add_rx();
+    let n_mining_threads: u64 = CONFIG.MINING.N_MINING_THREADS as u64;
+    if n_mining_threads != 0 {
+        let nonce_start_base = std::u64::MAX / n_mining_threads;
+        for i in 0..n_mining_threads {
+            let distance_send_inner = distance_send.clone();
+            let ego_recv = ego_bus.add_rx();
 
-    //         thread::spawn(move || {
-    //             mining::mine(
-    //                 local_pk,
-    //                 ego_recv,
-    //                 distance_send_inner,
-    //                 i * nonce_start_base,
-    //             )
-    //         });
-    //     }
-    // }
+            thread::spawn(move || {
+                mining::mine(
+                    local_pk,
+                    ego_recv,
+                    distance_send_inner,
+                    i * nonce_start_base,
+                )
+            });
+        }
+    }
 
     // Init Ego
     let ego = Arc::new(Mutex::new(Ego::new(local_pk, local_sk)));
@@ -68,8 +68,8 @@ fn main() {
     // Spawn stage manager
     let (reset_send, reset_recv) = std::sync::mpsc::channel(); // TODO: Reset mining best
     let (to_stage, stage_recv) = mpsc::channel::<(Origin, HashSet<Transaction>, Priority)>(128);
-    let stage = Stage::new(ego.clone(), tx_db.clone(), store.clone());
-    let stage_mananger = stage.manager(stage_recv, ego_bus);
+    let stage = Stage::new(ego.clone(), tx_db.clone(), store.clone(), ego_bus);
+    let stage_mananger = stage.manager(stage_recv);
 
     // Server
     let (socket_send, socket_recv) = mpsc::channel::<tokio::net::TcpStream>(128);

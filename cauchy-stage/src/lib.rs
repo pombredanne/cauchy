@@ -4,7 +4,6 @@ use std::sync::{Arc, Mutex};
 
 use bus::Bus;
 use bytes::{Bytes, BytesMut};
-use core::primitives::transaction::*;
 use failure::Error;
 use futures::future::{err, ok};
 use futures::sink::Sink;
@@ -13,13 +12,16 @@ use futures::sync::{mpsc, oneshot};
 use futures::{Future, Stream};
 
 use core::{
-    crypto::{hashes::Identifiable, sketches::odd_sketch::OddSketch},
+    crypto::{
+        hashes::Identifiable,
+        sketches::{odd_sketch::OddSketch, SketchInsertable},
+    },
     daemon::{Origin, Priority},
     db::{rocksdb::*, storing::Storable},
-    net,
     primitives::{
         act::{Act, Message},
         ego::{Ego, PeerEgo, Status, WorkState, WorkStatus},
+        transaction::*,
     },
     utils::constants::CONFIG,
 };
@@ -30,91 +32,123 @@ pub struct Stage {
     ego: Arc<Mutex<Ego>>,
     tx_db: Arc<RocksDb>,
     store: Arc<RocksDb>,
+    ego_bus: Arc<Mutex<Bus<(OddSketch, Bytes)>>>,
 }
 
 impl Stage {
-    pub fn new(ego: Arc<Mutex<Ego>>, tx_db: Arc<RocksDb>, store: Arc<RocksDb>) -> Stage {
-        Stage { ego, tx_db, store }
+    pub fn new(
+        ego: Arc<Mutex<Ego>>,
+        tx_db: Arc<RocksDb>,
+        store: Arc<RocksDb>,
+        ego_bus: Bus<(OddSketch, Bytes)>,
+    ) -> Stage {
+        Stage {
+            ego,
+            tx_db,
+            store,
+            ego_bus: Arc::new(Mutex::new(ego_bus)),
+        }
     }
 
     pub fn manager(
         self,
         incoming: futures::sync::mpsc::Receiver<(Origin, HashSet<Transaction>, Priority)>,
-        ego_bus: Bus<(OddSketch, Bytes)>,
     ) -> impl Future<Item = (), Error = ()> + Send {
         incoming.for_each(move |(origin, txs, priority)| {
-            match origin {
+            let performances = match origin {
                 Origin::Peer(peer_ego_arc) => {
-                    self.process_txs_from_peer(peer_ego_arc.clone(), txs, priority)
+                    unreachable!()
+                    // self.process_txs_from_peer(peer_ego_arc.clone(), txs, priority)
+                    // Update ego
+                    // ego_guard.pull(
+                    //     peer_ego_guard.get_oddsketch(),
+                    //     peer_ego_guard.get_expected_minisketch(),
+                    //     peer_ego_guard.get_root(),
+                    // );
                 }
-                Origin::RPC => self.process_txs_from_rpc(txs, priority),
+                Origin::RPC => self.process_txs_from_rpc(&txs, priority),
+            };
+            let done = futures::future::join_all(performances);
+            done.wait();
+
+            // Push to tx db and recreate ego
+            let mut oddsketch = OddSketch::new();
+
+            for tx in txs {
+                tx.to_db(self.tx_db.clone());
+                oddsketch.insert(&tx);
             }
+            let root = Bytes::new(); // TODO: Actually generate bytes
+            let mut ego_bus_guard = self.ego_bus.lock().unwrap();
+            ego_bus_guard.broadcast((oddsketch, root));
 
             ok(())
         })
     }
 
-    pub fn process_txs_from_rpc(&self, txs: HashSet<Transaction>, priority: Priority) {
-        let mut ego_guard = self.ego.lock().unwrap();
-        for tx in txs {
-            Performance::from_tx(self.tx_db.clone(), self.store.clone(), tx);
-        }
-
-        // TODO: Add to state function called here
-    }
-
-    pub fn process_txs_from_peer(
+    pub fn process_txs_from_rpc(
         &self,
-        arc_peer_ego: Arc<Mutex<PeerEgo>>,
-        txs: HashSet<Transaction>,
+        txs: &HashSet<Transaction>,
         priority: Priority,
-    ) {
-        // Lock ego and peer ego
-        let mut ego_guard = self.ego.lock().unwrap();
-        let mut peer_ego_guard = arc_peer_ego.lock().unwrap();
-
-        // If received txs from reconciliation target check the payload matches reported
-        if peer_ego_guard.get_status() == Status::StatePull {
-            // Is reconcile target
-            // Cease reconciliation status
-            peer_ego_guard.update_status(Status::Gossiping);
-            if peer_ego_guard.is_expected_payload(&txs) {
-                // TODO: Send backstage and verify
-
-                if CONFIG.DEBUGGING.STAGE_VERBOSE {
-                    println!("reconcile transactions sent to stage");
-                }
-
-                // TODO: Add to state function called here
-
-                // Update ego
-                // ego_guard.pull(
-                //     peer_ego_guard.get_oddsketch(),
-                //     peer_ego_guard.get_expected_minisketch(),
-                //     peer_ego_guard.get_root(),
-                // );
-            }
-        } else {
-            if CONFIG.DEBUGGING.STAGE_VERBOSE {
-                println!("non-reconcile transactions sent to stage");
-            }
-        }
-
-        // Send updated state immediately
-        peer_ego_guard.update_status(Status::Gossiping);
-        peer_ego_guard.update_work_status(WorkStatus::Waiting);
-        peer_ego_guard.commit_work(&ego_guard);
-
-        tokio::spawn(
-            peer_ego_guard
-                .get_sink()
-                .send(net::messages::Message::Work {
-                    oddsketch: peer_ego_guard.get_oddsketch(),
-                    root: peer_ego_guard.get_root(),
-                    nonce: 0,
-                })
-                .map_err(|_| ())
-                .and_then(|_| ok(())),
-        );
+    ) -> Vec<impl Future<Item = Performance, Error = ()> + Send> {
+        txs.into_iter()
+            .map(|tx| Performance::from_tx(self.tx_db.clone(), self.store.clone(), tx.clone()))
+            .collect()
     }
+
+    // pub fn process_txs_from_peer(
+    //     &self,
+    //     arc_peer_ego: Arc<Mutex<PeerEgo>>,
+    //     &txs: HashSet<Transaction>,
+    //     priority: Priority,
+    // ) -> Vec<Future<Item = Performance, Error = ()> + Send> {
+    //     // Lock ego and peer ego
+    //     let mut ego_guard = self.ego.lock().unwrap();
+    //     let mut peer_ego_guard = arc_peer_ego.lock().unwrap();
+
+    //     // If received txs from reconciliation target check the payload matches reported
+    //     if peer_ego_guard.get_status() == Status::StatePull {
+    //         // Is reconcile target
+    //         // Cease reconciliation status
+    //         peer_ego_guard.update_status(Status::Gossiping);
+    //         if peer_ego_guard.is_expected_payload(&txs) {
+    //             // TODO: Send backstage and verify
+
+    //             if CONFIG.DEBUGGING.STAGE_VERBOSE {
+    //                 println!("reconcile transactions sent to stage");
+    //             }
+
+    //             // TODO: Add to state function called here
+
+    //             // self.ego_bus.br
+    //             // Update ego
+    //             // ego_guard.pull(
+    //             //     peer_ego_guard.get_oddsketch(),
+    //             //     peer_ego_guard.get_expected_minisketch(),
+    //             //     peer_ego_guard.get_root(),
+    //             // );
+    //         }
+    //     } else {
+    //         if CONFIG.DEBUGGING.STAGE_VERBOSE {
+    //             println!("non-reconcile transactions sent to stage");
+    //         }
+    //     }
+
+    //     // Send updated state immediately
+    //     peer_ego_guard.update_status(Status::Gossiping);
+    //     peer_ego_guard.update_work_status(WorkStatus::Waiting);
+    //     peer_ego_guard.commit_work(&ego_guard);
+
+    //     tokio::spawn(
+    //         peer_ego_guard
+    //             .get_sink()
+    //             .send(net::messages::Message::Work {
+    //                 oddsketch: peer_ego_guard.get_oddsketch(),
+    //                 root: peer_ego_guard.get_root(),
+    //                 nonce: 0,
+    //             })
+    //             .map_err(|_| ())
+    //             .and_then(|_| ok(())),
+    //     );
+    // }
 }
