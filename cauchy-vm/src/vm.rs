@@ -15,6 +15,7 @@ use rand::rngs::ThreadRng;
 use rand::RngCore;
 use std::fs::File;
 use std::io::Write;
+use std::io::Read;
 
 use ckb_vm::{
     CoreMachine, DefaultCoreMachine, DefaultMachineBuilder, Error, Memory, Register, SparseMemory,
@@ -54,7 +55,11 @@ impl VM {
             child_branch: None,
             store: self.store.clone(),
         };
-
+        let mut file = File::open("/opt/development/cauchy/cauchy-vm/src/tests/scripts/auxsend").unwrap();
+        let mut script = Vec::new();
+        file.read_to_end(&mut script).unwrap();
+        println!("Binary: {:X?}\nLen: {:?}", script, script.len());
+        println!("Binary: {:X?}\nLen: {:?}", tx.get_binary(), tx.get_binary().len());
         // Init machine
         let mut machine =
             DefaultMachineBuilder::<DefaultCoreMachine<u64, SparseMemory<u64>>>::default()
@@ -63,7 +68,8 @@ impl VM {
 
         // Execute binary
         machine = machine
-            .load_program(&tx.get_binary(), &vec![b"syscall".to_vec()])
+            // .load_program(&tx.get_binary(), &vec![b"syscall".to_vec()])
+            .load_program(&script, &vec![b"syscall".to_vec()])
             .unwrap();
         let result = machine.interpret();
         drop(machine);
