@@ -72,7 +72,8 @@ impl Stage {
             done.wait();
 
             // Push to tx db and recreate ego
-            let mut oddsketch = OddSketch::new();
+            let mut ego_guard = self.ego.lock().unwrap();
+            let mut oddsketch = ego_guard.get_oddsketch();
 
             for tx in txs {
                 tx.to_db(self.tx_db.clone());
@@ -80,6 +81,7 @@ impl Stage {
             }
             let root = Bytes::new(); // TODO: Actually generate bytes
             let mut ego_bus_guard = self.ego_bus.lock().unwrap();
+            ego_guard.update_oddsketch(oddsketch.clone());
             ego_bus_guard.broadcast((oddsketch, root));
 
             ok(())

@@ -12,13 +12,13 @@ use crate::{
 
 pub fn mine(
     public_key: PublicKey,
-    mut proxy_recv: BusReader<(OddSketch, Bytes)>,
+    mut ego_recv: BusReader<(OddSketch, Bytes)>,
     record_sender: Sender<(u64, u16)>,
     start_nonce: u64,
 ) {
     println!("Start mining...");
 
-    let mut best_nonce: u64 = 0;
+    let mut best_nonce: u64;
     let mut best_distance: u16 = 512;
 
     let mut current_distance: u16;
@@ -27,18 +27,15 @@ pub fn mine(
     let mut current_oddsketch = OddSketch::new();
     let mut current_root = Bytes::new();
 
-    let work_site = WorkSite::new(public_key, current_root, start_nonce);
+    let mut work_site = WorkSite::new(public_key, current_root, start_nonce);
     loop {
         {
-            match proxy_recv.try_recv() {
+            match ego_recv.try_recv() {
                 Ok((new_oddsketch, new_root)) => {
                     current_oddsketch = new_oddsketch;
                     current_root = new_root;
-                    current_distance = WorkSite::new(public_key, current_root, best_nonce)
-                        .mine(&current_oddsketch);
-
-                    record_sender.send((best_nonce, current_distance));
-                    best_distance = current_distance;
+                    work_site = WorkSite::new(public_key, current_root, start_nonce);
+                    best_distance = 512;
                 }
                 Err(_) => {
                     current_distance = work_site.mine(&current_oddsketch);
@@ -51,7 +48,5 @@ pub fn mine(
                 }
             }
         }
-
-        //thread::sleep(hash_interval); // TODO: Remove
     }
 }

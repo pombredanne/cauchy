@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
-use bus::Bus;
+use bus::BusReader;
 use bytes::Bytes;
 use futures::sync::mpsc::{channel, Receiver, Sender};
 use futures::{Future, Sink};
@@ -35,7 +35,7 @@ pub trait WorkState {
     fn get_oddsketch(&self) -> OddSketch;
     fn get_root(&self) -> Bytes;
     fn get_nonce(&self) -> u64;
-    fn update_oddskech(&mut self, oddsketch: OddSketch);
+    fn update_oddsketch(&mut self, oddsketch: OddSketch);
     fn update_root(&mut self, root: Bytes);
     fn update_nonce(&mut self, nonce: u64);
 }
@@ -61,7 +61,7 @@ impl WorkState for Ego {
         self.root = root;
     }
 
-    fn update_oddskech(&mut self, oddsketch: OddSketch) {
+    fn update_oddsketch(&mut self, oddsketch: OddSketch) {
         self.oddsketch = oddsketch;
     }
 }
@@ -122,26 +122,24 @@ impl Ego {
     }
 
     // Mining updates
-    pub fn mining_updater(
+    pub fn updater(
         ego: Arc<Mutex<Ego>>,
         distance_receive: std::sync::mpsc::Receiver<(u64, u16)>,
-        reset_receiver: std::sync::mpsc::Receiver<()>,
+        mut mining_reset: BusReader<(OddSketch, Bytes)>,
     ) {
         let mut best_distance: u16 = 512;
 
         loop {
             if let Ok((nonce, distance)) = distance_receive.recv() {
-                if let Ok(()) = reset_receiver.try_recv() {
+                if let Ok(_) = mining_reset.try_recv() {
                     let mut ego_locked = ego.lock().unwrap();
                     ego_locked.update_nonce(nonce);
-
                     ego_locked.update_current_distance(best_distance);
                     best_distance = distance;
                 } else {
                     if distance < best_distance {
                         let mut ego_locked = ego.lock().unwrap();
                         ego_locked.update_nonce(nonce);
-
                         ego_locked.update_current_distance(best_distance);
                         best_distance = distance;
                     }
@@ -233,7 +231,7 @@ impl WorkState for PeerEgo {
         self.reported_root = root;
     }
 
-    fn update_oddskech(&mut self, oddsketch: OddSketch) {
+    fn update_oddsketch(&mut self, oddsketch: OddSketch) {
         self.reported_oddsketch = oddsketch;
     }
 }

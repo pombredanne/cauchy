@@ -39,6 +39,7 @@ fn main() {
 
     let (distance_send, distance_recv) = std::sync::mpsc::channel();
     let mut ego_bus = Bus::new(10);
+    let mining_reset = ego_bus.add_rx();
 
     // Spawn mining threads
     let n_mining_threads: u64 = CONFIG.MINING.N_MINING_THREADS as u64;
@@ -66,7 +67,7 @@ fn main() {
     let arena = Arc::new(Mutex::new(Arena::new(ego.clone())));
 
     // Spawn stage manager
-    let (reset_send, reset_recv) = std::sync::mpsc::channel(); // TODO: Reset mining best
+    // let (reset_send, reset_recv) = std::sync::mpsc::channel(); // TODO: Reset mining best
     let (to_stage, stage_recv) = mpsc::channel::<(Origin, HashSet<Transaction>, Priority)>(128);
     let stage = Stage::new(ego.clone(), tx_db.clone(), store.clone(), ego_bus);
     let stage_mananger = stage.manager(stage_recv);
@@ -97,7 +98,7 @@ fn main() {
     });
 
     // Update local state
-    let mining_updator = thread::spawn(move || Ego::mining_updater(ego, distance_recv, reset_recv));
+    let mining_updator = thread::spawn(move || Ego::updater(ego, distance_recv, mining_reset));
     mining_updator.join();
     main_loop.join();
 }
