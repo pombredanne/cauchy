@@ -12,15 +12,18 @@ def connect(ip: str, port: int):
     return s
 
 def encode_varint(number):
-    if not number:
-        return six.int2byte(0)
     parts = list()
-    while number:
-        parts.append(six.int2byte((number&0x7f) | (parts and 0x80 or 0x00)))
+    length = 0
+    while True:
+        if not length:
+            e = 0x00
+        else:
+            e = 0x80
+        parts.append(six.int2byte((number&0x7f) | e))
         if number <= 0x7f:
             break
-        number >>= 7
-        number  -= 1
+        number = (number >> 7) - 1
+        length += 1
     return b''.join(reversed(parts))
 
 # Grab RPC server address
@@ -62,10 +65,9 @@ elif cmd == "discover":
 
 elif cmd == "newtransaction":
     # Load binary
-    aux_path = sys.argv[3]
+    aux = bytes(sys.argv[3], "utf8")
     binary_path = sys.argv[4]
-    with open(aux_path, "rb") as f:
-        aux = f.read()
+
     
     with open(binary_path, "rb") as f:
         binary =  f.read()

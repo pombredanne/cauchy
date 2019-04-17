@@ -12,7 +12,7 @@ use crate::{
 pub struct WorkSite {
     public_key: PublicKey,
     root: Bytes,
-    nonce: Cell<u64>,
+    nonce: u64,
 }
 
 impl WorkSite {
@@ -20,16 +20,16 @@ impl WorkSite {
         WorkSite {
             public_key,
             root,
-            nonce: Cell::new(nonce),
+            nonce,
         }
     }
 
-    pub fn increment(&self) {
-        self.nonce.set(self.nonce.get() + 1);
+    pub fn increment(&mut self) {
+        self.nonce += 1;
     }
 
-    pub fn set_nonce(&self, nonce: u64) {
-        self.nonce.set(nonce);
+    pub fn set_nonce(&mut self, nonce: u64) {
+        self.nonce = nonce;
     }
 
     pub fn get_public_key(&self) -> PublicKey {
@@ -41,7 +41,7 @@ impl WorkSite {
     }
 
     pub fn get_nonce(&self) -> u64 {
-        self.nonce.get()
+        self.nonce
     }
 
     pub fn get_site_hash(&self) -> Bytes {
