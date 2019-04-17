@@ -109,6 +109,10 @@ impl Ego {
         self.current_distance
     }
 
+    pub fn update_minisketch(&mut self, minisketch: DummySketch) {
+        self.minisketch = minisketch;
+    }
+
     pub fn increment(&mut self, new_tx: &Transaction, new_root: Bytes) {
         self.oddsketch.insert(new_tx);
         self.minisketch.insert(new_tx);
