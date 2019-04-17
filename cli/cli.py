@@ -6,10 +6,12 @@ import json
 from time import time
 import six
 
+
 def connect(ip: str, port: int):
     s = socket.socket()
     s.connect((ip, int(port)))
     return s
+
 
 def encode_varint(number):
     parts = list()
@@ -19,12 +21,13 @@ def encode_varint(number):
             e = 0x00
         else:
             e = 0x80
-        parts.append(six.int2byte((number&0x7f) | e))
+        parts.append(six.int2byte((number & 0x7f) | e))
         if number <= 0x7f:
             break
         number = (number >> 7) - 1
         length += 1
     return b''.join(reversed(parts))
+
 
 # Grab RPC server address
 rpc_addr = sys.argv[1]
@@ -54,7 +57,7 @@ elif cmd == "discover":
     # Grab server address
     n_peers = int(sys.argv[3])
     chosen_hosts = random.choices(hosts, k=n_peers)
-    
+
     for server_ip in chosen_hosts:
         # Create add peer message
         ip_bytes = bytes(map(int, server_ip.split(".")))
@@ -68,9 +71,8 @@ elif cmd == "newtransaction":
     aux = bytes(sys.argv[3], "utf8")
     binary_path = sys.argv[4]
 
-    
     with open(binary_path, "rb") as f:
-        binary =  f.read()
+        binary = f.read()
 
     # Create transaction
     time_vi = encode_varint(int(time() * 1_000))
