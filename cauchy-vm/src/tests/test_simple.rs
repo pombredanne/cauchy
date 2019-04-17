@@ -22,8 +22,9 @@ mod test_simple {
     fn test_simple() {
         let store = RocksDb::open_db(".cauchy/tests/db_vm_test_simple/").unwrap();
         // let mut file = File::open("src/tests/scripts/recv_then_sends_to_bob").unwrap();
-        let mut file = File::open("src/tests/scripts/syscall").unwrap();
+        // let mut file = File::open("src/tests/scripts/syscall").unwrap();
         // let mut file = File::open("src/tests/scripts/sha256").unwrap();
+        let mut file = File::open("src/tests/scripts/ecdsa").unwrap();
         // let mut file = File::open("src/tests/scripts/auxsend").unwrap();
         // let mut file = File::open("src/tests/scripts_rust/target/riscv64gc-unknown-none-elf/release/scripts_rust").unwrap();
         let mut script = Vec::new();
@@ -75,7 +76,8 @@ mod test_simple {
                     // Run the VM
                     ok({
                         println!("Execution start");
-                        vm.run(mailbox, tx, parent_branch);
+                        let result = vm.run(mailbox, tx, parent_branch);
+                        assert!(result.is_ok());
                         println!("Execution end");
                     })
                 })
@@ -83,12 +85,13 @@ mod test_simple {
     }
 
     // #[test]
-    fn test_rust() {
-        let store = RocksDb::open_db(".cauchy/tests/db_vm_test_rust/").unwrap();
-        let mut file = File::open(
-            "src/tests/scripts_rust/target/riscv64gc-unknown-none-elf/release/scripts_rust",
-        )
-        .unwrap();
+    fn test_ecdsa() {
+        let store = RocksDb::open_db(".cauchy/tests/db_vm_test_ecdsa/").unwrap();
+        // let mut file = File::open(
+        //     "src/tests/scripts_rust/target/riscv64gc-unknown-none-elf/release/scripts_rust",
+        // )
+        // .unwrap();
+        let mut file = File::open("src/tests/scripts/ecdsa").unwrap();
         let mut script = Vec::new();
         file.read_to_end(&mut script).unwrap();
 
