@@ -89,8 +89,7 @@ impl Performance {
         let (first_mailbox, inbox_send) = Mailbox::new(outbox.clone());
         inboxes.insert(id.clone(), inbox_send);
         tokio::spawn(ok({
-                let result = vm.run(first_mailbox, tx, root_send);
-                println!("VM Result: {:?}", result.unwrap());
+                vm.run(first_mailbox, tx, root_send).unwrap();
             }).and_then(move |_| {
             // For each new message
             outbox_recv.for_each(move |(message, parent_branch)| {
@@ -126,9 +125,7 @@ impl Performance {
 
                         // Run receiver VM
                         tokio::spawn(ok({
-                            let result = vm.run(new_mailbox, tx, parent_branch);
-                            println!("VM Result: {:?}", result.unwrap());
-
+                            vm.run(new_mailbox, tx, parent_branch).unwrap();
                             // Remove from live inboxes
                             inboxes.remove(&id);
                         }));
