@@ -23,7 +23,7 @@ use core::{
         ego::{Ego, PeerEgo, Status, WorkState, WorkStatus},
         transaction::*,
     },
-    utils::constants::CONFIG,
+    utils::constants::{CONFIG, HASH_LEN},
 };
 use vm::performance::Performance;
 use vm::vm::{Mailbox, VM};
@@ -81,7 +81,7 @@ impl Stage {
                 oddsketch.insert(&tx);
                 minisketch.insert(&tx);
             }
-            let root = Bytes::new(); // TODO: Actually generate bytes
+            let root = Bytes::from(&[0; HASH_LEN][..]); // TODO: Actually generate bytes
             let mut ego_bus_guard = self.ego_bus.lock().unwrap();
             ego_guard.update_oddsketch(oddsketch.clone());
             ego_guard.update_minisketch(minisketch);
