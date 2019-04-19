@@ -15,6 +15,7 @@ use rand::rngs::ThreadRng;
 use rand::RngCore;
 use std::fs::File;
 use std::io::Write;
+use std::io::Read;
 
 use ckb_vm::{
     CoreMachine, DefaultCoreMachine, DefaultMachineBuilder, Error, Memory, Register, SparseMemory,
@@ -54,7 +55,6 @@ impl VM {
             child_branch: None,
             store: self.store.clone(),
         };
-
         // Init machine
         let mut machine =
             DefaultMachineBuilder::<DefaultCoreMachine<u64, SparseMemory<u64>>>::default()

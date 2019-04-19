@@ -48,28 +48,27 @@ impl Arena {
             let mut best_distance = 1024;
             let mut best_index = 0;
             for (i, guard) in participants.iter().enumerate() {
-                let mut i_distance = participants
-                    .iter()
-                    .filter_map(|guard_inner| match guard_inner.get_work_site() {
-                        Some(work_site) => Some(work_site.mine(&guard.get_oddsketch())),
-                        None => None,
-                    })
-                    .sum();
+                match guard.get_work_site() {
+                    Some(work_site) => {
+                        let mut i_distance = participants
+                        .iter()
+                        .map(|guard_inner| work_site.mine(&guard_inner.get_oddsketch())) // TODO: Should we filter non-miners here?
+                        .sum();
 
-                i_distance += ego_guard.get_work_site().mine(&guard.get_oddsketch());
-                if i_distance < best_distance {
-                    best_index = i;
-                    best_distance = i_distance;
+                        i_distance += ego_guard.get_work_site().mine(&guard.get_oddsketch());
+                        if i_distance < best_distance {
+                            best_index = i;
+                            best_distance = i_distance;
+                        }
+                    },
+                    None => ()
                 }
             }
 
             let mut self_distance: u16 = participants
                 .iter()
-                .filter_map(|guard_inner| match guard_inner.get_work_site() {
-                    Some(work_site) => Some(work_site.mine(&ego_guard.get_oddsketch())),
-                    None => None,
-                })
-                .sum();
+                .map(|guard_inner| ego_guard.get_work_site().mine(&guard_inner.get_oddsketch()))
+                .sum(); // TODO: Should we filter non-miners here?
             self_distance += ego_guard.get_current_distance();
 
             println!("self distance {}", self_distance);
