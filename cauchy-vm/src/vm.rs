@@ -14,14 +14,14 @@ use futures::Async;
 use rand::rngs::ThreadRng;
 use rand::RngCore;
 use std::fs::File;
-use std::io::Write;
-use std::io::Read;
+
 
 use ckb_vm::{
     CoreMachine, DefaultCoreMachine, DefaultMachineBuilder, Error, Memory, Register, SparseMemory,
     SupportMachine, Syscalls, A0, A1, A2, A3, A4, A5, A6, A7, S1, S2,
 };
-
+use std::io::Read;
+use std::io::Write;
 use crate::performance::Performance;
 use core::crypto::hashes::Identifiable;
 use core::primitives::act::{Act, Message};
@@ -224,27 +224,29 @@ impl<'a, Mac: SupportMachine> Syscalls<Mac> for Session<'a> {
                     let data_sz_addr = machine.registers()[A6].to_usize();
 
                     // Store txid
-                    let sender = msg.get_sender().to_vec();
-                    machine
-                        .memory_mut()
-                        // TODO: Store at maximum the specified numbytes
-                        .store_bytes(txid_addr as usize, &sender)
-                        .unwrap();
+                    if (txid_addr != 0) && (txid_sz_addr != 0) {
+                        let sender = msg.get_sender().to_vec();
+                        machine
+                            .memory_mut()
+                            // TODO: Store at maximum the specified numbytes
+                            .store_bytes(txid_addr as usize, &sender)
+                            .unwrap();
 
-                    // Store txid_sz
-                    machine.set_register(S1, Mac::REG::from_usize(sender.len()));
-
+                        // Store txid_sz
+                        machine.set_register(S1, Mac::REG::from_usize(sender.len()));
+                    }
                     // Store data received
-                    let data = msg.get_payload().to_vec();
-                    machine
-                        .memory_mut()
-                        // TODO: Store at maximum the specified numbytes
-                        .store_bytes(data_addr as usize, &data)
-                        .unwrap();
+                    if (data_addr != 0) && (data_sz_addr != 0) {
+                        let data = msg.get_payload().to_vec();
+                        machine
+                            .memory_mut()
+                            // TODO: Store at maximum the specified numbytes
+                            .store_bytes(data_addr as usize, &data)
+                            .unwrap();
 
-                    // Store data_sz
-                    machine.set_register(S2, Mac::REG::from_usize(data.len()));
-                // println!("Receiving message {:X?} of size {:?}", data, data.len());
+                        // Store data_sz
+                        machine.set_register(S2, Mac::REG::from_usize(data.len()));
+                    }
 
                 // Dump memory to file
                 // let mut file = File::create("./memdump.bin").unwrap();
@@ -333,13 +335,14 @@ impl<'a, Mac: SupportMachine> Syscalls<Mac> for Session<'a> {
             }
             // __vm_auxdata(buff, size)
             0xCBFB => {
-                let buffer_addr = machine.registers()[A5].to_usize();
-                let buffer_sz = machine.registers()[A6].to_usize();
+                let addr = machine.registers()[A4].to_usize();
+                let index = machine.registers()[A5].to_usize();
+                let size = machine.registers()[A6].to_usize();
 
                 // TODO: Limit to buffer_sz
                 machine
                     .memory_mut()
-                    .store_bytes(buffer_addr, &self.aux.to_vec())
+                    .store_bytes(addr, &self.aux.to_vec()[index..(index + size)])
                     .unwrap();
                 machine.set_register(S2, Mac::REG::from_usize(self.aux.len()));
 
