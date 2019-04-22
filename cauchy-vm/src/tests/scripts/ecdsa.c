@@ -68,7 +68,8 @@ int default_CSPRNG(uint8_t *dest, unsigned int size)
     return 1;
 }
 
-void _start()
+// void _start()
+void main()
 {
     uint8_t priv[32];
     uint8_t pubkey[64];
@@ -76,15 +77,15 @@ void _start()
     uint8_t sig[64];
     int msg_size = 256;
 
-    const struct uECC_Curve_t * curve = uECC_secp256r1();
+    const struct uECC_Curve_t *curve = uECC_secp256r1();
 
     uECC_make_key(pubkey, priv, curve);
-    __vm_send("PrivKey", 7, priv, 32);
-    __vm_send("PubKey", 6, pubkey, 64);
-
+    // __vm_send("PrivKey", 7, priv, 32);
+    // __vm_send("PubKey", 6, pubkey, 64);
     __vm_auxdata(msg, &msg_size);
 
-    // uECC_sign(priv, msg, 32, sig, curve);
-    __vm_send("Sig", 3, sig, 64);
-    __vm_exit(0);
+    uECC_sign(priv, msg, 32, sig, curve);
+    const int ret = uECC_verify(pubkey, msg, 32, sig, curve);
+    // __vm_send("Sig", 3, sig, 64);
+    __vm_exit(ret);
 }
