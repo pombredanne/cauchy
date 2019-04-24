@@ -38,7 +38,7 @@ More generally, if we have a finite products of sequences, indexed by *A*, (*s*<
 Extending the intuition from earlier, one could imagine two collections of sequences, both indexed by some set *A*, where transitions are performed between sequences with matching indexes.
 
 ## Homomorphisms and Blockchains
-If we have a mapping, *f*: Seq(*Q*) -> *D*, from sequences of *Q* to some set *D* then we may construct a map, *g*:Seq(*P*) -> 2<sup>*Q*</sup>, from sequences of *P* to subsets of *Q*. This can be done as follows:
+If we have a mapping, *f*: Seq(*Q*) -> *D*, from sequences of *Q* to some set *D* then we may construct a map, *g*:Seq(*Q*) -> 2<sup>*D*</sup>, from sequences of *Q* to subsets of *D*. This can be done as follows:
 * *g*((*x*<sub>1</sub>,...,*x*<sub>n</sub>)) = { f(*x*<sub>1</sub>,...,*x*<sub>i</sub>) | 0 < i ≤ n }
 
 This *g* is a homomorphism, preserving the meet semi-lattice structure:
