@@ -32,8 +32,8 @@ We can extend this structure to the cartesian product:
 * <(*x*, *x'*), (*y*, *y'*)> = <*x*, *y*> + <*x'*, *y'*>
 * *d*((*x*, *x'*), (*y*, *y'*)) = *d*(*x*, *y*) + *d*(*x'*, *y'*)
 
-More generally, if we have a finite products of sequences, indexed by *A*, (*s*<sub>*a*</sub>)<sub>*a* in *A*</sub> and (*t*<sub>*a*</sub>)<sub>*a* in *A*</sub> then:
-* *d*((*s*<sub>*a*</sub>)<sub>*a* in *A*</sub>, (*t*<sub>*a*</sub>)<sub>*a* in *A*</sub>) = Sum over *a* in *A* of d(*s*<sub>*a*</sub>, *t*<sub>*a*</sub>).
+More generally, if we have a two finite products of sequences indexed by *A*, (*x*<sub>*a*</sub>)<sub>*a* in *A*</sub> and (*y*<sub>*a*</sub>)<sub>*a* in *A*</sub>, then:
+* *d*((*x*<sub>*a*</sub>)<sub>*a* in *A*</sub>, (*y*<sub>*a*</sub>)<sub>*a* in *A*</sub>) = Sum over *a* in *A* of d(*x*<sub>*a*</sub>, *y*<sub>*a*</sub>).
 
 Extending the intuition from earlier, one could imagine two collections of sequences, both indexed by some set *A*, where transitions are performed between sequences with matching indexes.
 
@@ -47,4 +47,10 @@ This *g* is a homomorphism, preserving the meet semi-lattice structure:
 If *f* is injective then so is *g*. An injective *g* additionally preserves distance:
 * d(*x*, *y*) = |*x*| + |*y*| - 2 <*x*, *y*> = |*g*(*x*)| + |*g*(*y*)| - 2 |*g*(*x*) ∩ *g*(*y*)| = |*g*(*x*) ⊖ *g*(*y*)| = d(*g*(*x*), *g*(*y*))
 
-Again, this can be extended to the product of sequences.
+Some such *f* is found in blockchain structures, where 
+* *Q* is the set of ledger states,
+* *x* in Seq(*Q*) is a sequence of states (a history),
+* *D* is the set of hash digests, and
+* *f* takes a sequence of states and maps it injectively to the sequence of chain tips.
+
+In the blockchain scenario d(*x*, *y*) is equivalent to the number of blocks to be removed then added during a reorg.
