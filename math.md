@@ -53,4 +53,4 @@ Some such *f* is found in blockchain structures, where
 * *D* is the set of hash digests, and
 * *f* takes a sequence of states and maps it injectively to the sequence of chain tips.
 
-In the blockchain scenario d(*x*, *y*) is equivalent to the number of blocks to be removed then added during a reorg.
+In the blockchain scenario *d*(*x*, *y*) is equivalent to the number of blocks to be removed then added during a reorg.
