@@ -44,24 +44,25 @@ impl Arena {
             .iter()
             .any(|ego| ego.get_status() == Status::StatePull)
         {
-            // TODO: Make this faster
             let mut best_distance = 1024;
             let mut best_index = 0;
             for (i, guard) in participants.iter().enumerate() {
-                match guard.get_work_site() {
-                    Some(work_site) => {
-                        let mut i_distance = participants
-                        .iter()
-                        .map(|guard_inner| work_site.mine(&guard_inner.get_oddsketch())) // TODO: Should we filter non-miners here?
-                        .sum();
-
-                        i_distance += ego_guard.get_work_site().mine(&guard.get_oddsketch());
-                        if i_distance < best_distance {
-                            best_index = i;
-                            best_distance = i_distance;
-                        }
-                    },
-                    None => ()
+                let oddsketch = guard.get_oddsketch();
+                let distance = 0;
+                for guard_inner in participants.iter() {
+                    match guard_inner.get_work_site() {
+                        Some(work_site) => {
+                            distance += work_site.mine(&oddsketch);
+                            if distance > best_distance {
+                                break
+                            }
+                        }, 
+                        None => ()
+                    }
+                }
+                if distance < best_distance {
+                    best_distance = distance;
+                    best_index = i;
                 }
             }
 
