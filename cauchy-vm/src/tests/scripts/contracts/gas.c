@@ -56,8 +56,8 @@ void main()
         // The amount in the bank is the max-seed
         const uint32_t num_bank_tokens = MAX_TOKENS-seed_amount;
 
-        // The address for the "bank" of tokens is 64, making it inaccesible
-        // from 32-bit addresses.  So even if a key for an address was found,
+        // The address size for the "bank" of tokens is 64, making it inaccesible
+        // from 32-byte addresses.  So even if a key for an address was found,
         // it could not access these tokens.
         __vm_store(STORE_ADDR, 64, &num_bank_tokens, sizeof(uint32_t));
         
