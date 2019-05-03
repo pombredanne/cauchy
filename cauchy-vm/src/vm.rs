@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use bytes::Bytes;
-use core::db::rocksdb::RocksDb;
+use core::db::mongodb::MongoDB;
 use core::db::storing::*;
 use core::db::*;
 use futures::future::ok;
@@ -28,11 +28,11 @@ use core::primitives::act::{Act, Message};
 use core::primitives::transaction::Transaction;
 
 pub struct VM {
-    store: Arc<RocksDb>,
+    store: Arc<MongoDB>,
 }
 
 impl VM {
-    pub fn new(store: Arc<RocksDb>) -> VM {
+    pub fn new(store: Arc<MongoDB>) -> VM {
         VM { store }
     }
 
@@ -98,7 +98,7 @@ pub struct Session<'a> {
     aux: Bytes,
     performance: &'a mut Performance,
     child_branch: Option<oneshot::Receiver<Performance>>,
-    store: Arc<RocksDb>,
+    store: Arc<MongoDB>,
 }
 
 impl<'a> Session<'a> {
@@ -133,13 +133,13 @@ impl<'a> Session<'a> {
     }
 
     fn put_store(&mut self, key: Bytes, value: Bytes) -> Result<(), failure::Error> {
-        let result = self.store.put(&key, &value);
+        let result = self.store.put(&DataType::State, &key, &value);
         self.performance.add_write(&self.id, key, value);
         result
     }
 
     fn get_store(&mut self, key: Bytes) -> Result<Option<Bytes>, failure::Error> {
-        let value = self.store.get(&key);
+        let value = self.store.get(&DataType::State, &key);
         self.performance.add_read(&self.id, key);
         value
     }
@@ -338,6 +338,9 @@ impl<'a, Mac: SupportMachine> Syscalls<Mac> for Session<'a> {
                 let addr = machine.registers()[A4].to_usize();
                 let index = machine.registers()[A5].to_usize();
                 let size = machine.registers()[A6].to_usize();
+
+                // Cap size at length of auxdata
+                let size = if size > self.aux.len() { self.aux.len()} else { size };
 
                 // TODO: Limit to buffer_sz
                 machine

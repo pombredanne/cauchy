@@ -10,7 +10,7 @@ use futures::sync::{mpsc, oneshot};
 use futures::{Future, Stream};
 
 use core::crypto::hashes::Identifiable;
-use core::db::rocksdb::RocksDb;
+use core::db::mongodb::MongoDB;
 use core::db::storing::Storable;
 use core::primitives::act::{Act, Message};
 use core::primitives::transaction::Transaction;
@@ -72,8 +72,8 @@ impl Performance {
     }
 
     pub fn from_tx(
-        tx_db: Arc<RocksDb>,
-        store: Arc<RocksDb>,
+        tx_db: Arc<MongoDB>,
+        store: Arc<MongoDB>,
         tx: Transaction,
     ) -> impl Future<Item = Performance, Error = ()> + Send {
         let (root_send, root_recv) = oneshot::channel();

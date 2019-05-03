@@ -3,11 +3,11 @@ use std::collections::HashSet;
 use bus::Bus;
 use bytes::Bytes;
 
-use ::rocksdb::{Options, DB};
+// use ::rocksdb::{Options, DB};
 use core::{
     crypto::signatures::ecdsa,
     daemon::{Origin, Priority},
-    db::rocksdb::RocksDb,
+    db::mongodb::MongoDB,
     db::storing::Storable,
     db::*,
     net::heartbeats::*,
@@ -29,11 +29,11 @@ use std::time;
 
 fn main() {
     // TODO: Do not destroy DB
-    let mut opts = Options::default();
-    DB::destroy(&opts, TX_DB_PATH);
+    // let mut opts = Options::default();
+    // DB::destroy(&opts, TX_DB_PATH);
 
-    let tx_db = Arc::new(RocksDb::open_db(TX_DB_PATH).unwrap());
-    let store = Arc::new(RocksDb::open_db(STORE_PATH).unwrap());
+    let tx_db = Arc::new(MongoDB::open_db(TX_DB).unwrap());
+    let store = Arc::new(MongoDB::open_db(STORE_DB).unwrap());
 
     let (local_sk, local_pk) = ecdsa::generate_keypair();
 

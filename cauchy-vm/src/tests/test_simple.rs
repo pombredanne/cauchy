@@ -10,7 +10,7 @@ mod test_simple {
     use futures::stream::Stream;
     use futures::sync::{mpsc, oneshot};
 
-    use core::db::rocksdb::RocksDb;
+    use core::db::mongodb::MongoDB;
     use core::db::*;
     use core::primitives::act::Message;
     use core::primitives::transaction::Transaction;
@@ -20,7 +20,7 @@ mod test_simple {
 
     #[test]
     fn test_simple() {
-        let store = RocksDb::open_db(".cauchy/tests/db_vm_test_simple/").unwrap();
+        let store = MongoDB::open_db("test_simple").unwrap();
         // let mut file = File::open("src/tests/scripts/recv_then_sends_to_bob").unwrap();
         // let mut file = File::open("src/tests/scripts/syscall").unwrap();
         // let mut file = File::open("src/tests/scripts/sha256").unwrap();
@@ -78,6 +78,7 @@ mod test_simple {
                         println!("Execution start");
                         let result = vm.run(mailbox, tx, parent_branch);
                         assert!(result.is_ok());
+                        assert_eq!(result.unwrap(), 1);
                         println!("Execution end");
                     })
                 })
@@ -86,7 +87,7 @@ mod test_simple {
 
     // #[test]
     fn test_ecdsa() {
-        let store = RocksDb::open_db(".cauchy/tests/db_vm_test_ecdsa/").unwrap();
+        let store = MongoDB::open_db("test_ecdsa").unwrap();
         // let mut file = File::open(
         //     "src/tests/scripts_rust/target/riscv64gc-unknown-none-elf/release/scripts_rust",
         // )
@@ -118,7 +119,7 @@ mod test_simple {
 
     #[test]
     fn test_store() {
-        let store = RocksDb::open_db(".cauchy/tests/db_vm_test_store/").unwrap();
+        let store = MongoDB::open_db("test_store").unwrap();
         let mut file = File::open("src/tests/scripts/basic_store").unwrap();
         let mut script = Vec::new();
         file.read_to_end(&mut script).unwrap();

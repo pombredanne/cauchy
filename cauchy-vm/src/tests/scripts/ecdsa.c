@@ -82,7 +82,7 @@ void main()
     uECC_make_key(pubkey, priv, curve);
     // __vm_send("PrivKey", 7, priv, 32);
     // __vm_send("PubKey", 6, pubkey, 64);
-    __vm_auxdata(msg, &msg_size);
+    __vm_auxdata(msg, 0, msg_size);
 
     uECC_sign(priv, msg, 32, sig, curve);
     const int ret = uECC_verify(pubkey, msg, 32, sig, curve);

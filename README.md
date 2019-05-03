@@ -3,6 +3,7 @@
 ## Build Instructions
 ```bash
 sudo apt install clang
+sudo apt install mongodb
 git clone https://github.com/cauchyteam/cauchy
 cd cauchy
 cargo build --release

@@ -7,8 +7,8 @@ edition = "2018"
 [dependencies]
 core = { package = "cauchy-core", version = "*", path = "../cauchy-core" }
 ckb-vm = { git = "https://github.com/nervosnetwork/ckb-vm", rev="1e52302" }
-# ckb-vm = { path = "./ckb-vm"}
-rocksdb = "*"
+mongodb = "*"
+bson = "*"
 bytes = "*"
 futures = "*"
 tokio = "*"

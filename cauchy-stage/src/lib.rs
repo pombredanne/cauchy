@@ -17,7 +17,7 @@ use core::{
         sketches::{odd_sketch::OddSketch, SketchInsertable},
     },
     daemon::{Origin, Priority},
-    db::{rocksdb::*, storing::Storable},
+    db::{mongodb::*, storing::Storable},
     primitives::{
         act::{Act, Message},
         ego::{Ego, PeerEgo, Status, WorkState, WorkStatus},
@@ -30,16 +30,16 @@ use vm::vm::{Mailbox, VM};
 
 pub struct Stage {
     ego: Arc<Mutex<Ego>>,
-    tx_db: Arc<RocksDb>,
-    store: Arc<RocksDb>,
+    tx_db: Arc<MongoDB>,
+    store: Arc<MongoDB>,
     ego_bus: Arc<Mutex<Bus<(OddSketch, Bytes)>>>,
 }
 
 impl Stage {
     pub fn new(
         ego: Arc<Mutex<Ego>>,
-        tx_db: Arc<RocksDb>,
-        store: Arc<RocksDb>,
+        tx_db: Arc<MongoDB>,
+        store: Arc<MongoDB>,
         ego_bus: Bus<(OddSketch, Bytes)>,
     ) -> Stage {
         Stage {
