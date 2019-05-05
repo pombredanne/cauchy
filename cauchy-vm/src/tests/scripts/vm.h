@@ -80,18 +80,22 @@ void __vm_lookup(const void *const key, uint32_t key_size, void *const buffer, u
         : "a3", "a4", "a5", "a6", "a7");
 }
 
-void __vm_auxdata(void *const buffer, uint32_t *const size)
+// Returns the total number of bytes available in the aux data
+uint32_t __vm_auxdata(void *const buffer, uint32_t index, uint32_t size)
 {
+    uint32_t retsize = 0;
     __asm__ volatile(
-        "mv a5, %1\n\t"
-        "mv a6, %2\n\t"
+        "mv a4, %1\n\t"
+        "mv a5, %2\n\t"
+        "mv a6, %3\n\t"
         "li a7, 0xCBFB\n\t"
         "ecall\n\t"
         "mv %0, s2\n\t"
-        : "=r" (*size)
-        : "r"(buffer), "r"(*size)
-        : "a5", "a6", "a7"
+        : "=r" (retsize)
+        : "r"(buffer), "r"(index), "r"(size)
+        : "a4", "a5", "a6", "a7"
     );
+    return retsize;
 }
 
 void __vm_sendfromaux(uint32_t txidsz, uint32_t datasz)

@@ -16,7 +16,7 @@ members = [
 ]
 
 [dependencies]
-rocksdb = "*"
+mongodb = "*"
 libc = "*"
 bytes = "*"
 dirs = "*"

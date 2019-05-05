@@ -11,7 +11,7 @@ use tokio::prelude::*;
 
 use crate::{
     crypto::sketches::{odd_sketch::*, *},
-    db::{rocksdb::RocksDb, storing::Storable},
+    db::{mongodb::MongoDB, storing::Storable},
     net::{heartbeats::*, messages::*},
     primitives::{
         arena::Arena,
@@ -35,7 +35,7 @@ pub enum Origin {
 }
 
 pub fn server(
-    tx_db: Arc<RocksDb>,
+    tx_db: Arc<MongoDB>,
     ego: Arc<Mutex<Ego>>,
     socket_recv: mpsc::Receiver<TcpStream>,
     arena: Arc<Mutex<Arena>>,

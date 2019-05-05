@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use bytes::Bytes;
-use core::db::rocksdb::RocksDb;
+use core::db::mongodb::MongoDB;
 use core::db::storing::*;
 use core::db::*;
 use futures::future::ok;
@@ -14,24 +14,25 @@ use futures::Async;
 use rand::rngs::ThreadRng;
 use rand::RngCore;
 use std::fs::File;
-use std::io::Write;
+
 
 use ckb_vm::{
     CoreMachine, DefaultCoreMachine, DefaultMachineBuilder, Error, Memory, Register, SparseMemory,
     SupportMachine, Syscalls, A0, A1, A2, A3, A4, A5, A6, A7, S1, S2,
 };
-
+use std::io::Read;
+use std::io::Write;
 use crate::performance::Performance;
 use core::crypto::hashes::Identifiable;
 use core::primitives::act::{Act, Message};
 use core::primitives::transaction::Transaction;
 
 pub struct VM {
-    store: Arc<RocksDb>,
+    store: Arc<MongoDB>,
 }
 
 impl VM {
-    pub fn new(store: Arc<RocksDb>) -> VM {
+    pub fn new(store: Arc<MongoDB>) -> VM {
         VM { store }
     }
 
@@ -54,7 +55,6 @@ impl VM {
             child_branch: None,
             store: self.store.clone(),
         };
-
         // Init machine
         let mut machine =
             DefaultMachineBuilder::<DefaultCoreMachine<u64, SparseMemory<u64>>>::default()
@@ -98,7 +98,7 @@ pub struct Session<'a> {
     aux: Bytes,
     performance: &'a mut Performance,
     child_branch: Option<oneshot::Receiver<Performance>>,
-    store: Arc<RocksDb>,
+    store: Arc<MongoDB>,
 }
 
 impl<'a> Session<'a> {
@@ -133,13 +133,13 @@ impl<'a> Session<'a> {
     }
 
     fn put_store(&mut self, key: Bytes, value: Bytes) -> Result<(), failure::Error> {
-        let result = self.store.put(&key, &value);
+        let result = self.store.put(&DataType::State, &key, &value);
         self.performance.add_write(&self.id, key, value);
         result
     }
 
     fn get_store(&mut self, key: Bytes) -> Result<Option<Bytes>, failure::Error> {
-        let value = self.store.get(&key);
+        let value = self.store.get(&DataType::State, &key);
         self.performance.add_read(&self.id, key);
         value
     }
@@ -224,27 +224,29 @@ impl<'a, Mac: SupportMachine> Syscalls<Mac> for Session<'a> {
                     let data_sz_addr = machine.registers()[A6].to_usize();
 
                     // Store txid
-                    let sender = msg.get_sender().to_vec();
-                    machine
-                        .memory_mut()
-                        // TODO: Store at maximum the specified numbytes
-                        .store_bytes(txid_addr as usize, &sender)
-                        .unwrap();
+                    if (txid_addr != 0) && (txid_sz_addr != 0) {
+                        let sender = msg.get_sender().to_vec();
+                        machine
+                            .memory_mut()
+                            // TODO: Store at maximum the specified numbytes
+                            .store_bytes(txid_addr as usize, &sender)
+                            .unwrap();
 
-                    // Store txid_sz
-                    machine.set_register(S1, Mac::REG::from_usize(sender.len()));
-
+                        // Store txid_sz
+                        machine.set_register(S1, Mac::REG::from_usize(sender.len()));
+                    }
                     // Store data received
-                    let data = msg.get_payload().to_vec();
-                    machine
-                        .memory_mut()
-                        // TODO: Store at maximum the specified numbytes
-                        .store_bytes(data_addr as usize, &data)
-                        .unwrap();
+                    if (data_addr != 0) && (data_sz_addr != 0) {
+                        let data = msg.get_payload().to_vec();
+                        machine
+                            .memory_mut()
+                            // TODO: Store at maximum the specified numbytes
+                            .store_bytes(data_addr as usize, &data)
+                            .unwrap();
 
-                    // Store data_sz
-                    machine.set_register(S2, Mac::REG::from_usize(data.len()));
-                // println!("Receiving message {:X?} of size {:?}", data, data.len());
+                        // Store data_sz
+                        machine.set_register(S2, Mac::REG::from_usize(data.len()));
+                    }
 
                 // Dump memory to file
                 // let mut file = File::create("./memdump.bin").unwrap();
@@ -333,13 +335,17 @@ impl<'a, Mac: SupportMachine> Syscalls<Mac> for Session<'a> {
             }
             // __vm_auxdata(buff, size)
             0xCBFB => {
-                let buffer_addr = machine.registers()[A5].to_usize();
-                let buffer_sz = machine.registers()[A6].to_usize();
+                let addr = machine.registers()[A4].to_usize();
+                let index = machine.registers()[A5].to_usize();
+                let size = machine.registers()[A6].to_usize();
+
+                // Cap size at length of auxdata
+                let size = if size > self.aux.len() { self.aux.len()} else { size };
 
                 // TODO: Limit to buffer_sz
                 machine
                     .memory_mut()
-                    .store_bytes(buffer_addr, &self.aux.to_vec())
+                    .store_bytes(addr, &self.aux.to_vec()[index..(index + size)])
                     .unwrap();
                 machine.set_register(S2, Mac::REG::from_usize(self.aux.len()));
 

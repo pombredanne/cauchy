@@ -5,7 +5,8 @@ authors = ["Harry <hlbarber93@gmail.com>", "Chris Novick <c.r.novick@protonmail.
 edition = "2018"
 
 [dependencies]
-rocksdb = "*"
+mongodb = "*"
+bson = "*"
 libc = "*"
 bytes = "*"
 dirs = "*"

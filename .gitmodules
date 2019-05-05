@@ -1,0 +1,3 @@
+[submodule "cauchy-vm/src/tests/scripts/tinycrypt"]
+	path = cauchy-vm/src/tests/scripts/tinycrypt
+	url = https://github.com/cauchyteam/tinycrypt
