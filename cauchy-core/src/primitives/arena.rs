@@ -48,7 +48,7 @@ impl Arena {
             let mut best_index = 0;
             for (i, guard) in participants.iter().enumerate() {
                 let oddsketch = guard.get_oddsketch();
-                let distance = 0;
+                let mut distance = 0;
                 for guard_inner in participants.iter() {
                     match guard_inner.get_work_site() {
                         Some(work_site) => {
