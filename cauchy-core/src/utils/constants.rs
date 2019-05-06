@@ -10,6 +10,7 @@ use std::fs;
 use std::io::Read;
 
 use lazy_static::lazy_static;
+use log::warn;
 use serde_derive::Deserialize;
 
 #[derive(Deserialize)]
@@ -31,6 +32,9 @@ pub struct Debugging {
     pub DECODING_VERBOSE: bool,
     pub PARSING_VERBOSE: bool,
     pub STAGE_VERBOSE: bool,
+    pub RPC_VERBOSE: bool,
+    pub MINING_VERBOSE: bool,
+    pub EGO_VERBOSE: bool
 }
 
 #[derive(Deserialize)]
@@ -62,7 +66,7 @@ pub fn default_config() -> CoreConfig {
             N_MINING_THREADS: 2,
         },
         DEBUGGING: Debugging {
-            TEST_TX_INTERVAL: 500,
+            TEST_TX_INTERVAL: 500, // TODO: Remove?
             ARENA_VERBOSE: false,
             HEARTBEAT_VERBOSE: false,
             DAEMON_VERBOSE: false,
@@ -70,6 +74,9 @@ pub fn default_config() -> CoreConfig {
             DECODING_VERBOSE: false,
             PARSING_VERBOSE: false,
             STAGE_VERBOSE: true,
+            RPC_VERBOSE: true,
+            MINING_VERBOSE: true,
+            EGO_VERBOSE: true
         },
     }
 }
@@ -85,15 +92,13 @@ pub fn load_config() -> CoreConfig {
             match toml::from_str(&contents) {
                 Ok(config) => config,
                 Err(e) => {
-                    println!("config file failed to parse {:?}", e);
-                    println!("using default configuration");
+                    warn!(target: "startup_event", "config file failed to parse {:?}, using default configuration", e);
                     default_config()
                 }
             }
         }
         Err(e) => {
-            println!("config file could not be read = {:?}", e);
-            println!("using default configuration");
+            warn!(target: "startup_event", "config file could not be read = {:?}, using default configuration", e);
             default_config()
         }
     }

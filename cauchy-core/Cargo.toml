@@ -21,6 +21,7 @@ lazy_static = "*"
 serde_derive = "*"
 serde = "*"
 itertools = "*"
+log = "*"
 
 [dependencies.secp256k1]
 version = "*"

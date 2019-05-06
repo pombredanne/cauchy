@@ -2,7 +2,17 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex, MutexGuard};
 
-use crate::{net::messages::Message, primitives::ego::*};
+use log::info;
+
+use crate::{net::messages::Message, primitives::ego::*, utils::constants::CONFIG};
+
+macro_rules! arena_info {
+    ($($arg:tt)*) => {
+        if CONFIG.DEBUGGING.ARENA_VERBOSE {
+            info!(target: "arena_event", $($arg)*);
+        }
+    };
+}
 
 pub struct Arena {
     ego: Arc<Mutex<Ego>>,
@@ -54,10 +64,10 @@ impl Arena {
                         Some(work_site) => {
                             distance += work_site.mine(&oddsketch);
                             if distance > best_distance {
-                                break
+                                break;
                             }
-                        }, 
-                        None => ()
+                        }
+                        None => (),
                     }
                 }
                 if distance < best_distance {
@@ -72,12 +82,12 @@ impl Arena {
                 .sum(); // TODO: Should we filter non-miners here?
             self_distance += ego_guard.get_current_distance();
 
-            println!("self distance {}", self_distance);
-            println!("best peer distance {}", best_distance);
+            arena_info!("self distance {}", self_distance);
+            arena_info!("best peer distance {}", best_distance);
             if self_distance < best_distance {
-                println!("leading");
+                arena_info!("leading");
             } else {
-                println!("sent reconcile");
+                arena_info!("sent reconcile");
                 participants[best_index].update_status(Status::StatePull);
                 participants[best_index].send_msg(Message::Reconcile);
             }

@@ -2,6 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use failure::Error;
 use futures::future::ok;
+use log::info;
 use tokio::prelude::*;
 use tokio::timer::Interval;
 
@@ -25,7 +26,7 @@ pub fn heartbeat_work(
                 || peer_ego_guard.get_work_status() == WorkStatus::Waiting
             {
                 if CONFIG.DEBUGGING.HEARTBEAT_VERBOSE {
-                    println!(
+                    info!(target: "heartbeat_event",
                         "work heartbeat paused while {}",
                         peer_ego_guard.get_status().to_str()
                     )

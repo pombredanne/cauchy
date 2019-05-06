@@ -15,17 +15,16 @@ use rand::rngs::ThreadRng;
 use rand::RngCore;
 use std::fs::File;
 
-
+use crate::performance::Performance;
 use ckb_vm::{
     CoreMachine, DefaultCoreMachine, DefaultMachineBuilder, Error, Memory, Register, SparseMemory,
     SupportMachine, Syscalls, A0, A1, A2, A3, A4, A5, A6, A7, S1, S2,
 };
-use std::io::Read;
-use std::io::Write;
-use crate::performance::Performance;
 use core::crypto::hashes::Identifiable;
 use core::primitives::act::{Act, Message};
 use core::primitives::transaction::Transaction;
+use std::io::Read;
+use std::io::Write;
 
 pub struct VM {
     store: Arc<MongoDB>,
@@ -340,7 +339,11 @@ impl<'a, Mac: SupportMachine> Syscalls<Mac> for Session<'a> {
                 let size = machine.registers()[A6].to_usize();
 
                 // Cap size at length of auxdata
-                let size = if size > self.aux.len() { self.aux.len()} else { size };
+                let size = if size > self.aux.len() {
+                    self.aux.len()
+                } else {
+                    size
+                };
 
                 // TODO: Limit to buffer_sz
                 machine

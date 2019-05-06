@@ -6,7 +6,7 @@ use failure::Error;
 
 use crate::{crypto::hashes::*, primitives::transaction::*, utils::serialisation::*};
 
-use super::{mongodb::*,*};
+use super::{mongodb::*, *};
 
 pub trait Storable<U> {
     fn from_db(db: Arc<MongoDB>, id: &Bytes) -> Result<Option<U>, Error>;

@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex};
 use failure::Error;
 use futures::sync::mpsc;
 use futures::Future;
+use log::{error, info, warn};
 use tokio::codec::Framed;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::prelude::*;
@@ -24,6 +25,30 @@ use crate::{
     },
 };
 
+macro_rules! daemon_info {
+    ($($arg:tt)*) => {
+        if CONFIG.DEBUGGING.DAEMON_VERBOSE {
+            info!(target: "daemon_event", $($arg)*);
+        }
+    };
+}
+
+macro_rules! daemon_warn {
+    ($($arg:tt)*) => {
+        if CONFIG.DEBUGGING.DAEMON_VERBOSE {
+            warn!(target: "daemon_event", $($arg)*);
+        }
+    };
+}
+
+macro_rules! daemon_error {
+    ($($arg:tt)*) => {
+        if CONFIG.DEBUGGING.DAEMON_VERBOSE {
+            error!(target: "daemon_event", $($arg)*);
+        }
+    };
+}
+
 pub enum Priority {
     Force,
     Standard,
@@ -41,9 +66,7 @@ pub fn server(
     arena: Arc<Mutex<Arena>>,
     to_stage: mpsc::Sender<(Origin, HashSet<Transaction>, Priority)>,
 ) -> impl Future<Item = (), Error = ()> + Send + 'static {
-    if CONFIG.DEBUGGING.DAEMON_VERBOSE {
-        println!("spawning daemon");
-    }
+    daemon_info!("spawning deamon");
 
     // Bind socket
     let addr = format!("0.0.0.0:{}", CONFIG.NETWORK.SERVER_PORT).to_string();
@@ -56,13 +79,11 @@ pub fn server(
         .incoming()
         .map_err(|err| Error::from(DaemonError::SocketAcceptanceFailure { err }))
         .select(socket_recv.map_err(|err| Error::from(DaemonError::Unreachable)))
-        .map_err(|e| println!("error accepting socket; error = {:?}", e));
+        .map_err(|e| daemon_error!("error accepting socket; error = {:?}", e));
 
     let server = incoming.for_each(move |socket| {
         let socket_addr = socket.peer_addr().unwrap();
-        if CONFIG.DEBUGGING.DAEMON_VERBOSE {
-            println!("new server socket to {}", socket_addr);
-        }
+        daemon_info!("new server socket to {}", socket_addr);
 
         // Construct peer ego
         let (peer_ego, peer_stream) = PeerEgo::new();
@@ -90,27 +111,21 @@ pub fn server(
         let to_stage_inner = to_stage.clone();
         let response_stream = received_stream.filter_map(move |msg| match msg {
             Message::StartHandshake { secret } => {
-                if CONFIG.DEBUGGING.DAEMON_VERBOSE {
-                    println!("received handshake initialisation from {}", socket_addr);
-                    println!("replied with handshake finalisation from {}", socket_addr);
-                }
+                daemon_info!("received handshake initialisation from {}", socket_addr);
+                
                 Some(ego_inner.lock().unwrap().generate_end_handshake(secret))
             }
             Message::EndHandshake { pubkey, sig } => {
-                if CONFIG.DEBUGGING.DAEMON_VERBOSE {
-                    println!("received handshake finalisation from {}", socket_addr);
-                }
+                daemon_info!("received handshake finalisation from {}", socket_addr);
 
                 // If peer correctly signs our secret we upgrade them from a dummy pk
                 arc_peer_ego.lock().unwrap().check_handshake(&sig, &pubkey);
                 None
             }
             Message::Nonce { nonce } => {
-                if CONFIG.DEBUGGING.DAEMON_VERBOSE {
-                    println!("received nonce from {}", socket_addr);
-                }
-
                 // Update nonce
+                daemon_info!("received nonce from {}", socket_addr);
+
                 arc_peer_ego.lock().unwrap().pull_nonce(nonce);
                 None
             }
@@ -119,30 +134,27 @@ pub fn server(
                 root,
                 nonce,
             } => {
-                if CONFIG.DEBUGGING.DAEMON_VERBOSE {
-                    println!("received work from {}", socket_addr);
-                }
+                daemon_info!("received work from {}", socket_addr);
+
                 // Lock peer ego
                 let mut peer_ego_guard = arc_peer_ego.lock().unwrap();
 
                 // Update work
                 if peer_ego_guard.get_status() == Status::Gossiping {
-                    if CONFIG.DEBUGGING.DAEMON_VERBOSE {
-                        println!("pull work");
-                    }
+                    info!("pull work from {}", socket_addr);
+
                     peer_ego_guard.pull_work(oddsketch, nonce, root);
                     Some(Message::WorkAck)
                 } else {
-                    if CONFIG.DEBUGGING.DAEMON_VERBOSE {
-                        println!("ignore work");
-                    }
+                    // TODO: Ban here
+                    daemon_warn!("ignoring work from {}", socket_addr);
+
                     Some(Message::WorkNegAck)
                 }
             }
             Message::MiniSketch { minisketch } => {
-                if CONFIG.DEBUGGING.DAEMON_VERBOSE {
-                    println!("received minisketch from {}", socket_addr);
-                }
+                info!("received minisketch from {}", socket_addr);
+
                 // Lock peer ego
                 let mut peer_ego_guard = arc_peer_ego.lock().unwrap();
 
@@ -156,21 +168,20 @@ pub fn server(
                         - minisketch.clone())
                     .decode()
                     .unwrap();
-                    let perception_oddsketch = peer_ego_guard.get_perceived_oddsketch();
-                    println!(
-                        "excess {}, mising {}",
+
+                    daemon_info!(
+                        "minisketch decode reveals excess {} and mising {}",
                         excess_actor_ids.len(),
                         missing_actor_ids.len()
                     );
 
+                    let perception_oddsketch = peer_ego_guard.get_perceived_oddsketch();
                     // Check for fraud
                     if OddSketch::sketch_ids(&excess_actor_ids)
                         .xor(&OddSketch::sketch_ids(&missing_actor_ids))
                         == perception_oddsketch.xor(&peer_oddsketch)
                     {
-                        if CONFIG.DEBUGGING.DAEMON_VERBOSE {
-                            println!("valid minisketch");
-                        }
+                        daemon_info!("minisketch passed validation");
                         // Set expected IDs
                         peer_ego_guard.update_ids(missing_actor_ids.clone());
                         peer_ego_guard.update_expected_minisketch(minisketch);
@@ -179,26 +190,21 @@ pub fn server(
                             ids: missing_actor_ids,
                         })
                     } else {
-                        if CONFIG.DEBUGGING.DAEMON_VERBOSE {
-                            println!("fraudulent minisketch");
-                        }
+                        daemon_error!("fraudulent minisketch from {}", socket_addr);
+                        // TODO: Ban here
                         // Stop reconciliation
                         peer_ego_guard.update_status(Status::Gossiping);
                         None
                     }
                 } else {
-                    if CONFIG.DEBUGGING.DAEMON_VERBOSE {
-                        println!("received minisketch from non-pull target");
-                    }
+                    daemon_error!("received minisketch from non-pull target {}", socket_addr);
                     peer_ego_guard.update_status(Status::Gossiping);
                     None
                 }
             }
             Message::GetTransactions { ids } => {
                 // TODO: Check if reconcilee?
-                if CONFIG.DEBUGGING.DAEMON_VERBOSE {
-                    println!("received transaction request from {}", socket_addr);
-                }
+                daemon_info!("received transaction request from {}", socket_addr);
 
                 // Lock peer ego
                 let mut peer_ego_guard = arc_peer_ego.lock().unwrap();
@@ -217,36 +223,24 @@ pub fn server(
                             txs.insert(tx);
                         }
                         Err(err) => {
-                            if CONFIG.DEBUGGING.DAEMON_VERBOSE {
-                                println!("database error {:?}", err);
-                            }
+                            daemon_error!("database error {:?}", err);
                             peer_ego_guard.update_status(Status::Gossiping);
                             return None;
                         }
                         Ok(None) => {
-                            if CONFIG.DEBUGGING.DAEMON_VERBOSE {
-                                println!("transaction {:?} not found", id);
-                            }
+                            daemon_error!("transaction {:?} not found", id);
                             peer_ego_guard.update_status(Status::Gossiping);
                             return None;
                         }
                     }
                 }
                 // Send transactions
-                if CONFIG.DEBUGGING.DAEMON_VERBOSE {
-                    println!(
-                        "replying to {} with {} transactions",
-                        socket_addr,
-                        txs.len()
-                    );
-                }
+                daemon_info!("replying to {} with {} transactions", socket_addr, txs.len());
                 peer_ego_guard.update_status(Status::Gossiping);
                 Some(Message::Transactions { txs })
             }
             Message::Transactions { txs } => {
-                if CONFIG.DEBUGGING.DAEMON_VERBOSE {
-                    println!("received transactions from {}", socket_addr);
-                }
+                daemon_info!("received transactions from {}", socket_addr);
 
                 // Add new txs to database
                 // TODO: Fix danger here and do this incrementally if not pulling
@@ -265,52 +259,42 @@ pub fn server(
                 None
             }
             Message::Reconcile => {
-                if CONFIG.DEBUGGING.DAEMON_VERBOSE {
-                    println!("received reconcile from {}", socket_addr);
-                }
+                daemon_info!("received reconcile from {}", socket_addr);
+
                 // Lock peer ego
                 let mut peer_ego_guard = arc_peer_ego.lock().unwrap();
 
                 if peer_ego_guard.get_status() == Status::Gossiping {
+                    daemon_info!("replying to {} with minisketch", socket_addr);
+
                     // Send minisketch
                     // Set status of peer push
                     peer_ego_guard.update_status(Status::StatePush);
-
-                    if CONFIG.DEBUGGING.DAEMON_VERBOSE {
-                        println!("replying with minisketch {}", socket_addr);
-                    }
-
                     Some(Message::MiniSketch {
                         minisketch: peer_ego_guard.get_perceived_minisketch(),
                     })
                 } else {
-                    if CONFIG.DEBUGGING.DAEMON_VERBOSE {
-                        println!("replying with negack {}", socket_addr);
-                    }
+                    daemon_info!("replying to {} with work negack", socket_addr);
                     return Some(Message::ReconcileNegAck);
                 }
             }
             Message::WorkAck => {
+                daemon_info!("received work ack from {}", socket_addr);
+
                 let mut peer_ego_guard = arc_peer_ego.lock().unwrap();
-                if CONFIG.DEBUGGING.DAEMON_VERBOSE {
-                    println!("received work ack from {}", socket_addr);
-                }
                 peer_ego_guard.update_work_status(WorkStatus::Ready);
                 peer_ego_guard.push_work();
                 None
             }
             Message::WorkNegAck => {
+                daemon_info!("received work ack from {}", socket_addr);
+
                 let mut peer_ego_guard = arc_peer_ego.lock().unwrap();
-                if CONFIG.DEBUGGING.DAEMON_VERBOSE {
-                    println!("received work ack from {}", socket_addr);
-                }
                 peer_ego_guard.update_work_status(WorkStatus::Ready);
                 None
             }
             Message::ReconcileNegAck => {
-                if CONFIG.DEBUGGING.DAEMON_VERBOSE {
-                    println!("received reconcile negack from {}", socket_addr);
-                }
+                daemon_info!("received reconcile negack from {}", socket_addr);
                 let mut peer_ego_guard = arc_peer_ego.lock().unwrap();
                 if peer_ego_guard.get_status() == Status::StatePull {
                     peer_ego_guard.update_status(Status::Gossiping);
@@ -332,7 +316,7 @@ pub fn server(
             .send_all(out_stream)
             .map(|_| ())
             .or_else(move |e| {
-                println!("socket error {:?}", e);
+                daemon_error!("socket error {:?}", e);
                 arena_inner.lock().unwrap().remove_peer(&socket_addr);
                 Ok(())
             });

@@ -8,7 +8,7 @@ use failure::Error;
 
 pub enum DataType {
     TX,
-    State
+    State,
 }
 
 pub trait Database<DB> {

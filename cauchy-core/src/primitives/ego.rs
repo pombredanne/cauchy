@@ -3,6 +3,7 @@ use std::sync::{Arc, Mutex};
 
 use bus::BusReader;
 use bytes::Bytes;
+use log::info;
 use futures::sync::mpsc::{channel, Receiver, Sender};
 use futures::{Future, Sink};
 use secp256k1::{PublicKey, SecretKey, Signature};
@@ -14,10 +15,18 @@ use crate::{
         sketches::{dummy_sketch::DummySketch, odd_sketch::OddSketch, SketchInsertable},
     },
     net::messages::*,
-    utils::constants::HASH_LEN,
+    utils::constants::{CONFIG, HASH_LEN},
 };
 
 use super::{transaction::Transaction, varint::VarInt, work_site::WorkSite};
+
+macro_rules! ego_info {
+    ($($arg:tt)*) => {
+        if CONFIG.DEBUGGING.EGO_VERBOSE {
+            info!(target: "ego_event", $($arg)*);
+        }
+    };
+}
 
 pub struct Ego {
     pubkey: PublicKey,
@@ -329,12 +338,12 @@ impl PeerEgo {
     }
 
     pub fn update_status(&mut self, status: Status) {
-        println!("{} -> {}", self.status.to_str(), status.to_str());
+        ego_info!("{} -> {}", self.status.to_str(), status.to_str());
         self.status = status;
     }
 
     pub fn update_work_status(&mut self, work_status: WorkStatus) {
-        println!("{} -> {}", self.work_status.to_str(), work_status.to_str());
+        ego_info!("{} -> {}", self.work_status.to_str(), work_status.to_str());
         self.work_status = work_status;
     }
 

@@ -1,4 +1,5 @@
 use bytes::{Buf, Bytes};
+use log::info;
 use failure::Error;
 
 use std::collections::HashSet;
@@ -10,15 +11,21 @@ use crate::{
 
 use super::{constants::*, errors::VarIntParseError};
 
+macro_rules! parsing_info {
+    ($($arg:tt)*) => {
+        if CONFIG.DEBUGGING.MINING_VERBOSE {
+            info!(target: "parsing_event", $($arg)*);
+        }
+    };
+}
+
 pub trait Parsable<U> {
     fn parse_buf<T: Buf>(buf: &mut T) -> Result<Option<(U, usize)>, Error>;
 }
 
 impl Parsable<Transaction> for Transaction {
     fn parse_buf<T: Buf>(buf: &mut T) -> Result<Option<(Transaction, usize)>, Error> {
-        if CONFIG.DEBUGGING.PARSING_VERBOSE {
-            println!("begin Transaction parsing");
-        }
+        parsing_info!("begin tx parsing");
         let (vi_time, vi_time_len) = match VarInt::parse_buf(buf)? {
             Some(some) => some,
             None => return Ok(None),
@@ -43,9 +50,7 @@ impl Parsable<Transaction> for Transaction {
         }
         let mut dst_bin = vec![0; us_bin_len];
         buf.copy_to_slice(&mut dst_bin);
-        if CONFIG.DEBUGGING.PARSING_VERBOSE {
-            println!("finished Transaction parsing");
-        }
+        parsing_info!("finished tx parsing");
         Ok(Some((
             Transaction::new(
                 u64::from(vi_time),
@@ -59,9 +64,7 @@ impl Parsable<Transaction> for Transaction {
 
 impl Parsable<VarInt> for VarInt {
     fn parse_buf<T: Buf>(buf: &mut T) -> Result<Option<(VarInt, usize)>, Error> {
-        if CONFIG.DEBUGGING.PARSING_VERBOSE {
-            println!("begin varint parsing");
-        }
+        parsing_info!("begin varint parsing");
         let mut n: u64 = 0;
         let mut len = 0;
         loop {
@@ -78,9 +81,7 @@ impl Parsable<VarInt> for VarInt {
             if 0x00 != (k & 0x80) {
                 n += 1;
             } else {
-                if CONFIG.DEBUGGING.PARSING_VERBOSE {
-                    println!("finished varint parsing");
-                }
+                parsing_info!("finished varint parsing");
                 return Ok(Some((VarInt::new(n), len)));
             }
         }
@@ -90,9 +91,7 @@ impl Parsable<VarInt> for VarInt {
 impl Parsable<DummySketch> for DummySketch {
     fn parse_buf<T: Buf>(buf: &mut T) -> Result<Option<(DummySketch, usize)>, Error> {
         // TODO: Catch errors
-        if CONFIG.DEBUGGING.PARSING_VERBOSE {
-            println!("begin minisketch parsing");
-        }
+        parsing_info!("begin minisketch parsing");
         let (vi_pos_len, vi_pos_len_len) = match VarInt::parse_buf(buf)? {
             Some(some) => some,
             None => return Ok(None),
@@ -100,9 +99,7 @@ impl Parsable<DummySketch> for DummySketch {
         let us_pos_len = usize::from(vi_pos_len);
         let mut pos_set = HashSet::with_capacity(us_pos_len);
         for i in 0..us_pos_len {
-            if CONFIG.DEBUGGING.PARSING_VERBOSE {
-                println!("ID {} of {}", i, us_pos_len);
-            }
+            parsing_info!("ID {} of {}", i, us_pos_len);
             if buf.remaining() < HASH_LEN {
                 return Ok(None);
             }
@@ -110,9 +107,7 @@ impl Parsable<DummySketch> for DummySketch {
             buf.copy_to_slice(&mut dst_aux);
             pos_set.insert(Bytes::from(dst_aux));
         }
-        if CONFIG.DEBUGGING.PARSING_VERBOSE {
-            println!("finished minisketch parsing");
-        }
+        parsing_info!("finished minisketch parsing");
         Ok(Some((
             DummySketch::sketch_ids(&pos_set),
             vi_pos_len_len + us_pos_len * HASH_LEN,

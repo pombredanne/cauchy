@@ -88,52 +88,55 @@ impl Performance {
         let id = tx.get_id();
         let (first_mailbox, inbox_send) = Mailbox::new(outbox.clone());
         inboxes.insert(id.clone(), inbox_send);
-        tokio::spawn(ok({
+        tokio::spawn(
+            ok({
                 vm.run(first_mailbox, tx, root_send).unwrap();
-            }).and_then(move |_| {
-            // For each new message
-            outbox_recv.for_each(move |(message, parent_branch)| {
-                let receiver_id = message.get_receiver();
-                match inboxes.get(&receiver_id) {
-                    // If receiver already live
-                    Some(inbox_sender) => {
-                        // Relay message to receiver
-                        tokio::spawn(
-                            inbox_sender
-                                .clone()
-                                .send(message)
-                                .map(|_| ())
-                                .map_err(|_| ()),
-                        );
-                        ok(())
-                    }
-                    // If receiver sleeping
-                    None => {
-                        // Load binary
-                        let tx = match Transaction::from_db(tx_db.clone(), &receiver_id) {
-                            Ok(Some(tx)) => tx,
-                            Ok(None) => return err(()),
-                            Err(_) => return err(()),
-                        };
-                        let id = tx.get_id();
-
-                        // Boot receiver
-                        let (new_mailbox, new_inbox_send) = Mailbox::new(outbox.clone());
-
-                        // Add to list of live inboxes
-                        inboxes.insert(tx.get_id(), new_inbox_send);
-
-                        // Run receiver VM
-                        tokio::spawn(ok({
-                            vm.run(new_mailbox, tx, parent_branch).unwrap();
-                            // Remove from live inboxes
-                            inboxes.remove(&id);
-                        }));
-                        ok(())
-                    }
-                }
             })
-        }));
+            .and_then(move |_| {
+                // For each new message
+                outbox_recv.for_each(move |(message, parent_branch)| {
+                    let receiver_id = message.get_receiver();
+                    match inboxes.get(&receiver_id) {
+                        // If receiver already live
+                        Some(inbox_sender) => {
+                            // Relay message to receiver
+                            tokio::spawn(
+                                inbox_sender
+                                    .clone()
+                                    .send(message)
+                                    .map(|_| ())
+                                    .map_err(|_| ()),
+                            );
+                            ok(())
+                        }
+                        // If receiver sleeping
+                        None => {
+                            // Load binary
+                            let tx = match Transaction::from_db(tx_db.clone(), &receiver_id) {
+                                Ok(Some(tx)) => tx,
+                                Ok(None) => return err(()),
+                                Err(_) => return err(()),
+                            };
+                            let id = tx.get_id();
+
+                            // Boot receiver
+                            let (new_mailbox, new_inbox_send) = Mailbox::new(outbox.clone());
+
+                            // Add to list of live inboxes
+                            inboxes.insert(tx.get_id(), new_inbox_send);
+
+                            // Run receiver VM
+                            tokio::spawn(ok({
+                                vm.run(new_mailbox, tx, parent_branch).unwrap();
+                                // Remove from live inboxes
+                                inboxes.remove(&id);
+                            }));
+                            ok(())
+                        }
+                    }
+                })
+            }),
+        );
         root_recv.map_err(|_| ())
     }
 }

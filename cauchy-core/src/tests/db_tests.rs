@@ -5,13 +5,12 @@ mod db_tests {
 
     use crate::{
         crypto::hashes::*,
-        db::{mongodb::MongoDB, storing::*, Database, DataType},
+        db::{mongodb::MongoDB, storing::*, DataType, Database},
         primitives::transaction::*,
     };
 
     #[test]
     fn test_mongodb() {
-
         let key = Bytes::from(&b"testkey"[..]);
         let val = Bytes::from(&b"testval"[..]);
         let db = MongoDB::open_db("tests_db_a").unwrap();

@@ -3,6 +3,7 @@ use std::collections::HashSet;
 use bytes::Bytes;
 use bytes::{Buf, BufMut, BytesMut, IntoBuf};
 use failure::Error;
+use log::info;
 use secp256k1::key::PublicKey;
 use secp256k1::Signature;
 use tokio::codec::{Decoder, Encoder};
@@ -15,6 +16,22 @@ use crate::{
     primitives::{transaction::*, varint::VarInt},
     utils::{constants::*, errors::MalformedMessageError, parsing::*},
 };
+
+macro_rules! encoding_info {
+    ($($arg:tt)*) => {
+        if CONFIG.DEBUGGING.DECODING_VERBOSE {
+            info!(target: "encoding_event", $($arg)*);
+        }
+    };
+}
+
+macro_rules! decoding_info {
+    ($($arg:tt)*) => {
+        if CONFIG.DEBUGGING.DECODING_VERBOSE {
+            info!(target: "decoding_event", $($arg)*);
+        }
+    };
+}
 
 pub enum Message {
     StartHandshake {
@@ -58,24 +75,18 @@ impl Encoder for MessageCodec {
         dst.reserve(1);
         match item {
             Message::StartHandshake { secret } => {
-                if CONFIG.DEBUGGING.ENCODING_VERBOSE {
-                    println!("encoding starthandshake");
-                }
+                encoding_info!("encoding starthandshake");
                 dst.put_u8(0);
                 dst.extend(Bytes::from(VarInt::new(secret)));
             }
             Message::EndHandshake { pubkey, sig } => {
-                if CONFIG.DEBUGGING.ENCODING_VERBOSE {
-                    println!("encoding endhandshake");
-                }
+                encoding_info!("encoding endhandshake");
                 dst.put_u8(1);
                 dst.extend(bytes_from_pubkey(pubkey));
                 dst.extend(bytes_from_sig(sig));
             }
             Message::Nonce { nonce } => {
-                if CONFIG.DEBUGGING.ENCODING_VERBOSE {
-                    println!("encoding nonce");
-                }
+                encoding_info!("encoding nonce");
                 dst.put_u8(2);
                 dst.extend(Bytes::from(VarInt::new(nonce)));
             }
@@ -84,9 +95,7 @@ impl Encoder for MessageCodec {
                 root,
                 nonce,
             } => {
-                if CONFIG.DEBUGGING.ENCODING_VERBOSE {
-                    println!("encoding work");
-                }
+                encoding_info!("encoding work");
                 dst.put_u8(3);
                 // TODO: Variable length
                 //dst.extend(Bytes::from(VarInt::new(sketch.len() as u64)));
@@ -95,16 +104,12 @@ impl Encoder for MessageCodec {
                 dst.extend(Bytes::from(VarInt::new(nonce)));
             }
             Message::MiniSketch { minisketch } => {
-                if CONFIG.DEBUGGING.ENCODING_VERBOSE {
-                    println!("encoding minisketch");
-                }
+                encoding_info!("encoding minisketch");
                 dst.put_u8(4);
                 dst.extend(Bytes::from(minisketch))
             }
             Message::GetTransactions { ids } => {
-                if CONFIG.DEBUGGING.ENCODING_VERBOSE {
-                    println!("encoding tx request");
-                }
+                encoding_info!("encoding tx request");
                 dst.put_u8(5);
                 dst.extend(Bytes::from(VarInt::new(ids.len() as u64)));
                 for id in ids {
@@ -112,9 +117,7 @@ impl Encoder for MessageCodec {
                 }
             }
             Message::Transactions { txs } => {
-                if CONFIG.DEBUGGING.ENCODING_VERBOSE {
-                    println!("encoding txs");
-                }
+                encoding_info!("encoding txs");
                 dst.put_u8(6);
                 let mut payload = BytesMut::new();
                 for tx in txs.into_iter() {
@@ -147,6 +150,7 @@ impl Decoder for MessageCodec {
 
         match buf.get_u8() {
             0 => {
+                decoding_info!("decoding start handshake");
                 let (preimage_vi, len) = match VarInt::parse_buf(&mut buf)? {
                     Some(some) => some,
                     None => return Ok(None),
@@ -159,6 +163,7 @@ impl Decoder for MessageCodec {
                 Ok(Some(msg))
             }
             1 => {
+                decoding_info!("decoding end handshake");
                 if buf.remaining() < PUBKEY_LEN + SIG_LEN {
                     return Ok(None);
                 }
@@ -174,9 +179,7 @@ impl Decoder for MessageCodec {
                 Ok(Some(msg))
             }
             2 => {
-                if CONFIG.DEBUGGING.DECODING_VERBOSE {
-                    println!("decoding nonce");
-                }
+                decoding_info!("decoding nonce");
                 let (nonce_vi, len) = match VarInt::parse_buf(&mut buf)? {
                     Some(some) => some,
                     None => return Ok(None),
@@ -189,9 +192,7 @@ impl Decoder for MessageCodec {
                 Ok(Some(msg))
             }
             3 => {
-                if CONFIG.DEBUGGING.DECODING_VERBOSE {
-                    println!("decoding work");
-                }
+                decoding_info!("decoding work");
                 if buf.remaining() < SKETCH_CAPACITY + HASH_LEN {
                     return Ok(None);
                 }
@@ -215,9 +216,7 @@ impl Decoder for MessageCodec {
                 Ok(Some(msg))
             }
             4 => {
-                if CONFIG.DEBUGGING.DECODING_VERBOSE {
-                    println!("decoding minisketch");
-                }
+                decoding_info!("decoding minisketch");
                 let (minisketch, len) = match DummySketch::parse_buf(&mut buf)? {
                     Some(some) => some,
                     None => return Ok(None),
@@ -227,17 +226,13 @@ impl Decoder for MessageCodec {
                 Ok(Some(msg))
             }
             5 => {
-                if CONFIG.DEBUGGING.DECODING_VERBOSE {
-                    println!("decoding transaction request");
-                }
+                decoding_info!("decoding get transactions");
                 let (n_tx_ids_vi, n_tx_ids_vi_len) = match VarInt::parse_buf(&mut buf)? {
                     Some(some) => some,
                     None => return Ok(None),
                 };
                 let us_n_tx_ids = usize::from(n_tx_ids_vi);
-                if CONFIG.DEBUGGING.DECODING_VERBOSE {
-                    println!("number of txns to decode {}", us_n_tx_ids);
-                }
+                decoding_info!("number of txns to decode {}", us_n_tx_ids);
                 let total_size = us_n_tx_ids * HASH_LEN;
                 let mut ids = HashSet::with_capacity(us_n_tx_ids);
 
@@ -255,9 +250,7 @@ impl Decoder for MessageCodec {
                 }
             }
             6 => {
-                if CONFIG.DEBUGGING.DECODING_VERBOSE {
-                    println!("decoding transactions");
-                }
+                decoding_info!("decoding transactions");
                 let (payload_len_vi, payload_len_len) = match VarInt::parse_buf(&mut buf)? {
                     Some(some) => some,
                     None => return Ok(None),
@@ -276,9 +269,7 @@ impl Decoder for MessageCodec {
                         None => return Ok(None),
                     };
                     txs.insert(tx);
-                    if CONFIG.DEBUGGING.DECODING_VERBOSE {
-                        println!("decoded transaction");
-                    }
+                    decoding_info!("decoded transaction");
                 }
 
                 let msg = Message::Transactions { txs };
@@ -286,36 +277,28 @@ impl Decoder for MessageCodec {
                 Ok(Some(msg))
             }
             7 => {
-                if CONFIG.DEBUGGING.DECODING_VERBOSE {
-                    println!("decoding reconcile");
-                }
+                decoding_info!("decoding reconcile");
                 src.advance(1);
                 Ok(Some(Message::Reconcile))
             }
             8 => {
-                if CONFIG.DEBUGGING.DECODING_VERBOSE {
-                    println!("decoding work ack");
-                }
+                decoding_info!("decoding work ack");
                 src.advance(1);
                 Ok(Some(Message::WorkAck))
             }
             9 => {
-                if CONFIG.DEBUGGING.DECODING_VERBOSE {
-                    println!("decoding work ack");
-                }
+                decoding_info!("decoding work ack");
                 src.advance(1);
                 Ok(Some(Message::WorkNegAck))
             }
             10 => {
-                if CONFIG.DEBUGGING.DECODING_VERBOSE {
-                    println!("decoding reconcile negack");
-                }
+                decoding_info!("decoding reconcile negack");
                 src.advance(1);
                 Ok(Some(Message::ReconcileNegAck))
             }
             _ => {
                 // TODO: Remove malformed msgs
-                println!(
+                decoding_info!(
                     "received malformed msg: {}",
                     String::from_utf8_lossy(&src.clone().freeze())
                 );

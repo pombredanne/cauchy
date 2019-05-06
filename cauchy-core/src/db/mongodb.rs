@@ -24,14 +24,14 @@ impl Database<MongoDB> for MongoDB {
 
     // TODO: Handle unhappy path
     fn get(&self, dtype: &DataType, key: &Bytes) -> Result<Option<Bytes>, Error> {
-        let doc = doc!{ "_id" =>  Bson::Binary(bson::spec::BinarySubtype::Generic, key.to_vec())};
+        let doc = doc! { "_id" =>  Bson::Binary(bson::spec::BinarySubtype::Generic, key.to_vec())};
         match self.db.collection(dtype.as_str()).find_one(Some(doc), None) {
             Ok(Some(found_doc)) => {
                 let val_binary = found_doc.get_binary_generic("val").unwrap();
                 let bytes = Bytes::from(val_binary.to_vec());
                 Ok(Some(bytes))
             }
-            _ => Ok(None)
+            _ => Ok(None),
         }
     }
 

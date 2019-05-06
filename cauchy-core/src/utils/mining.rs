@@ -3,13 +3,22 @@ use std::time;
 
 use bus::BusReader;
 use bytes::Bytes;
+use log::info;
 use secp256k1::PublicKey;
 
 use crate::{
     crypto::sketches::{odd_sketch::OddSketch, SketchInsertable},
     primitives::work_site::WorkSite,
-    utils::constants::HASH_LEN,
+    utils::constants::{HASH_LEN, CONFIG},
 };
+
+macro_rules! mining_info {
+    ($($arg:tt)*) => {
+        if CONFIG.DEBUGGING.MINING_VERBOSE {
+            info!(target: "mining_event", $($arg)*);
+        }
+    };
+}
 
 pub fn mine(
     public_key: PublicKey,
@@ -17,7 +26,7 @@ pub fn mine(
     record_sender: Sender<(u64, u16)>,
     start_nonce: u64,
 ) {
-    println!("Start mining...");
+    mining_info!("mining thread started");
 
     let mut best_nonce: u64;
     let mut best_distance: u16 = 512;
