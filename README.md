@@ -27,7 +27,7 @@ cargo build --release
 ```
 
 ## Configuration
-Configuration is performed via a adding a `config.toml` to your `$HOME\.cauchy\` directory. 
+Configuration is performed via `config.toml` in the `$HOME\.cauchy\` directory. 
 
 ### Example
 
