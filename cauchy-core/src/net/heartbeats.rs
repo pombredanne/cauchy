@@ -17,7 +17,7 @@ pub fn heartbeat_work(
     ego: Arc<Mutex<Ego>>,
     peer_ego: Arc<Mutex<PeerEgo>>,
 ) -> impl futures::stream::Stream<Item = Message, Error = Error> {
-    Interval::new_interval(duration_from_millis(CONFIG.NETWORK.WORK_HEARTBEAT_MS))
+    Interval::new_interval(CONFIG.NETWORK.WORK_HEARTBEAT_MS)
         .filter_map(move |_| {
             // Don't push work to anyone but gossipers
             let ego_guard = ego.lock().unwrap();
@@ -49,7 +49,7 @@ pub fn heartbeat_work(
 // TODO: How does this thread die?
 // TODO: Clean up
 pub fn heartbeat_reconcile(arena: Arc<Mutex<Arena>>) -> impl Future<Item = (), Error = ()> {
-    Interval::new_interval(duration_from_millis(CONFIG.NETWORK.RECONCILE_HEARTBEAT_MS))
+    Interval::new_interval(CONFIG.NETWORK.RECONCILE_HEARTBEAT_MS)
         .map_err(|_| ()) // TODO: Catch
         .for_each(move |_| {
             arena.lock().unwrap().reconcile_leader();

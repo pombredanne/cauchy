@@ -8,23 +8,39 @@ pub const SKETCH_CAPACITY: usize = 32; // TODO: This should become dynamic
 
 use std::fs;
 use std::io::Read;
+use std::time::Duration;
 
 use lazy_static::lazy_static;
 use log::warn;
+use serde::{Deserialize, Deserializer};
 use serde_derive::Deserialize;
+
+use super::timing::duration_from_millis;
 
 #[derive(Deserialize)]
 pub struct Networking {
-    pub WORK_HEARTBEAT_MS: u64,
-    pub RECONCILE_HEARTBEAT_MS: u64,
-    pub RECONCILE_TIMEOUT_MS: u64,
+    #[serde(deserialize_with = "from_u64")]
+    pub WORK_HEARTBEAT_MS: Duration,
+    #[serde(deserialize_with = "from_u64")]
+    pub RECONCILE_HEARTBEAT_MS: Duration,
+    #[serde(deserialize_with = "from_u64")]
+    pub RECONCILE_TIMEOUT_MS: Duration,
     pub SERVER_PORT: u16,
     pub RPC_SERVER_PORT: u16,
 }
 
+fn from_u64<'de, D>(deserializer: D) -> Result<Duration, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let u: u64 = Deserialize::deserialize(deserializer)?;
+    Ok(duration_from_millis(u))
+}
+
 #[derive(Deserialize)]
 pub struct Debugging {
-    pub TEST_TX_INTERVAL: u64,
+    #[serde(deserialize_with = "from_u64")]
+    pub TEST_TX_INTERVAL: Duration,
     pub ARENA_VERBOSE: bool,
     pub HEARTBEAT_VERBOSE: bool,
     pub DAEMON_VERBOSE: bool,
@@ -56,9 +72,9 @@ lazy_static! {
 pub fn default_config() -> CoreConfig {
     CoreConfig {
         NETWORK: Networking {
-            WORK_HEARTBEAT_MS: 1_000,
-            RECONCILE_HEARTBEAT_MS: 30_000,
-            RECONCILE_TIMEOUT_MS: 5_000,
+            WORK_HEARTBEAT_MS: duration_from_millis(1_000),
+            RECONCILE_HEARTBEAT_MS: duration_from_millis(30_000),
+            RECONCILE_TIMEOUT_MS: duration_from_millis(5_000),
             SERVER_PORT: 8332,
             RPC_SERVER_PORT: 8333,
         },
@@ -66,7 +82,7 @@ pub fn default_config() -> CoreConfig {
             N_MINING_THREADS: 2,
         },
         DEBUGGING: Debugging {
-            TEST_TX_INTERVAL: 500, // TODO: Remove?
+            TEST_TX_INTERVAL: duration_from_millis(500), // TODO: Remove?
             ARENA_VERBOSE: false,
             HEARTBEAT_VERBOSE: false,
             DAEMON_VERBOSE: false,
