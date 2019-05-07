@@ -38,6 +38,8 @@ PARSING_VERBOSE = false
 DAEMON_VERBOSE = true
 HEARTBEAT_VERBOSE = true
 STAGE_VERBOSE = false
+EGO_VERBOSE = true
+RPC_VERBOSE = true
 ```
 
 
