@@ -1,4 +1,7 @@
-![Saturn Devouring His Son](https://i.imgur.com/Ahvi7YS.gif)
+# Cauchy Ledger
+Official Rust implementation of the Cauchy Ledger protocol.
+
+[![Build Status](https://travis-ci.com/cauchyteam/cauchy.svg?branch=master)](https://travis-ci.com/cauchyteam/cauchy)
 
 ## Build Instructions
 **Rust 1.34+**
@@ -6,17 +9,12 @@
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
-**Clang**
-```bash
-sudo apt install clang
-```
-
 **Mongodb**
 ```bash
 sudo apt install mongodb
 ```
 
-**Cauchy**
+**Cauchy Ledger**
 ```bash
 git clone https://github.com/cauchyteam/cauchy
 cd cauchy
