@@ -1,9 +1,23 @@
 ![Saturn Devouring His Son](https://i.imgur.com/Ahvi7YS.gif)
 
 ## Build Instructions
+**Rust 1.34+**
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+**Clang**
 ```bash
 sudo apt install clang
+```
+
+**Mongodb**
+```bash
 sudo apt install mongodb
+```
+
+**Cauchy**
+```bash
 git clone https://github.com/cauchyteam/cauchy
 cd cauchy
 cargo build --release
@@ -13,6 +27,7 @@ cargo build --release
 ```bash
 ./target/release/cauchy
 ```
+
 ## Configuration
 Configuration is performed via a adding a `config.toml` to your `$HOME\.cauchy\` directory. 
 
@@ -60,14 +75,7 @@ Further, binaries should be compiled with the following GCC flags:
 ```
 
 ## RISC-V Build Tools for Rust Scripts
-The nightly build of Rust has support for the `riscv64gc-unknown-none-elf` target.  You can switch to nightlies and install this target like this:
-
-```bash
-rustup default nightly
-rustup update
-rustup target add riscv64gc-unknown-none-elf
-```
-After this, your Rust project must contain a `.cargo` directory with a `config` file containing the following:
+Your Rust project must contain a `.cargo` directory with a `config` file containing the following:
 
 ```toml
 [build]
