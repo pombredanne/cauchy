@@ -4,11 +4,11 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use log::info;
 
-use crate::{net::messages::Message, primitives::ego::*, utils::constants::CONFIG};
+use crate::{net::messages::Message, primitives::ego::*, utils::constants::config};
 
 macro_rules! arena_info {
     ($($arg:tt)*) => {
-        if CONFIG.DEBUGGING.ARENA_VERBOSE {
+        if config.debugging.arena_verbose {
             info!(target: "arena_event", $($arg)*);
         }
     };

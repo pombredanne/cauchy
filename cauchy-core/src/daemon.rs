@@ -27,7 +27,7 @@ use crate::{
 
 macro_rules! daemon_info {
     ($($arg:tt)*) => {
-        if CONFIG.DEBUGGING.DAEMON_VERBOSE {
+        if config.debugging.daemon_verbose {
             info!(target: "daemon_event", $($arg)*);
         }
     };
@@ -35,7 +35,7 @@ macro_rules! daemon_info {
 
 macro_rules! daemon_warn {
     ($($arg:tt)*) => {
-        if CONFIG.DEBUGGING.DAEMON_VERBOSE {
+        if config.debugging.daemon_verbose {
             warn!(target: "daemon_event", $($arg)*);
         }
     };
@@ -43,7 +43,7 @@ macro_rules! daemon_warn {
 
 macro_rules! daemon_error {
     ($($arg:tt)*) => {
-        if CONFIG.DEBUGGING.DAEMON_VERBOSE {
+        if config.debugging.daemon_verbose {
             error!(target: "daemon_event", $($arg)*);
         }
     };
@@ -69,7 +69,7 @@ pub fn server(
     daemon_info!("spawning deamon");
 
     // Bind socket
-    let addr = format!("0.0.0.0:{}", CONFIG.NETWORK.SERVER_PORT).to_string();
+    let addr = format!("0.0.0.0:{}", config.network.server_port).to_string();
     let addr = addr.parse::<SocketAddr>().unwrap();
     let listener = TcpListener::bind(&addr)
         .map_err(|_| DaemonError::BindFailure)
@@ -212,12 +212,12 @@ pub fn server(
                 // Find transactions
                 let mut txs = HashSet::with_capacity(ids.len());
                 for id in ids {
-                    // if CONFIG.DEBUGGING.DAEMON_VERBOSE {
+                    // if config.debugging.daemon_verbose {
                     //     println!("searching for transaction {:?}", id);
                     // }
                     match Transaction::from_db(tx_db_inner.clone(), &id) {
                         Ok(Some(tx)) => {
-                            // if CONFIG.DEBUGGING.DAEMON_VERBOSE {
+                            // if config.debugging.daemon_verbose {
                             //     println!("Found {:?}", id);
                             // }
                             txs.insert(tx);

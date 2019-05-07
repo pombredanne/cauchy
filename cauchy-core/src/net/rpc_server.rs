@@ -12,12 +12,12 @@ use crate::{
     daemon::{Origin, Priority},
     net::rpc_messages::*,
     primitives::transaction::Transaction,
-    utils::{constants::CONFIG, errors::DaemonError},
+    utils::{constants::config, errors::DaemonError},
 };
 
 macro_rules! rpc_info {
     ($($arg:tt)*) => {
-        if CONFIG.DEBUGGING.RPC_VERBOSE {
+        if config.debugging.rpc_verbose {
             info!(target: "rpc_event", $($arg)*);
         }
     };
@@ -25,7 +25,7 @@ macro_rules! rpc_info {
 
 macro_rules! rpc_error {
     ($($arg:tt)*) => {
-        if CONFIG.DEBUGGING.RPC_VERBOSE {
+        if config.debugging.rpc_verbose {
             error!(target: "rpc_event", $($arg)*);
         }
     };
@@ -35,7 +35,7 @@ pub fn rpc_server(
     socket_sender: Sender<TcpStream>,
     to_stage: Sender<(Origin, HashSet<Transaction>, Priority)>,
 ) -> impl Future<Item = (), Error = ()> + Send + 'static {
-    let addr = format!("0.0.0.0:{}", CONFIG.NETWORK.RPC_SERVER_PORT).to_string();
+    let addr = format!("0.0.0.0:{}", config.network.rpc_server_port).to_string();
     let addr = addr.parse::<SocketAddr>().unwrap();
 
     let listener = TcpListener::bind(&addr)

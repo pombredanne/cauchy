@@ -19,7 +19,7 @@ use crate::{
 
 macro_rules! encoding_info {
     ($($arg:tt)*) => {
-        if CONFIG.DEBUGGING.DECODING_VERBOSE {
+        if config.debugging.decoding_verbose {
             info!(target: "encoding_event", $($arg)*);
         }
     };
@@ -27,7 +27,7 @@ macro_rules! encoding_info {
 
 macro_rules! decoding_info {
     ($($arg:tt)*) => {
-        if CONFIG.DEBUGGING.DECODING_VERBOSE {
+        if config.debugging.decoding_verbose {
             info!(target: "decoding_event", $($arg)*);
         }
     };

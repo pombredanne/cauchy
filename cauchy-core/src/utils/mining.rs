@@ -9,12 +9,12 @@ use secp256k1::PublicKey;
 use crate::{
     crypto::sketches::{odd_sketch::OddSketch, SketchInsertable},
     primitives::work_site::WorkSite,
-    utils::constants::{HASH_LEN, CONFIG},
+    utils::constants::{HASH_LEN, config},
 };
 
 macro_rules! mining_info {
     ($($arg:tt)*) => {
-        if CONFIG.DEBUGGING.MINING_VERBOSE {
+        if config.debugging.mining_verbose {
             info!(target: "mining_event", $($arg)*);
         }
     };

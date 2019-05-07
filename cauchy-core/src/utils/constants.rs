@@ -18,15 +18,16 @@ use serde_derive::Deserialize;
 use super::timing::duration_from_millis;
 
 #[derive(Deserialize)]
+#[serde(rename_all = "UPPERCASE")]
 pub struct Networking {
     #[serde(deserialize_with = "from_u64")]
-    pub WORK_HEARTBEAT_MS: Duration,
+    pub work_heartbeat_ms: Duration,
     #[serde(deserialize_with = "from_u64")]
-    pub RECONCILE_HEARTBEAT_MS: Duration,
+    pub reconcile_heartbeat_ms: Duration,
     #[serde(deserialize_with = "from_u64")]
-    pub RECONCILE_TIMEOUT_MS: Duration,
-    pub SERVER_PORT: u16,
-    pub RPC_SERVER_PORT: u16,
+    pub reconcile_timeout_ms: Duration,
+    pub server_port: u16,
+    pub rpc_server_port: u16,
 }
 
 fn from_u64<'de, D>(deserializer: D) -> Result<Duration, D::Error>
@@ -40,59 +41,59 @@ where
 #[derive(Deserialize)]
 pub struct Debugging {
     #[serde(deserialize_with = "from_u64")]
-    pub TEST_TX_INTERVAL: Duration,
-    pub ARENA_VERBOSE: bool,
-    pub HEARTBEAT_VERBOSE: bool,
-    pub DAEMON_VERBOSE: bool,
-    pub ENCODING_VERBOSE: bool,
-    pub DECODING_VERBOSE: bool,
-    pub PARSING_VERBOSE: bool,
-    pub STAGE_VERBOSE: bool,
-    pub RPC_VERBOSE: bool,
-    pub MINING_VERBOSE: bool,
-    pub EGO_VERBOSE: bool
+    pub test_tx_interval: Duration,
+    pub arena_verbose: bool,
+    pub heartbeat_verbose: bool,
+    pub daemon_verbose: bool,
+    pub encoding_verbose: bool,
+    pub decoding_verbose: bool,
+    pub parsing_verbose: bool,
+    pub stage_verbose: bool,
+    pub rpc_verbose: bool,
+    pub mining_verbose: bool,
+    pub ego_verbose: bool
 }
 
 #[derive(Deserialize)]
 pub struct Mining {
-    pub N_MINING_THREADS: u8,
+    pub n_mining_threads: u8,
 }
 
 #[derive(Deserialize)]
 pub struct CoreConfig {
-    pub NETWORK: Networking,
-    pub MINING: Mining,
-    pub DEBUGGING: Debugging,
+    pub network: Networking,
+    pub mining: Mining,
+    pub debugging: Debugging,
 }
 
 lazy_static! {
-    pub static ref CONFIG: CoreConfig = load_config();
+    pub static ref config: CoreConfig = load_config();
 }
 
 pub fn default_config() -> CoreConfig {
     CoreConfig {
-        NETWORK: Networking {
-            WORK_HEARTBEAT_MS: duration_from_millis(1_000),
-            RECONCILE_HEARTBEAT_MS: duration_from_millis(30_000),
-            RECONCILE_TIMEOUT_MS: duration_from_millis(5_000),
-            SERVER_PORT: 8332,
-            RPC_SERVER_PORT: 8333,
+        network: Networking {
+            work_heartbeat_ms: duration_from_millis(1_000),
+            reconcile_heartbeat_ms: duration_from_millis(30_000),
+            reconcile_timeout_ms: duration_from_millis(5_000),
+            server_port: 8332,
+            rpc_server_port: 8333,
         },
-        MINING: Mining {
-            N_MINING_THREADS: 2,
+        mining: Mining {
+            n_mining_threads: 2,
         },
-        DEBUGGING: Debugging {
-            TEST_TX_INTERVAL: duration_from_millis(500), // TODO: Remove?
-            ARENA_VERBOSE: false,
-            HEARTBEAT_VERBOSE: false,
-            DAEMON_VERBOSE: false,
-            ENCODING_VERBOSE: false,
-            DECODING_VERBOSE: false,
-            PARSING_VERBOSE: false,
-            STAGE_VERBOSE: true,
-            RPC_VERBOSE: true,
-            MINING_VERBOSE: true,
-            EGO_VERBOSE: true
+        debugging: Debugging {
+            test_tx_interval: duration_from_millis(500), // TODO: Remove?
+            arena_verbose: false,
+            heartbeat_verbose: false,
+            daemon_verbose: false,
+            encoding_verbose: false,
+            decoding_verbose: false,
+            parsing_verbose: false,
+            stage_verbose: true,
+            rpc_verbose: true,
+            mining_verbose: true,
+            ego_verbose: true
         },
     }
 }
@@ -106,7 +107,7 @@ pub fn load_config() -> CoreConfig {
             let mut contents = String::new();
             file.read_to_string(&mut contents);
             match toml::from_str(&contents) {
-                Ok(config) => config,
+                Ok(r_config) => r_config,
                 Err(e) => {
                     warn!(target: "startup_event", "config file failed to parse {:?}, using default configuration", e);
                     default_config()

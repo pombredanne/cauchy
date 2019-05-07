@@ -15,14 +15,14 @@ use crate::{
         sketches::{dummy_sketch::DummySketch, odd_sketch::OddSketch, SketchInsertable},
     },
     net::messages::*,
-    utils::constants::{CONFIG, HASH_LEN},
+    utils::constants::{config, HASH_LEN},
 };
 
 use super::{transaction::Transaction, varint::VarInt, work_site::WorkSite};
 
 macro_rules! ego_info {
     ($($arg:tt)*) => {
-        if CONFIG.DEBUGGING.EGO_VERBOSE {
+        if config.debugging.ego_verbose {
             info!(target: "ego_event", $($arg)*);
         }
     };

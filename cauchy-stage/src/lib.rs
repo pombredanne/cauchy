@@ -23,7 +23,7 @@ use core::{
         ego::{Ego, PeerEgo, Status, WorkState, WorkStatus},
         transaction::*,
     },
-    utils::constants::{CONFIG, HASH_LEN},
+    utils::constants::{config, HASH_LEN},
 };
 use vm::performance::Performance;
 use vm::vm::{Mailbox, VM};
@@ -119,7 +119,7 @@ impl Stage {
     //         if peer_ego_guard.is_expected_payload(&txs) {
     //             // TODO: Send backstage and verify
 
-    //             if CONFIG.DEBUGGING.STAGE_VERBOSE {
+    //             if config.debugging.stage_verbose {
     //                 println!("reconcile transactions sent to stage");
     //             }
 
@@ -134,7 +134,7 @@ impl Stage {
     //             // );
     //         }
     //     } else {
-    //         if CONFIG.DEBUGGING.STAGE_VERBOSE {
+    //         if config.debugging.stage_verbose {
     //             println!("non-reconcile transactions sent to stage");
     //         }
     //     }

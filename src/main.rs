@@ -42,7 +42,7 @@ fn main() {
     let mining_reset = ego_bus.add_rx();
 
     // Spawn mining threads
-    let n_mining_threads: u64 = CONFIG.MINING.N_MINING_THREADS as u64;
+    let n_mining_threads: u64 = config.mining.n_mining_threads as u64;
     if n_mining_threads != 0 {
         let nonce_start_base = std::u64::MAX / n_mining_threads;
         for i in 0..n_mining_threads {
