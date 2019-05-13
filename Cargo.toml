@@ -38,7 +38,7 @@ default-features = false
 features = ["rand", "serde"]
 
 [features]
-native = []
-grpc = []
-json = []
-rest = []
+native-rpc = []
+json-rpc = []
+rest-rpc = []
+g-rpc = []

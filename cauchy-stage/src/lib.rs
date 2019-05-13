@@ -30,22 +30,15 @@ use vm::vm::{Mailbox, VM};
 
 pub struct Stage {
     ego: Arc<Mutex<Ego>>,
-    tx_db: MongoDB,
-    store: MongoDB,
+    db: MongoDB,
     ego_bus: Arc<Mutex<Bus<(OddSketch, Bytes)>>>,
 }
 
 impl Stage {
-    pub fn new(
-        ego: Arc<Mutex<Ego>>,
-        tx_db: MongoDB,
-        store: MongoDB,
-        ego_bus: Bus<(OddSketch, Bytes)>,
-    ) -> Stage {
+    pub fn new(ego: Arc<Mutex<Ego>>, db: MongoDB, ego_bus: Bus<(OddSketch, Bytes)>) -> Stage {
         Stage {
             ego,
-            tx_db,
-            store,
+            db,
             ego_bus: Arc::new(Mutex::new(ego_bus)),
         }
     }
@@ -77,7 +70,7 @@ impl Stage {
             let mut minisketch = ego_guard.get_minisketch();
 
             for tx in txs {
-                tx.to_db(self.tx_db.clone());
+                tx.to_db(self.db.clone());
                 oddsketch.insert(&tx);
                 minisketch.insert(&tx);
             }
@@ -97,7 +90,7 @@ impl Stage {
         priority: Priority,
     ) -> Vec<impl Future<Item = Performance, Error = ()> + Send> {
         txs.into_iter()
-            .map(|tx| Performance::from_tx(self.tx_db.clone(), self.store.clone(), tx.clone()))
+            .map(|tx| Performance::from_tx(self.db.clone(), tx.clone()))
             .collect()
     }
 

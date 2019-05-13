@@ -3,9 +3,9 @@ use std::sync::{Arc, Mutex};
 
 use bus::BusReader;
 use bytes::Bytes;
-use log::info;
 use futures::sync::mpsc::{channel, Receiver, Sender};
 use futures::{Future, Sink};
+use log::info;
 use secp256k1::{PublicKey, SecretKey, Signature};
 
 use crate::{

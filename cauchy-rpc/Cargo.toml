@@ -5,3 +5,9 @@ authors = ["Harry <hlbarber93@gmail.com>", "Chris Novick <c.r.novick@protonmail.
 edition = "2018"
 
 [dependencies]
+core = { package = "cauchy-core", version = "*", path = "../cauchy-core" }
+bytes = "*"
+failure = "*"
+log = "*"
+tokio = "*"
+futures = "*"

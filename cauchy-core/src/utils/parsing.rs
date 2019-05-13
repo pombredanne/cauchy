@@ -1,6 +1,6 @@
 use bytes::{Buf, Bytes};
-use log::info;
 use failure::Error;
+use log::info;
 
 use std::collections::HashSet;
 
