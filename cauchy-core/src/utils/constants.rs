@@ -51,7 +51,7 @@ pub struct Debugging {
     pub stage_verbose: bool,
     pub rpc_verbose: bool,
     pub mining_verbose: bool,
-    pub ego_verbose: bool
+    pub ego_verbose: bool,
 }
 
 #[derive(Deserialize)]
@@ -93,7 +93,7 @@ pub fn default_config() -> CoreConfig {
             stage_verbose: true,
             rpc_verbose: true,
             mining_verbose: true,
-            ego_verbose: true
+            ego_verbose: true,
         },
     }
 }

@@ -27,11 +27,11 @@ use std::io::Read;
 use std::io::Write;
 
 pub struct VM {
-    store: Arc<MongoDB>,
+    store: MongoDB,
 }
 
 impl VM {
-    pub fn new(store: Arc<MongoDB>) -> VM {
+    pub fn new(store: MongoDB) -> VM {
         VM { store }
     }
 
@@ -97,7 +97,7 @@ pub struct Session<'a> {
     aux: Bytes,
     performance: &'a mut Performance,
     child_branch: Option<oneshot::Receiver<Performance>>,
-    store: Arc<MongoDB>,
+    store: MongoDB,
 }
 
 impl<'a> Session<'a> {

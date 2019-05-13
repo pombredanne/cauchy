@@ -72,14 +72,13 @@ impl Performance {
     }
 
     pub fn from_tx(
-        tx_db: Arc<MongoDB>,
-        store: Arc<MongoDB>,
+        db: MongoDB,
         tx: Transaction,
     ) -> impl Future<Item = Performance, Error = ()> + Send {
         let (root_send, root_recv) = oneshot::channel();
 
         // Create new actor from tx binary
-        let vm = VM::new(store.clone());
+        let vm = VM::new(db.clone());
 
         // Create mail system
         let mut inboxes: HashMap<Bytes, Sender<Message>> = HashMap::new();
@@ -112,7 +111,7 @@ impl Performance {
                         // If receiver sleeping
                         None => {
                             // Load binary
-                            let tx = match Transaction::from_db(tx_db.clone(), &receiver_id) {
+                            let tx = match Transaction::from_db(db.clone(), &receiver_id) {
                                 Ok(Some(tx)) => tx,
                                 Ok(None) => return err(()),
                                 Err(_) => return err(()),

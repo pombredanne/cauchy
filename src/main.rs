@@ -16,27 +16,22 @@ use core::{
     primitives::transaction::Transaction,
     utils::constants::*,
     utils::mining,
-    utils::timing::*,
 };
 use stage::Stage;
 
 use futures::lazy;
 use futures::sync::mpsc;
-use rand::Rng;
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time;
 
 fn main() {
-    // TODO: Do not destroy DB
-    // let mut opts = Options::default();
-    // DB::destroy(&opts, TX_DB_PATH);
+    // Init DB
+    let db = MongoDB::open_db(TX_DB).unwrap();
 
-    let tx_db = Arc::new(MongoDB::open_db(TX_DB).unwrap());
-    let store = Arc::new(MongoDB::open_db(STORE_DB).unwrap());
-
+    // Generate node key pair
     let (local_sk, local_pk) = ecdsa::generate_keypair();
 
+    // Construct distance pipeline
     let (distance_send, distance_recv) = std::sync::mpsc::channel();
     let mut ego_bus = Bus::new(10);
     let mining_reset = ego_bus.add_rx();
@@ -69,21 +64,23 @@ fn main() {
     // Spawn stage manager
     // let (reset_send, reset_recv) = std::sync::mpsc::channel(); // TODO: Reset mining best
     let (to_stage, stage_recv) = mpsc::channel::<(Origin, HashSet<Transaction>, Priority)>(128);
-    let stage = Stage::new(ego.clone(), tx_db.clone(), store.clone(), ego_bus);
+    let stage = Stage::new(ego.clone(), db.clone(), ego_bus);
     let stage_mananger = stage.manager(stage_recv);
 
     // Server
     let (socket_send, socket_recv) = mpsc::channel::<tokio::net::TcpStream>(128);
     let server = core::daemon::server(
-        tx_db.clone(),
+        db.clone(),
         ego.clone(),
         socket_recv,
         arena.clone(),
         to_stage.clone(),
     );
 
-    // RPC Server
-    let rpc_server = core::net::rpc_server::rpc_server(socket_send, to_stage.clone());
+    // Construct RPC server stack
+    let rpc_server_stack = rpc::construct_rpc_stack(socket_send, to_stage.clone(), db.clone());
+
+    // Reconciliation heartbeat
     let reconcile_heartbeat = heartbeat_reconcile(arena.clone());
 
     // Spawn servers
@@ -91,7 +88,9 @@ fn main() {
         tokio::run(lazy(|| {
             tokio::spawn(stage_mananger);
             tokio::spawn(server);
-            tokio::spawn(rpc_server);
+            for server in rpc_server_stack {
+                tokio::spawn(server);
+            }
             tokio::spawn(reconcile_heartbeat);
             Ok(())
         }))

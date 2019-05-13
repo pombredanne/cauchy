@@ -1,19 +1,20 @@
 use std::collections::HashSet;
 use std::net::SocketAddr;
-use std::sync::{Arc, Mutex};
 
 use futures::sync::mpsc::Sender;
 use futures::{future, Future, Sink, Stream};
-use log::{info, error};
+use log::{error, info};
 use tokio::codec::Framed;
 use tokio::net::{TcpListener, TcpStream};
 
-use crate::{
+use core::{
     daemon::{Origin, Priority},
-    net::rpc_messages::*,
+    db::mongodb::MongoDB,
     primitives::transaction::Transaction,
     utils::{constants::config, errors::DaemonError},
 };
+
+use super::messages::{RPCCodec, RPC};
 
 macro_rules! rpc_info {
     ($($arg:tt)*) => {
@@ -31,9 +32,10 @@ macro_rules! rpc_error {
     };
 }
 
-pub fn rpc_server(
+fn server(
     socket_sender: Sender<TcpStream>,
     to_stage: Sender<(Origin, HashSet<Transaction>, Priority)>,
+    tx_db: MongoDB,
 ) -> impl Future<Item = (), Error = ()> + Send + 'static {
     let addr = format!("0.0.0.0:{}", config.network.rpc_server_port).to_string();
     let addr = addr.parse::<SocketAddr>().unwrap();

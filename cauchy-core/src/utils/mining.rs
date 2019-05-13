@@ -9,7 +9,7 @@ use secp256k1::PublicKey;
 use crate::{
     crypto::sketches::{odd_sketch::OddSketch, SketchInsertable},
     primitives::work_site::WorkSite,
-    utils::constants::{HASH_LEN, config},
+    utils::constants::{config, HASH_LEN},
 };
 
 macro_rules! mining_info {

@@ -60,7 +60,7 @@ pub enum Origin {
 }
 
 pub fn server(
-    tx_db: Arc<MongoDB>,
+    tx_db: MongoDB,
     ego: Arc<Mutex<Ego>>,
     socket_recv: mpsc::Receiver<TcpStream>,
     arena: Arc<Mutex<Arena>>,
@@ -112,7 +112,7 @@ pub fn server(
         let response_stream = received_stream.filter_map(move |msg| match msg {
             Message::StartHandshake { secret } => {
                 daemon_info!("received handshake initialisation from {}", socket_addr);
-                
+
                 Some(ego_inner.lock().unwrap().generate_end_handshake(secret))
             }
             Message::EndHandshake { pubkey, sig } => {
@@ -235,7 +235,11 @@ pub fn server(
                     }
                 }
                 // Send transactions
-                daemon_info!("replying to {} with {} transactions", socket_addr, txs.len());
+                daemon_info!(
+                    "replying to {} with {} transactions",
+                    socket_addr,
+                    txs.len()
+                );
                 peer_ego_guard.update_status(Status::Gossiping);
                 Some(Message::Transactions { txs })
             }

@@ -20,7 +20,7 @@ mod test_simple {
 
     #[test]
     fn test_simple() {
-        let store = MongoDB::open_db("test_simple").unwrap();
+        let db = MongoDB::open_db("test_simple").unwrap();
         // let mut file = File::open("src/tests/scripts/recv_then_sends_to_bob").unwrap();
         // let mut file = File::open("src/tests/scripts/syscall").unwrap();
         // let mut file = File::open("src/tests/scripts/sha256").unwrap();
@@ -43,7 +43,7 @@ mod test_simple {
             let (parent_branch, _) = oneshot::channel();
 
             // Init the VM
-            let vm = VM::new(Arc::new(store));
+            let vm = VM::new(db);
 
             // Construct session
             let (outbox, outbox_recv) = mpsc::channel(512);
@@ -87,7 +87,7 @@ mod test_simple {
 
     // #[test]
     fn test_ecdsa() {
-        let store = MongoDB::open_db("test_ecdsa").unwrap();
+        let db = MongoDB::open_db("test_ecdsa").unwrap();
         // let mut file = File::open(
         //     "src/tests/scripts_rust/target/riscv64gc-unknown-none-elf/release/scripts_rust",
         // )
@@ -106,7 +106,7 @@ mod test_simple {
         let (parent_branch, _) = oneshot::channel();
 
         // Init the VM
-        let vm = VM::new(Arc::new(store));
+        let vm = VM::new(db);
 
         // Construct session
         let (outbox, outbox_recv) = mpsc::channel(512);
@@ -119,7 +119,7 @@ mod test_simple {
 
     #[test]
     fn test_store() {
-        let store = MongoDB::open_db("test_store").unwrap();
+        let db = MongoDB::open_db("test_store").unwrap();
         let mut file = File::open("src/tests/scripts/basic_store").unwrap();
         let mut script = Vec::new();
         file.read_to_end(&mut script).unwrap();
@@ -134,7 +134,7 @@ mod test_simple {
         let (parent_branch, _) = oneshot::channel();
 
         // Init the VM
-        let vm = VM::new(Arc::new(store));
+        let vm = VM::new(db);
 
         // Construct session
         let (outbox, outbox_recv) = mpsc::channel(512);
