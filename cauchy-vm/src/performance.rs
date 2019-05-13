@@ -72,8 +72,8 @@ impl Performance {
     }
 
     pub fn from_tx(
-        tx_db: Arc<MongoDB>,
-        store: Arc<MongoDB>,
+        tx_db: MongoDB,
+        store: MongoDB,
         tx: Transaction,
     ) -> impl Future<Item = Performance, Error = ()> + Send {
         let (root_send, root_recv) = oneshot::channel();

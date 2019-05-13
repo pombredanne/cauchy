@@ -30,16 +30,16 @@ use vm::vm::{Mailbox, VM};
 
 pub struct Stage {
     ego: Arc<Mutex<Ego>>,
-    tx_db: Arc<MongoDB>,
-    store: Arc<MongoDB>,
+    tx_db: MongoDB,
+    store: MongoDB,
     ego_bus: Arc<Mutex<Bus<(OddSketch, Bytes)>>>,
 }
 
 impl Stage {
     pub fn new(
         ego: Arc<Mutex<Ego>>,
-        tx_db: Arc<MongoDB>,
-        store: Arc<MongoDB>,
+        tx_db: MongoDB,
+        store: MongoDB,
         ego_bus: Bus<(OddSketch, Bytes)>,
     ) -> Stage {
         Stage {
