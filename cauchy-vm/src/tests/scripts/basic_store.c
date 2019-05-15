@@ -31,9 +31,11 @@ int strcmp (const char *p1, const char *p2)
 
 void _start()
 {
+    char rand[32];
     char buff[128] = {'\0'};
-    __vm_store("TestKey", 7, "TestVal", 7);
-    __vm_lookup("TestKey", 7, buff, 7);
-    uint8_t retval = strcmp(buff, "TestVal");
+    __vm_rand(rand, 32);
+    __vm_store("rand", 8, rand, 32);
+    __vm_lookup("rand", 8, buff, 32);
+    uint8_t retval = strcmp(buff, rand);
     __vm_exit(retval);
 }

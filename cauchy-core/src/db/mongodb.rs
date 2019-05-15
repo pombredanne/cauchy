@@ -22,27 +22,47 @@ impl Database<MongoDB> for MongoDB {
     }
 
     // TODO: Handle unhappy path
-    fn get(&self, dtype: &DataType, key: &Bytes) -> Result<Option<Bytes>, Error> {
-        let doc = doc! { "_id" =>  Bson::Binary(bson::spec::BinarySubtype::Generic, key.to_vec())};
-        match self.0.collection(dtype.as_str()).find_one(Some(doc), None) {
-            Ok(Some(found_doc)) => {
-                let val_binary = found_doc.get_binary_generic("val").unwrap();
-                let bytes = Bytes::from(val_binary.to_vec());
-                Ok(Some(bytes))
-            }
+    fn get(
+        &self,
+        dtype: &DataType,
+        doc: bson::ordered::OrderedDocument,
+    ) -> Result<Option<bson::ordered::OrderedDocument>, Error> {
+        let mut fo = mongodb::coll::options::FindOptions::new();
+        fo.sort = Some(doc!{ "_id" : -1 });
+        match self.0.collection(dtype.as_str()).find_one(Some(doc), Some(fo)) {
+            Ok(Some(found_doc)) => Ok(Some(found_doc)),
             _ => Ok(None),
         }
     }
 
     // TODO: Handle unhappy path
-    fn put(&self, dtype: &DataType, key: &Bytes, value: &Bytes) -> Result<(), Error> {
+    fn put(&self, dtype: &DataType, doc: bson::ordered::OrderedDocument) -> Result<(), Error> {
         self.0
             .collection(dtype.as_str())
-            .insert_one(
-                doc! { "_id" => Bson::Binary(bson::spec::BinarySubtype::Generic, key.to_vec()), "val" => Bson::Binary(bson::spec::BinarySubtype::Generic, value.to_vec()) },
-                None,
-            )
+            .insert_one(doc, None)
             .unwrap();
         Ok(())
+    }
+
+    // TODO: Unhappy path
+    fn update(
+        &self,
+        dtype: &DataType,
+        filter: bson::ordered::OrderedDocument,
+        update: bson::ordered::OrderedDocument,
+    ) -> Result<(i32), Error> {
+        let n = self
+            .0
+            .collection(dtype.as_str())
+            .update_many(filter, update, None)
+            .unwrap().modified_count;
+        Ok(n)
+    }
+}
+
+#[cfg(test)]
+impl MongoDB {
+    pub fn dropall(&self, dtype: &DataType) {
+        self.0.collection(dtype.as_str()).drop().unwrap();
     }
 }

@@ -1,12 +1,15 @@
+#[macro_use(bson, doc)]
+use bson::*;
 use std::convert::TryFrom;
-use std::sync::Arc;
 
 use bytes::Bytes;
 use failure::Error;
 
 use crate::{crypto::hashes::*, primitives::transaction::*, utils::serialisation::*};
 
-use super::{mongodb::*, *};
+use bson::{bson, doc};
+use bson::spec::BinarySubtype;
+use super::{mongodb::MongoDB, DataType, Database};
 
 pub trait Storable<U> {
     fn from_db(db: MongoDB, id: &Bytes) -> Result<Option<U>, Error>;
@@ -15,9 +18,10 @@ pub trait Storable<U> {
 
 impl Storable<Transaction> for Transaction {
     fn from_db(db: MongoDB, tx_id: &Bytes) -> Result<Option<Transaction>, Error> {
-        match db.get(&DataType::TX, tx_id) {
+        match db.get(&DataType::TX, doc! { "_id" =>  Bson::Binary(BinarySubtype::Generic, tx_id.to_vec())}) {
             Ok(Some(some)) => {
-                let tx: Transaction = Self::try_from(some)?;
+                let tx_data = some.get_binary_generic("v").unwrap();
+                let tx: Transaction = Self::try_from(Bytes::from(tx_data.to_vec()))?;
                 Ok(Some(tx))
             }
             Ok(None) => Ok(None),
@@ -26,8 +30,11 @@ impl Storable<Transaction> for Transaction {
     }
 
     fn to_db(&self, db: MongoDB) -> Result<(), Error> {
-        let tx_id = self.get_id();
-        db.put(&DataType::TX, &tx_id, &Bytes::from(self.clone()))?;
+        let doc = doc! { 
+            "_id" => Bson::Binary(BinarySubtype::Generic, self.get_id().to_vec()), 
+            "v" => Bson::Binary(BinarySubtype::Generic, Bytes::from(self.clone()).to_vec())
+            };
+        db.put(&DataType::TX, doc)?;
         Ok(())
     }
 }

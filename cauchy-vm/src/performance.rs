@@ -1,3 +1,4 @@
+#[macro_use(bson, doc)]
 use std::collections::HashMap;
 use std::ops::{Add, AddAssign};
 use std::sync::{Arc, Mutex};
@@ -9,9 +10,13 @@ use futures::sync::mpsc::{Receiver, Sender};
 use futures::sync::{mpsc, oneshot};
 use futures::{Future, Stream};
 
-use core::crypto::hashes::Identifiable;
+use bson::*;
+use bson::spec::BinarySubtype;
 use core::db::mongodb::MongoDB;
 use core::db::storing::Storable;
+use core::db::{DataType, Database};
+use core::crypto::hashes::Identifiable;
+
 use core::primitives::act::{Act, Message};
 use core::primitives::transaction::Transaction;
 
@@ -89,7 +94,9 @@ impl Performance {
         inboxes.insert(id.clone(), inbox_send);
         tokio::spawn(
             ok({
-                vm.run(first_mailbox, tx, root_send).unwrap();
+                vm.run(first_mailbox, tx, id.clone(), root_send).unwrap();
+                // The performance is over
+                Performance::finalize(db.clone(), id.clone());
             })
             .and_then(move |_| {
                 // For each new message
@@ -116,7 +123,7 @@ impl Performance {
                                 Ok(None) => return err(()),
                                 Err(_) => return err(()),
                             };
-                            let id = tx.get_id();
+                            let recvr_id = tx.get_id();
 
                             // Boot receiver
                             let (new_mailbox, new_inbox_send) = Mailbox::new(outbox.clone());
@@ -126,9 +133,9 @@ impl Performance {
 
                             // Run receiver VM
                             tokio::spawn(ok({
-                                vm.run(new_mailbox, tx, parent_branch).unwrap();
+                                vm.run(new_mailbox, tx, id.clone(), parent_branch).unwrap();
                                 // Remove from live inboxes
-                                inboxes.remove(&id);
+                                inboxes.remove(&recvr_id);
                             }));
                             ok(())
                         }
@@ -137,5 +144,14 @@ impl Performance {
             }),
         );
         root_recv.map_err(|_| ())
+    }
+
+    fn finalize(db: MongoDB, perfid: Bytes) {
+        db.update(
+            &DataType::State,
+            doc! {"p" : Bson::Binary(BinarySubtype::Generic, perfid.to_vec())},
+            doc! { "$unset" : {"p" : ""} },
+        )
+        .unwrap();
     }
 }

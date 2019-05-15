@@ -2,7 +2,7 @@ mod test_simple {
     use std::fs::File;
     use std::io::Read;
     use std::sync::Arc;
-    use std::time::{Duration, Instant};
+    use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
     use bytes::Bytes;
     use futures::future::{ok, Future};
@@ -14,7 +14,7 @@ mod test_simple {
     use core::db::*;
     use core::primitives::act::Message;
     use core::primitives::transaction::Transaction;
-
+    use core::crypto::hashes::Identifiable;
     use crate::performance::Performance;
     use crate::vm::{Mailbox, VM};
 
@@ -23,8 +23,8 @@ mod test_simple {
         let db = MongoDB::open_db("test_simple").unwrap();
         // let mut file = File::open("src/tests/scripts/recv_then_sends_to_bob").unwrap();
         // let mut file = File::open("src/tests/scripts/syscall").unwrap();
-        // let mut file = File::open("src/tests/scripts/sha256").unwrap();
-        let mut file = File::open("src/tests/scripts/ecdsa").unwrap();
+        let mut file = File::open("src/tests/scripts/sha256").unwrap();
+        // let mut file = File::open("src/tests/scripts/ecdsa").unwrap();
         // let mut file = File::open("src/tests/scripts/auxsend").unwrap();
         // let mut file = File::open("src/tests/scripts_rust/target/riscv64gc-unknown-none-elf/release/scripts_rust").unwrap();
         let mut script = Vec::new();
@@ -76,9 +76,9 @@ mod test_simple {
                     // Run the VM
                     ok({
                         println!("Execution start");
-                        let result = vm.run(mailbox, tx, parent_branch);
+                        let result = vm.run(mailbox, tx.clone(), tx.get_id(), parent_branch);
                         assert!(result.is_ok());
-                        assert_eq!(result.unwrap(), 1);
+                        assert_eq!(result.unwrap(), 0);
                         println!("Execution end");
                     })
                 })
@@ -112,14 +112,14 @@ mod test_simple {
         let (outbox, outbox_recv) = mpsc::channel(512);
         let tx = Transaction::new(407548800, Bytes::from(&b"aux"[..]), Bytes::from(script));
         let (mailbox, inbox_send) = Mailbox::new(outbox);
-
-        let result = vm.run(mailbox, tx, parent_branch);
+        let result = vm.run(mailbox, tx.clone(), tx.get_id(), parent_branch);
         assert_eq!(result.unwrap(), 8);
     }
 
     #[test]
     fn test_store() {
         let db = MongoDB::open_db("test_store").unwrap();
+        // db.dropall(&DataType::State);
         let mut file = File::open("src/tests/scripts/basic_store").unwrap();
         let mut script = Vec::new();
         file.read_to_end(&mut script).unwrap();
@@ -138,10 +138,10 @@ mod test_simple {
 
         // Construct session
         let (outbox, outbox_recv) = mpsc::channel(512);
-        let tx = Transaction::new(407548800, Bytes::from(&b"aux"[..]), Bytes::from(script));
+        let tx = Transaction::new(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as u64, Bytes::from(&b"aux"[..]), Bytes::from(script));
         let (mailbox, inbox_send) = Mailbox::new(outbox);
 
-        let result = vm.run(mailbox, tx, parent_branch);
+        let result = vm.run(mailbox, tx.clone(), tx.get_id(), parent_branch);
         assert_eq!(result.unwrap(), 0);
     }
 }
