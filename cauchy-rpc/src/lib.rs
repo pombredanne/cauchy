@@ -1,4 +1,4 @@
-#[cfg(feature = "native-rpc")]
+// #[cfg(feature = "native-rpc")]
 pub mod native;
 
 use std::collections::HashSet;
@@ -11,6 +11,24 @@ use core::{
     db::mongodb::MongoDB,
     primitives::transaction::Transaction,
 };
+
+#[macro_export]
+macro_rules! rpc_info {
+    ($($arg:tt)*) => {
+        if config.debugging.rpc_verbose {
+            info!(target: "rpc_event", $($arg)*);
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! rpc_error {
+    ($($arg:tt)*) => {
+        if config.debugging.rpc_verbose {
+            error!(target: "rpc_event", $($arg)*);
+        }
+    };
+}
 
 pub fn construct_rpc_stack(
     socket_sender: Sender<TcpStream>,

@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use std::net::SocketAddr;
 
+use bytes::Bytes;
 use futures::sync::mpsc::Sender;
 use futures::{future, Future, Sink, Stream};
 use log::{error, info};
@@ -16,21 +17,7 @@ use core::{
 
 use super::messages::{RPCCodec, RPC};
 
-macro_rules! rpc_info {
-    ($($arg:tt)*) => {
-        if config.debugging.rpc_verbose {
-            info!(target: "rpc_event", $($arg)*);
-        }
-    };
-}
-
-macro_rules! rpc_error {
-    ($($arg:tt)*) => {
-        if config.debugging.rpc_verbose {
-            error!(target: "rpc_event", $($arg)*);
-        }
-    };
-}
+use crate::{rpc_error, rpc_info};
 
 fn server(
     socket_sender: Sender<TcpStream>,
@@ -95,6 +82,7 @@ fn server(
                             }),
                     )
                 }
+                RPC::FetchValue { actor_id, key } => unreachable!(),
             });
             tokio::spawn(action)
         });
