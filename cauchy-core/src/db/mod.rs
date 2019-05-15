@@ -24,7 +24,6 @@ pub trait Database<DB> {
         filter: bson::ordered::OrderedDocument,
         update: bson::ordered::OrderedDocument,
     ) -> Result<(i32), Error>;
-    
 }
 
 impl DataType {

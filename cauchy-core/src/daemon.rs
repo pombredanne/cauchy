@@ -215,7 +215,7 @@ pub fn server(
                     // if config.debugging.daemon_verbose {
                     //     println!("searching for transaction {:?}", id);
                     // }
-                    match Transaction::from_db(tx_db_inner.clone(), &id) {
+                    match Transaction::from_db(&mut tx_db_inner.clone(), id.clone()) {
                         Ok(Some(tx)) => {
                             // if config.debugging.daemon_verbose {
                             //     println!("Found {:?}", id);
@@ -249,7 +249,7 @@ pub fn server(
                 // Add new txs to database
                 // TODO: Fix danger here and do this incrementally if not pulling
                 for tx in txs.iter() {
-                    tx.to_db(tx_db_inner.clone());
+                    tx.to_db(&mut tx_db_inner.clone(), None);
                 }
 
                 // Send

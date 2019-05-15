@@ -28,8 +28,12 @@ impl Database<MongoDB> for MongoDB {
         doc: bson::ordered::OrderedDocument,
     ) -> Result<Option<bson::ordered::OrderedDocument>, Error> {
         let mut fo = mongodb::coll::options::FindOptions::new();
-        fo.sort = Some(doc!{ "_id" : -1 });
-        match self.0.collection(dtype.as_str()).find_one(Some(doc), Some(fo)) {
+        fo.sort = Some(doc! { "_id" : -1 });
+        match self
+            .0
+            .collection(dtype.as_str())
+            .find_one(Some(doc), Some(fo))
+        {
             Ok(Some(found_doc)) => Ok(Some(found_doc)),
             _ => Ok(None),
         }
@@ -55,7 +59,8 @@ impl Database<MongoDB> for MongoDB {
             .0
             .collection(dtype.as_str())
             .update_many(filter, update, None)
-            .unwrap().modified_count;
+            .unwrap()
+            .modified_count;
         Ok(n)
     }
 }

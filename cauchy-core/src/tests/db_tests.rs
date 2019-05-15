@@ -1,8 +1,8 @@
 mod db_tests {
     #[macro_use(bson, doc)]
     use std::sync::Arc;
-    use bson::*;
     use bson::spec::BinarySubtype;
+    use bson::*;
     use bytes::Bytes;
 
     use crate::{
@@ -43,11 +43,11 @@ mod db_tests {
         let aux = Bytes::from(&b"aux"[..]);
         let binary = Bytes::from(&b"binary"[..]);
         let tx = Transaction::new(1, aux, binary);
-        let db = MongoDB::open_db("tests_db_b").unwrap();
+        let mut db = MongoDB::open_db("tests_db_b").unwrap();
         db.dropall(&DataType::TX);
         let tx_id = tx.get_id();
-        tx.to_db(db.clone()).unwrap();
-        let tx_retrieved = Transaction::from_db(db, &tx_id).unwrap().unwrap();
+        tx.to_db(&mut db.clone(), None).unwrap();
+        let tx_retrieved = Transaction::from_db(&mut db, tx_id).unwrap().unwrap();
         assert_eq!(tx, tx_retrieved);
     }
 
@@ -56,10 +56,10 @@ mod db_tests {
         let aux = Bytes::from(&b"aux"[..]);
         let binary = Bytes::from(&b"binary"[..]);
         let tx = Transaction::new(1, aux, binary);
-        let db = MongoDB::open_db("tests_db_c").unwrap();
+        let mut db = MongoDB::open_db("tests_db_c").unwrap();
         db.dropall(&DataType::TX);
         let tx_id = tx.get_id();
-        let tx_retrieved = Transaction::from_db(db, &tx_id);
+        let tx_retrieved = Transaction::from_db(&mut db, tx_id);
         assert!(tx_retrieved.unwrap().is_none());
     }
 

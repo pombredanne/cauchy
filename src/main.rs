@@ -14,10 +14,10 @@ use core::{
     primitives::arena::*,
     primitives::ego::{Ego, PeerEgo},
     primitives::transaction::Transaction,
+    stage::Stage,
     utils::constants::*,
     utils::mining,
 };
-use stage::Stage;
 
 use futures::lazy;
 use futures::sync::mpsc;

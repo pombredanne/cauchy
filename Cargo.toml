@@ -12,7 +12,6 @@ edition = "2018"
 members = [
   "./",
   "./cauchy-core",
-  "./cauchy-vm",
   "./cauchy-rpc",
 ]
 
@@ -28,8 +27,6 @@ bus = "*"
 futures = "*"
 
 core = { package = "cauchy-core", version = "*", path = "cauchy-core" }
-stage = { package = "cauchy-stage", version = "*", path = "cauchy-stage" }
-vm = { package = "cauchy-vm", version = "*", path = "cauchy-vm" }
 rpc = { package = "cauchy-rpc", version = "*", path = "cauchy-rpc" }
 
 [dependencies.secp256k1]
