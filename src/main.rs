@@ -26,7 +26,7 @@ use std::thread;
 
 fn main() {
     // Init DB
-    let db = MongoDB::open_db(TX_DB).unwrap();
+    let db = MongoDB::open_db("cauchy").unwrap();
 
     // Generate node key pair
     let (local_sk, local_pk) = ecdsa::generate_keypair();
