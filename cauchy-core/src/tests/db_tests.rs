@@ -1,6 +1,4 @@
 mod db_tests {
-    #[macro_use(bson, doc)]
-    use std::sync::Arc;
     use bson::spec::BinarySubtype;
     use bson::*;
     use bytes::Bytes;
