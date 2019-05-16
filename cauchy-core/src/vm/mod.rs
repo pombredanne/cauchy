@@ -246,7 +246,7 @@ impl<'a, Mac: SupportMachine> Syscalls<Mac> for Session {
                 }
 
                 let result =
-                    ValueStore(Bytes::from(key_bytes)).to_db(self, Some(Bytes::from(value_bytes)));
+                    ValueStore(Bytes::from(value_bytes)).to_db(self, Some(Bytes::from(key_bytes)));
 
                 // TODO: use as return value to __vm_store()
                 assert!(result.is_ok());
