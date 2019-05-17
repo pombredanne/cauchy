@@ -30,6 +30,7 @@ impl Encoder for RPCCodec {
             }
             Response::Value(val) => {
                 dst.put_u8(2);
+                dst.put_u32_be(val.len() as u32);
                 dst.extend(val);
             }
         }

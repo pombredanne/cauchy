@@ -1,4 +1,3 @@
-#[cfg(feature = "native-rpc")]
 pub mod native;
 
 use std::collections::HashSet;
