@@ -1,6 +1,3 @@
-#[macro_use(bson, doc)]
-use bson::*;
-use bytes::Bytes;
 use failure::Error;
 use mongodb::db::*;
 use mongodb::{bson, doc, Client, ThreadedClient};

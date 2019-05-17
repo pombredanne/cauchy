@@ -1,5 +1,5 @@
-mod db_tests;
-mod vm;
-mod utils;
-mod primitives;
 mod crypto;
+mod db_tests;
+mod primitives;
+mod utils;
+mod vm;

@@ -8,11 +8,11 @@ use futures::sink::Sink;
 use futures::stream::Stream;
 use futures::sync::{mpsc, oneshot};
 
+use crate::crypto::hashes::Identifiable;
 use crate::db::mongodb::MongoDB;
 use crate::db::*;
 use crate::primitives::act::Message;
 use crate::primitives::transaction::Transaction;
-use crate::crypto::hashes::Identifiable;
 use crate::vm::performance::Performance;
 use crate::vm::{Mailbox, VM};
 
@@ -136,10 +136,16 @@ fn test_store() {
 
     // Construct session
     let (outbox, outbox_recv) = mpsc::channel(512);
-    let tx = Transaction::new(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as u64, Bytes::from(&b"aux"[..]), Bytes::from(script));
+    let tx = Transaction::new(
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64,
+        Bytes::from(&b"aux"[..]),
+        Bytes::from(script),
+    );
     let (mailbox, inbox_send) = Mailbox::new(outbox);
 
     let result = vm.run(mailbox, tx.clone(), tx.get_id(), parent_branch);
     assert_eq!(result.unwrap(), 0);
 }
-

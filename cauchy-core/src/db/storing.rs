@@ -1,5 +1,3 @@
-#[macro_use(bson, doc)]
-use bson::*;
 use std::convert::TryFrom;
 
 use bytes::Bytes;
@@ -11,7 +9,7 @@ use crate::{
 
 use super::{mongodb::MongoDB, DataType, Database};
 use bson::spec::BinarySubtype;
-use bson::{bson, doc};
+use bson::{bson, doc, Bson};
 
 pub trait Storable
 where
