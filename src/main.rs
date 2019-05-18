@@ -14,10 +14,10 @@ use core::{
     primitives::arena::*,
     primitives::ego::{Ego, PeerEgo},
     primitives::transaction::Transaction,
+    stage::Stage,
     utils::constants::*,
     utils::mining,
 };
-use stage::Stage;
 
 use futures::lazy;
 use futures::sync::mpsc;
@@ -25,8 +25,11 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 fn main() {
+    // Enviroment logger
+    env_logger::init();
+
     // Init DB
-    let db = MongoDB::open_db(TX_DB).unwrap();
+    let db = MongoDB::open_db("cauchy").unwrap();
 
     // Generate node key pair
     let (local_sk, local_pk) = ecdsa::generate_keypair();

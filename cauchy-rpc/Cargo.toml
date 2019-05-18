@@ -11,3 +11,10 @@ failure = "*"
 log = "*"
 tokio = "*"
 futures = "*"
+bson = "*"
+
+[features]
+native-rpc = []
+json-rpc = []
+rest-rpc = []
+g-rpc = []

@@ -12,7 +12,6 @@ edition = "2018"
 members = [
   "./",
   "./cauchy-core",
-  "./cauchy-vm",
   "./cauchy-rpc",
 ]
 
@@ -26,11 +25,10 @@ rand = "*"
 tokio = "*"
 bus = "*"
 futures = "*"
+env_logger = "*"
 
-core = { package = "cauchy-core", version = "*", path = "cauchy-core" }
-stage = { package = "cauchy-stage", version = "*", path = "cauchy-stage" }
-vm = { package = "cauchy-vm", version = "*", path = "cauchy-vm" }
-rpc = { package = "cauchy-rpc", version = "*", path = "cauchy-rpc" }
+core = { package = "cauchy-core", version = "*", path = "cauchy-core"}
+rpc = { package = "cauchy-rpc", version = "*", path = "cauchy-rpc"}
 
 [dependencies.secp256k1]
 version = "*"
@@ -38,7 +36,7 @@ default-features = false
 features = ["rand", "serde"]
 
 [features]
-native-rpc = []
+native-rpc = ["rpc/native-rpc"]
 json-rpc = []
 rest-rpc = []
 g-rpc = []

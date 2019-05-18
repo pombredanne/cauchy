@@ -111,3 +111,11 @@ pub enum DaemonError {
     #[fail(display = "unreachable")]
     Unreachable,
 }
+
+#[derive(Debug, Fail)]
+pub enum RPCError {
+    #[fail(display = "socket binding failure")]
+    BindFailure,
+    #[fail(display = "socket binding failure: {}", err)]
+    SocketAcceptanceFailure { err: std::io::Error },
+}

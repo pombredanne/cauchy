@@ -2,8 +2,6 @@ pub const HASH_LEN: usize = 32;
 pub const VALUE_LEN: usize = 256;
 pub const PUBKEY_LEN: usize = 33;
 pub const SIG_LEN: usize = 64;
-pub const TX_DB: &str = "tx_db";
-pub const STORE_DB: &str = "store_db";
 pub const SKETCH_CAPACITY: usize = 32; // TODO: This should become dynamic
 
 use std::fs;
@@ -86,7 +84,7 @@ pub fn default_config() -> CoreConfig {
             test_tx_interval: duration_from_millis(500), // TODO: Remove?
             arena_verbose: false,
             heartbeat_verbose: false,
-            daemon_verbose: false,
+            daemon_verbose: true,
             encoding_verbose: false,
             decoding_verbose: false,
             parsing_verbose: false,

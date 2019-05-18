@@ -11,7 +11,9 @@ use futures::sync::mpsc::{Receiver, Sender};
 use futures::sync::{mpsc, oneshot};
 use futures::{Future, Stream};
 
-use core::{
+use crate::vm::performance::Performance;
+use crate::vm::{Mailbox, VM};
+use crate::{
     crypto::{
         hashes::Identifiable,
         sketches::{odd_sketch::OddSketch, SketchInsertable},
@@ -25,8 +27,6 @@ use core::{
     },
     utils::constants::{config, HASH_LEN},
 };
-use vm::performance::Performance;
-use vm::vm::{Mailbox, VM};
 
 pub struct Stage {
     ego: Arc<Mutex<Ego>>,
@@ -59,10 +59,11 @@ impl Stage {
                     //     peer_ego_guard.get_root(),
                     // );
                 }
-                Origin::RPC => self.process_txs_from_rpc(&txs, priority),
+                Origin::RPC => unreachable!()
+                // Origin::RPC => self.process_txs_from_rpc(&txs, priority),
             };
-            let done = futures::future::join_all(performances);
-            done.wait();
+            // let done = futures::future::join_all(performances);
+            // done.wait();
 
             // Push to tx db and recreate ego
             let mut ego_guard = self.ego.lock().unwrap();
@@ -70,7 +71,7 @@ impl Stage {
             let mut minisketch = ego_guard.get_minisketch();
 
             for tx in txs {
-                tx.to_db(self.db.clone());
+                tx.to_db(&mut self.db.clone(), None);
                 oddsketch.insert(&tx);
                 minisketch.insert(&tx);
             }
@@ -84,15 +85,15 @@ impl Stage {
         })
     }
 
-    pub fn process_txs_from_rpc(
-        &self,
-        txs: &HashSet<Transaction>,
-        priority: Priority,
-    ) -> Vec<impl Future<Item = Performance, Error = ()> + Send> {
-        txs.into_iter()
-            .map(|tx| Performance::from_tx(self.db.clone(), tx.clone()))
-            .collect()
-    }
+    // pub fn process_txs_from_rpc(
+    //     &self,
+    //     txs: &HashSet<Transaction>,
+    //     priority: Priority,
+    // ) -> Vec<impl Future<Item = Performance, Error = ()> + Send> {
+    //     txs.into_iter()
+    //         .map(|tx| Performance::from_tx(self.db.clone(), tx.clone()))
+    //         .collect()
+    // }
 
     // pub fn process_txs_from_peer(
     //     &self,

@@ -1,33 +1,32 @@
+pub mod performance;
+pub mod session;
+
 #[macro_use(bson, doc)]
-use std::sync::Arc;
-use bson::{bson, doc, Bson};
-use bson::spec::BinarySubtype;
-use core::db::mongodb::MongoDB;
-use core::db::storing::*;
+use std::sync::{Arc, Mutex};
 use bytes::*;
 
-use core::db::*;
-use futures::future::ok;
-use futures::future::Future;
-use futures::sink::Sink;
-use futures::stream::Stream;
-use futures::sync::mpsc::{channel, Receiver, Sender};
-use futures::sync::oneshot;
-use futures::Async;
-use rand::rngs::ThreadRng;
-use rand::RngCore;
-use std::fs::File;
+use futures::sync::{
+    mpsc::{channel, Receiver, Sender},
+    oneshot,
+};
+use rand::{rngs::ThreadRng, RngCore};
 
-use crate::performance::Performance;
+use performance::Performance;
+use session::Session;
+
+use crate::{
+    crypto::hashes::Identifiable,
+    db::{mongodb::MongoDB, storing::*, *},
+    primitives::{
+        act::{Act, Message},
+        transaction::Transaction,
+    },
+};
 use ckb_vm::{
     CoreMachine, DefaultCoreMachine, DefaultMachineBuilder, Error, Memory, Register, SparseMemory,
     SupportMachine, Syscalls, A0, A1, A2, A3, A4, A5, A6, A7, S1, S2,
 };
-use core::crypto::hashes::Identifiable;
-use core::primitives::act::{Act, Message};
-use core::primitives::transaction::Transaction;
-use std::io::Read;
-use std::io::Write;
+use std::io::{Read, Write};
 
 pub struct VM {
     store: MongoDB,
@@ -43,10 +42,10 @@ impl VM {
         mailbox: Mailbox,
         tx: Transaction,
         perfid: Bytes,
-        parent_branch: oneshot::Sender<Performance>,
+        parent_branch: oneshot::Sender<Arc<Mutex<Performance>>>,
     ) -> Result<u8, Error> {
         // Construct session
-        let mut performance = Performance::new();
+        let mut performance = Arc::new(Mutex::new(Performance::new()));
         let id = tx.get_id();
         let session = Session {
             mailbox,
@@ -55,7 +54,7 @@ impl VM {
             timestamp: tx.get_time(),
             binary_hash: tx.get_binary_hash(),
             aux: tx.get_aux(),
-            performance: &mut performance,
+            performance: performance.clone(),
             child_branch: None,
             store: self.store.clone(),
         };
@@ -94,96 +93,7 @@ impl Mailbox {
     }
 }
 
-pub struct Session<'a> {
-    mailbox: Mailbox,
-    id: Bytes,
-    perfid: Bytes,
-    timestamp: u64,
-    binary_hash: Bytes,
-    aux: Bytes,
-    performance: &'a mut Performance,
-    child_branch: Option<oneshot::Receiver<Performance>>,
-    store: MongoDB,
-}
-
-impl<'a> Session<'a> {
-    fn recv(&mut self) -> Option<Message> {
-        if let Some(branch) = self.child_branch.take() {
-            let child_perforamnce = branch.wait().unwrap();
-            *self.performance += child_perforamnce;
-        }
-
-        match self.mailbox.inbox.poll() {
-            Ok(Async::Ready(msg)) => msg,
-            _ => unreachable!(),
-        }
-    }
-
-    fn send(&mut self, msg: Message) {
-        if let Some(branch) = self.child_branch.take() {
-            let child_perforamnce = branch.wait().unwrap();
-            *self.performance += child_perforamnce;
-        }
-
-        let (child_send, child_branch) = oneshot::channel();
-        self.child_branch = Some(child_branch);
-        tokio::spawn(
-            self.mailbox
-                .outbox
-                .clone()
-                .send((msg, child_send))
-                .map_err(|_| ())
-                .and_then(|_| ok(())),
-        );
-    }
-
-    fn put_store(&mut self, key: Bytes, value: Bytes) -> Result<(), failure::Error> {
-        let mut store_id = self.timestamp.to_be_bytes().to_vec();
-        store_id.append(&mut self.id.to_vec());
-        let doc = doc! {
-            "_id" => Bson::Binary(BinarySubtype::Generic, store_id),
-            // The [t]xid this item belongs to
-            "t" => Bson::Binary(BinarySubtype::Generic, self.id.to_vec()),
-            // The [o]riginating txid
-            "o" => Bson::Binary(BinarySubtype::Generic, self.perfid.to_vec()),
-            // The current [p]erformance id (unset once the performance is accepted)
-            "p" => Bson::Binary(BinarySubtype::Generic, self.perfid.to_vec()),
-            // The [k]ey for this value, as provided by the script
-            "k" => Bson::Binary(BinarySubtype::Generic, key.to_vec()),
-            // The [v]alue associated with this key, as provided by the script
-            "v" => Bson::Binary(BinarySubtype::Generic, value.to_vec()),
-        };
-        self.performance.add_write(&self.id, key, value);
-        self.store.put(&DataType::State, doc)
-        // Ok(())
-    }
-
-    fn get_store(&mut self, key: Bytes) -> Result<Option<Bytes>, failure::Error> {
-        let doc = doc! {
-            "t" : Bson::Binary(BinarySubtype::Generic, self.id.to_vec()),
-            "$or" : [
-                { "p" :  Bson::Binary(BinarySubtype::Generic, self.perfid.to_vec()) },
-                { "p" :  Bson::Null },
-                { "p" : {"$exists" : false}},
-            ],
-            "k" : Bson::Binary(BinarySubtype::Generic, key.to_vec()),
-        };
-        println!("{:?}", doc);
-        self.performance.add_read(&self.id, key);
-        match self.store.get(&DataType::State, doc) {
-            Ok(Some(some)) => {
-                println!("res: {:?}", some);
-                Ok(Some(Bytes::from(
-                    &some.get_binary_generic("v").unwrap()[..],
-                )))
-            }
-            Ok(None) => Ok(None),
-            Err(err) => Err(err),
-        }
-    }
-}
-
-impl<'a, Mac: SupportMachine> Syscalls<Mac> for Session<'a> {
+impl<'a, Mac: SupportMachine> Syscalls<Mac> for Session {
     fn initialize(&mut self, _machine: &mut Mac) -> Result<(), Error> {
         Ok(())
     }
@@ -335,7 +245,8 @@ impl<'a, Mac: SupportMachine> Syscalls<Mac> for Session<'a> {
                     );
                 }
 
-                let result = self.put_store(Bytes::from(key_bytes), Bytes::from(value_bytes));
+                let result =
+                    ValueStore(Bytes::from(value_bytes)).to_db(self, Some(Bytes::from(key_bytes)));
 
                 // TODO: use as return value to __vm_store()
                 assert!(result.is_ok());
@@ -362,12 +273,12 @@ impl<'a, Mac: SupportMachine> Syscalls<Mac> for Session<'a> {
                 }
 
                 // TODO: Do something useful on error
-                match self.get_store(Bytes::from(key_bytes)) {
+                match ValueStore::from_db(self, Bytes::from(key_bytes)) {
                     Ok(Some(some)) => {
                         machine
                             .memory_mut()
                             // Store at maximum the specified numbytes
-                            .store_bytes(buffer_addr as usize, &some[..buffer_sz])
+                            .store_bytes(buffer_addr as usize, &some.0[..buffer_sz])
                             .unwrap();
                     }
                     Ok(None) => (println!("Key not found")),

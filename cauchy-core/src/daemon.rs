@@ -3,8 +3,7 @@ use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 
 use failure::Error;
-use futures::sync::mpsc;
-use futures::Future;
+use futures::{sync::mpsc, Future};
 use log::{error, info, warn};
 use tokio::codec::Framed;
 use tokio::net::{TcpListener, TcpStream};
@@ -78,7 +77,7 @@ pub fn server(
     let incoming = listener
         .incoming()
         .map_err(|err| Error::from(DaemonError::SocketAcceptanceFailure { err }))
-        .select(socket_recv.map_err(|err| Error::from(DaemonError::Unreachable)))
+        .select(socket_recv.map_err(|_err| Error::from(DaemonError::Unreachable)))
         .map_err(|e| daemon_error!("error accepting socket; error = {:?}", e));
 
     let server = incoming.for_each(move |socket| {
@@ -215,7 +214,7 @@ pub fn server(
                     // if config.debugging.daemon_verbose {
                     //     println!("searching for transaction {:?}", id);
                     // }
-                    match Transaction::from_db(tx_db_inner.clone(), &id) {
+                    match Transaction::from_db(&mut tx_db_inner.clone(), id.clone()) {
                         Ok(Some(tx)) => {
                             // if config.debugging.daemon_verbose {
                             //     println!("Found {:?}", id);
@@ -248,8 +247,9 @@ pub fn server(
 
                 // Add new txs to database
                 // TODO: Fix danger here and do this incrementally if not pulling
+                // TODO: Send to mempool if via gossip or send to stage if via reconcile
                 for tx in txs.iter() {
-                    tx.to_db(tx_db_inner.clone());
+                    tx.to_db(&mut tx_db_inner.clone(), None);
                 }
 
                 // Send
