@@ -25,6 +25,7 @@ rand = "*"
 tokio = "*"
 bus = "*"
 futures = "*"
+env_logger = "*"
 
 core = { package = "cauchy-core", version = "*", path = "cauchy-core" }
 rpc = { package = "cauchy-rpc", version = "*", path = "cauchy-rpc" }

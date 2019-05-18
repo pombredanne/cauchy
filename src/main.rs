@@ -25,6 +25,9 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 fn main() {
+    // Enviroment logger
+    env_logger::init();
+
     // Init DB
     let db = MongoDB::open_db("cauchy").unwrap();
 
