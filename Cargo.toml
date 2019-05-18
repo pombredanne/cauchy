@@ -27,8 +27,8 @@ bus = "*"
 futures = "*"
 env_logger = "*"
 
-core = { package = "cauchy-core", version = "*", path = "cauchy-core" }
-rpc = { package = "cauchy-rpc", version = "*", path = "cauchy-rpc" }
+core = { package = "cauchy-core", version = "*", path = "cauchy-core"}
+rpc = { package = "cauchy-rpc", version = "*", path = "cauchy-rpc"}
 
 [dependencies.secp256k1]
 version = "*"
@@ -36,7 +36,7 @@ default-features = false
 features = ["rand", "serde"]
 
 [features]
-native-rpc = []
+native-rpc = ["rpc/native-rpc"]
 json-rpc = []
 rest-rpc = []
 g-rpc = []
