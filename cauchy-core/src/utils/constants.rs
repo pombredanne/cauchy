@@ -84,7 +84,7 @@ pub fn default_config() -> CoreConfig {
             test_tx_interval: duration_from_millis(500), // TODO: Remove?
             arena_verbose: false,
             heartbeat_verbose: false,
-            daemon_verbose: false,
+            daemon_verbose: true,
             encoding_verbose: false,
             decoding_verbose: false,
             parsing_verbose: false,
