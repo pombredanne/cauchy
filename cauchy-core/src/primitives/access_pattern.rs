@@ -6,7 +6,7 @@ use bytes::Bytes;
 
 use crate::utils::byte_ops::*;
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct AccessPattern {
     pub read: HashSet<Bytes>,
     pub write: HashMap<Bytes, Bytes>,

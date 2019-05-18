@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::ops::{Add, AddAssign};
 use std::sync::{Arc, Mutex};
 
+use bson::{spec::BinarySubtype, *};
 use bytes::Bytes;
 use futures::future::{err, ok};
 use futures::sink::Sink;
@@ -18,10 +19,10 @@ use crate::{
         transaction::Transaction,
     },
 };
-use bson::{spec::BinarySubtype, *};
 
 use super::{Mailbox, VM};
 
+#[derive(Clone, PartialEq, Eq)]
 pub struct Performance(pub HashMap<Bytes, Act>); // Actor ID: Total Act
 
 impl Performance {

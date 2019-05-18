@@ -1,5 +1,4 @@
 use bytes::Bytes;
-use std::cmp::Ordering;
 
 use crate::crypto::hashes::{blake2b::Blk2bHashable, *};
 
@@ -9,7 +8,7 @@ use crate::crypto::hashes::{blake2b::Blk2bHashable, *};
        ^UTC            ^ Length of Aux data           ^ Length of Binary
 */
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)] // TODO: Check if this hash is secure, can this be exploited?
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Transaction {
     time: u64,
     aux_data: Bytes,
@@ -45,24 +44,5 @@ impl Transaction {
 impl Identifiable for Transaction {
     fn get_id(&self) -> Bytes {
         self.blake2b().blake2b()
-    }
-}
-
-impl PartialOrd for Transaction {
-    fn partial_cmp(&self, other: &Transaction) -> Option<Ordering> {
-        match self.time.partial_cmp(&other.time) {
-            Some(Ordering::Equal) => self.get_id().partial_cmp(&other.get_id()),
-            Some(non_equal) => Some(non_equal),
-            None => unreachable!(),
-        }
-    }
-}
-
-impl Ord for Transaction {
-    fn cmp(&self, other: &Transaction) -> Ordering {
-        match self.time.cmp(&other.time) {
-            Ordering::Equal => self.get_id().cmp(&other.get_id()),
-            other => other,
-        }
     }
 }

@@ -119,3 +119,13 @@ pub enum RPCError {
     #[fail(display = "socket binding failure: {}", err)]
     SocketAcceptanceFailure { err: std::io::Error },
 }
+
+#[derive(Debug, Fail)]
+pub enum MempoolError {
+    #[fail(display = "empty tx batch")]
+    EmptyBatch,
+    #[fail(display = "mempool full")]
+    MempoolFull,
+    #[fail(display = "out-of-order")]
+    NotSorted
+}

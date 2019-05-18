@@ -5,7 +5,7 @@ use bytes::Bytes;
 
 use super::access_pattern::*;
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct Act {
     pub access_pattern: AccessPattern,
     messages: Vec<Message>,
