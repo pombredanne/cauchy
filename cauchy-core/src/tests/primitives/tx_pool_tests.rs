@@ -1,7 +1,10 @@
 use bytes::Bytes;
 use rand::Rng;
 
-use crate::{primitives::{mempool::Mempool, transaction::Transaction}, utils::errors::MempoolError};
+use crate::{
+    primitives::{tx_pool::TxPool, transaction::Transaction},
+    utils::errors::TxPoolError,
+};
 
 fn generate_random_tx(time: u64) -> Transaction {
     let mut rng = rand::thread_rng();
@@ -16,9 +19,21 @@ fn test_put_sorted() {
     let tx_b = generate_random_tx(1);
     let tx_c = generate_random_tx(2);
 
-    let mut mempool = Mempool::new();
+    let mut mempool = TxPool::new(3);
 
     assert!(mempool.insert_batch(vec![tx_a, tx_b, tx_c], true).is_ok())
+}
+
+#[test]
+fn test_put_full() {
+    let tx_a = generate_random_tx(0);
+    let tx_b = generate_random_tx(1);
+    let tx_c = generate_random_tx(2);
+    let tx_d = generate_random_tx(3);
+
+    let mut mempool = TxPool::new(3);
+
+    assert!(mempool.insert_batch(vec![tx_a, tx_b, tx_c, tx_d], true).is_err())
 }
 
 #[test]
@@ -27,7 +42,7 @@ fn test_put_unsorted() {
     let tx_b = generate_random_tx(1);
     let tx_c = generate_random_tx(2);
 
-    let mut mempool = Mempool::new();
+    let mut mempool = TxPool::new(3);
 
     assert!(mempool.insert_batch(vec![tx_a, tx_c, tx_b], true).is_err())
 }

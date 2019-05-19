@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
+use rand::Rng;
 use bus::BusReader;
 use bytes::Bytes;
 use futures::sync::mpsc::{channel, Receiver, Sender};
@@ -252,6 +253,7 @@ impl WorkState for PeerEgo {
 impl PeerEgo {
     pub fn new() -> (PeerEgo, Receiver<Message>) {
         let (peer_sink, peer_stream) = channel::<Message>(1024); // TODO: Unbounded? Handle errors
+        let mut rng = rand::thread_rng();
         (
             PeerEgo {
                 pubkey: None,
@@ -269,7 +271,7 @@ impl PeerEgo {
                 perceived_minisketch: DummySketch::new(),
                 status: Status::Gossiping,
                 sink: peer_sink,
-                secret: 1337, // TODO: Randomize
+                secret: rng.gen::<u64>(),
                 expected_ids: None,
                 expected_minisketch: None,
             },

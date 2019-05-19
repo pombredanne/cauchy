@@ -86,16 +86,6 @@ pub enum ArenaError {
     PushLocal,
 }
 
-// Connection Errors
-#[derive(Debug, Fail)]
-#[fail(display = "socket not found")]
-pub struct SocketNotFound;
-
-// Connection Errors
-#[derive(Debug, Fail)]
-#[fail(display = "socket not found")]
-pub struct ConnectionAddError;
-
 #[derive(Debug, Fail)]
 pub enum DaemonError {
     #[fail(display = "socket binding failure")]
@@ -121,11 +111,11 @@ pub enum RPCError {
 }
 
 #[derive(Debug, Fail)]
-pub enum MempoolError {
+pub enum TxPoolError {
     #[fail(display = "empty tx batch")]
-    EmptyBatch,
+    EmptyInsert,
     #[fail(display = "mempool full")]
-    MempoolFull,
+    Full,
     #[fail(display = "out-of-order")]
-    NotSorted
+    NotSorted,
 }

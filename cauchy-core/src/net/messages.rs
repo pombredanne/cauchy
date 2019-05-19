@@ -56,7 +56,7 @@ pub enum Message {
         ids: HashSet<Bytes>,
     }, // 5 || Number of Ids VarInt || Ids
     Transactions {
-        txs: HashSet<Transaction>,
+        txs: Vec<Transaction>,
     }, // 6 || Number of Bytes VarInt || Tx ...
     Reconcile, // 7
     WorkAck,
@@ -261,14 +261,14 @@ impl Decoder for MessageCodec {
                     return Ok(None);
                 }
 
-                let mut txs = HashSet::new(); // TODO: Estimate of size here?
+                let mut txs = vec![]; // TODO: Estimate of size here?
 
                 while buf.remaining() > 0 {
                     let (tx, _) = match Transaction::parse_buf(&mut buf)? {
                         Some(some) => some,
                         None => return Ok(None),
                     };
-                    txs.insert(tx);
+                    txs.push(tx);
                     decoding_info!("decoded transaction");
                 }
 

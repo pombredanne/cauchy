@@ -17,6 +17,7 @@ use crate::{
         arena::Arena,
         ego::{Ego, PeerEgo, Status, WorkState, WorkStatus},
         transaction::Transaction,
+        tx_pool::TxPool,
     },
     utils::{
         constants::*,
@@ -63,7 +64,8 @@ pub fn server(
     ego: Arc<Mutex<Ego>>,
     socket_recv: mpsc::Receiver<TcpStream>,
     arena: Arc<Mutex<Arena>>,
-    to_stage: mpsc::Sender<(Origin, HashSet<Transaction>, Priority)>,
+    mempool: Arc<Mutex<TxPool>>,
+    send_reconcile: mpsc::Sender<(Origin, TxPool, Priority)>,
 ) -> impl Future<Item = (), Error = ()> + Send + 'static {
     daemon_info!("spawning deamon");
 
@@ -107,7 +109,8 @@ pub fn server(
         // Filter through received messages
         let tx_db_inner = tx_db.clone();
         let ego_inner = ego.clone();
-        let to_stage_inner = to_stage.clone();
+        let send_reconcile_inner = send_reconcile.clone();
+        let mempool_inner = mempool.clone();
         let response_stream = received_stream.filter_map(move |msg| match msg {
             Message::StartHandshake { secret } => {
                 daemon_info!("received handshake initialisation from {}", socket_addr);
@@ -208,8 +211,10 @@ pub fn server(
                 // Lock peer ego
                 let mut peer_ego_guard = arc_peer_ego.lock().unwrap();
 
+                // Init tx pool
+                let mut tx_pool = TxPool::new(ids.len());
+
                 // Find transactions
-                let mut txs = HashSet::with_capacity(ids.len());
                 for id in ids {
                     // if config.debugging.daemon_verbose {
                     //     println!("searching for transaction {:?}", id);
@@ -219,7 +224,7 @@ pub fn server(
                             // if config.debugging.daemon_verbose {
                             //     println!("Found {:?}", id);
                             // }
-                            txs.insert(tx);
+                            tx_pool.insert(tx, Some(id.clone()), None);
                         }
                         Err(err) => {
                             daemon_error!("database error {:?}", err);
@@ -233,6 +238,7 @@ pub fn server(
                         }
                     }
                 }
+                let txs = tx_pool.to_sorted_txs();
                 // Send transactions
                 daemon_info!(
                     "replying to {} with {} transactions",
@@ -245,21 +251,33 @@ pub fn server(
             Message::Transactions { txs } => {
                 daemon_info!("received transactions from {}", socket_addr);
 
-                // Add new txs to database
-                // TODO: Fix danger here and do this incrementally if not pulling
-                // TODO: Send to mempool if via gossip or send to stage if via reconcile
-                for tx in txs.iter() {
-                    tx.to_db(&mut tx_db_inner.clone(), None);
+                // Lock peer ego
+                let mut peer_ego_guard = arc_peer_ego.lock().unwrap();
+
+                match peer_ego_guard.get_status() {
+                    Status::StatePull => {
+                        // Send to back stage
+                        let mut tx_pool = TxPool::new(txs.len());
+                        tx_pool.insert_batch(txs, true); // TODO: Catch out-of-order
+
+                        tokio::spawn(
+                            send_reconcile_inner
+                                .clone()
+                                .send((Origin::Peer(arc_peer_ego.clone()), tx_pool, Priority::Standard)) // TODO: Force vs Standard here
+                                .map_err(|_| ())
+                                .and_then(|_| future::ok(())),
+                        );
+                    },
+                    Status::Gossiping => {
+                        mempool_inner.lock().unwrap().insert_batch(txs, true);
+                    },
+                    Status::StatePush => {
+                        // TODO: Ban
+
+                    }
                 }
 
-                // Send
-                tokio::spawn(
-                    to_stage_inner
-                        .clone()
-                        .send((Origin::Peer(arc_peer_ego.clone()), txs, Priority::Standard)) // TODO: Force vs Standard here
-                        .map_err(|_| ())
-                        .and_then(|_| future::ok(())),
-                );
+
                 None
             }
             Message::Reconcile => {

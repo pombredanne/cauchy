@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use std::net::SocketAddr;
+use std::sync::{Arc, Mutex};
 
 use bson::{bson, doc, spec::BinarySubtype, Bson};
 use bytes::Bytes;
@@ -19,13 +20,13 @@ use crate::{rpc_error, rpc_info, Request, Response};
 use core::{
     daemon::{Origin, Priority},
     db::{mongodb::MongoDB, DataType, Database},
-    primitives::transaction::Transaction,
+    primitives::tx_pool::TxPool,
     utils::{constants::config, errors::RPCError},
 };
 
 pub fn server(
     socket_sender: Sender<TcpStream>,
-    to_stage: Sender<(Origin, HashSet<Transaction>, Priority)>,
+    mempool: Arc<Mutex<TxPool>>,
     db: MongoDB,
 ) -> Box<Future<Item = (), Error = ()> + Send + 'static> {
     let addr = format!("0.0.0.0:{}", config.network.rpc_server_port).to_string();
@@ -50,7 +51,7 @@ pub fn server(
 
         // New TCP socket sender
         let socket_sender_inner = socket_sender.clone();
-        let to_stage_inner = to_stage.clone();
+        let mempool_inner = mempool.clone();
         let db_inner = db.clone();
         let responses = received_stream.map(move |msg| match msg {
             Request::AddPeer { addr } => {
@@ -76,19 +77,7 @@ pub fn server(
             }
             Request::NewTransaction { tx } => {
                 rpc_info!("received new transaction from {}", socket_addr);
-                let mut txs = HashSet::new();
-                txs.insert(tx);
-                let to_stage_inner = to_stage_inner.clone();
-                tokio::spawn(
-                    to_stage_inner
-                        .send((Origin::RPC, txs, Priority::Standard))
-                        .and_then(|_| future::ok(()))
-                        .map(|_| ())
-                        .or_else(|e| {
-                            rpc_error!("error = {:?}", e);
-                            Ok(())
-                        }),
-                );
+                mempool_inner.lock().unwrap().insert(tx, None, None);
                 Response::Success
             }
             Request::FetchValue { actor_id, key } => {

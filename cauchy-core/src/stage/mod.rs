@@ -24,6 +24,7 @@ use crate::{
         act::{Act, Message},
         ego::{Ego, PeerEgo, Status, WorkState, WorkStatus},
         transaction::*,
+        tx_pool::TxPool,
     },
     utils::constants::{config, HASH_LEN},
 };
@@ -45,7 +46,7 @@ impl Stage {
 
     pub fn manager(
         self,
-        incoming: futures::sync::mpsc::Receiver<(Origin, HashSet<Transaction>, Priority)>,
+        mempool: Arc<Mutex<TxPool>>, incoming: futures::sync::mpsc::Receiver<(Origin, TxPool, Priority)>,
     ) -> impl Future<Item = (), Error = ()> + Send {
         incoming.for_each(move |(origin, txs, priority)| {
             let performances = match origin {
@@ -70,11 +71,11 @@ impl Stage {
             let mut oddsketch = ego_guard.get_oddsketch(); // TODO: Replace these with get &mut
             let mut minisketch = ego_guard.get_minisketch();
 
-            for tx in txs {
-                tx.to_db(&mut self.db.clone(), None);
-                oddsketch.insert(&tx);
-                minisketch.insert(&tx);
-            }
+            // for tx in txs {
+            //     tx.to_db(&mut self.db.clone(), None);
+            //     oddsketch.insert(&tx);
+            //     minisketch.insert(&tx);
+            // }
             let root = Bytes::from(&[0; HASH_LEN][..]); // TODO: Actually generate bytes
             let mut ego_bus_guard = self.ego_bus.lock().unwrap();
             ego_guard.update_oddsketch(oddsketch.clone());

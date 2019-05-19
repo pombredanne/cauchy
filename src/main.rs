@@ -1,22 +1,15 @@
 use std::collections::HashSet;
 
 use bus::Bus;
-use bytes::Bytes;
 
-// use ::rocksdb::{Options, DB};
 use core::{
     crypto::signatures::ecdsa,
     daemon::{Origin, Priority},
-    db::mongodb::MongoDB,
-    db::storing::Storable,
-    db::*,
+    db::{mongodb::MongoDB, *},
     net::heartbeats::*,
-    primitives::arena::*,
-    primitives::ego::{Ego, PeerEgo},
-    primitives::transaction::Transaction,
+    primitives::{arena::*, ego::Ego, transaction::Transaction, tx_pool::TxPool},
     stage::Stage,
-    utils::constants::*,
-    utils::mining,
+    utils::{constants::*, mining},
 };
 
 use futures::lazy;
@@ -64,11 +57,14 @@ fn main() {
     // Init Arena
     let arena = Arc::new(Mutex::new(Arena::new(ego.clone())));
 
+    // Init mempool
+    let mempool = Arc::new(Mutex::new(TxPool::new(1024))); // TODO: Make mempool size constant
+
     // Spawn stage manager
     // let (reset_send, reset_recv) = std::sync::mpsc::channel(); // TODO: Reset mining best
-    let (to_stage, stage_recv) = mpsc::channel::<(Origin, HashSet<Transaction>, Priority)>(128);
+    let (reconcile_send, reconcile_recv) = mpsc::channel::<(Origin, TxPool, Priority)>(128);
     let stage = Stage::new(ego.clone(), db.clone(), ego_bus);
-    let stage_mananger = stage.manager(stage_recv);
+    let stage_mananger = stage.manager(mempool.clone(), reconcile_recv);
 
     // Server
     let (socket_send, socket_recv) = mpsc::channel::<tokio::net::TcpStream>(128);
@@ -77,11 +73,12 @@ fn main() {
         ego.clone(),
         socket_recv,
         arena.clone(),
-        to_stage.clone(),
+        mempool.clone(),
+        reconcile_send.clone(),
     );
 
     // Construct RPC server stack
-    let rpc_server_stack = rpc::construct_rpc_stack(socket_send, to_stage.clone(), db.clone());
+    let rpc_server_stack = rpc::construct_rpc_stack(socket_send, mempool, db.clone());
 
     // Reconciliation heartbeat
     let reconcile_heartbeat = heartbeat_reconcile(arena.clone());
