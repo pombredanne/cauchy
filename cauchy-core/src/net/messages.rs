@@ -8,6 +8,8 @@ use secp256k1::key::PublicKey;
 use secp256k1::Signature;
 use tokio::codec::{Decoder, Encoder};
 
+use super::peers::{Peers, Peer};
+
 use crate::{
     crypto::{
         signatures::ecdsa::*,
@@ -59,9 +61,10 @@ pub enum Message {
         txs: Vec<Transaction>,
     }, // 6 || Number of Bytes VarInt || Tx ...
     Reconcile, // 7
-    WorkAck,
-    WorkNegAck,
-    ReconcileNegAck,
+    WorkAck, //8
+    WorkNegAck, // 9
+    ReconcileNegAck, // 10
+    Peers { peers: Peers } // 11 || Number of peers || Peers
 }
 
 pub struct MessageCodec;
@@ -133,6 +136,10 @@ impl Encoder for MessageCodec {
             Message::WorkAck => dst.put_u8(8),
             Message::WorkNegAck => dst.put_u8(9),
             Message::ReconcileNegAck => dst.put_u8(10),
+            Message::Peers { peers } => {
+                dst.put_u8(11);
+                dst.extend(Bytes::from(peers));
+            }
         }
         Ok(())
     }
@@ -295,6 +302,27 @@ impl Decoder for MessageCodec {
                 decoding_info!("decoding reconcile negack");
                 src.advance(1);
                 Ok(Some(Message::ReconcileNegAck))
+            }
+            11 => {
+                decoding_info!("decoding peers");
+                let (vi_n, _) = match VarInt::parse_buf(&mut buf)? {
+                    None => return Ok(None),
+                    Some(some) => some,
+                };
+                
+                let n = usize::from(vi_n);
+                if buf.remaining() < 6 * n {
+                    return Ok(None)
+                }
+
+                let mut vec_peers = vec![];
+                for i in 0..n {
+                    let mut dst = vec![0; 6];
+                    buf.copy_to_slice(&mut dst);
+                    vec_peers.push(Peer::from(Bytes::from(&dst[..])));
+                }
+
+                Ok(Some(Message::Peers{peers:Peers::new(vec_peers)}))                
             }
             _ => {
                 // TODO: Remove malformed msgs

@@ -325,6 +325,9 @@ pub fn server(
                 }
                 None
             }
+            Message::Peers { peers } => {
+                unreachable!()
+            }
         });
 
         // Remove failed responses and merge with heartbeats

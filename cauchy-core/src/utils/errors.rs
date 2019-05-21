@@ -45,6 +45,10 @@ pub enum TransactionDeserialisationError {
 }
 
 #[derive(Debug, Fail)]
+#[fail(display = "invalid peer list")]
+pub struct PeerDeserialisationError;
+
+#[derive(Debug, Fail)]
 #[fail(display = "invalid varint")]
 pub struct VarIntDeserialisationError;
 

@@ -1,4 +1,4 @@
-use std::convert::TryFrom;
+use std::{convert::TryFrom, net::{SocketAddr, IpAddr, Ipv4Addr, Ipv6Addr}};
 
 use bytes::{Buf, BufMut, Bytes, BytesMut, IntoBuf};
 use failure::Error;
@@ -8,11 +8,12 @@ use crate::{
     primitives::{
         access_pattern::*, transaction::Transaction, varint::VarInt, work_site::WorkSite,
     },
+    net::peers::{Peers, Peer}
 };
 
 use super::{
     constants::*,
-    errors::{TransactionDeserialisationError, VarIntDeserialisationError},
+    errors::{TransactionDeserialisationError, VarIntDeserialisationError, PeerDeserialisationError},
     parsing::*,
 };
 
@@ -167,5 +168,78 @@ impl From<AccessPattern> for Bytes {
             raw.put(value);
         }
         raw.freeze()
+    }
+}
+
+impl From<Peer> for Bytes {
+    fn from(peer: Peer) -> Bytes {
+        let addr = peer.get_addr();
+        let ip = match addr.ip() {
+            IpAddr::V4(some) => some.octets(),
+            _ => unreachable!() // TODO: IPV6
+        };
+        let port = addr.port();
+        let mut raw = BytesMut::with_capacity(6);
+        raw.put(&ip[..]);
+        raw.put_u16_be(port);
+        raw.freeze()
+    }
+}
+
+impl From<Bytes> for Peer {
+    fn from(raw: Bytes) -> Peer {
+        let mut buf = raw.into_buf();
+
+        let mut dst_ip = [0; 4];
+        buf.copy_to_slice(&mut dst_ip);
+
+        let port = buf.get_u16_be();
+
+        Peer::new(SocketAddr::from((dst_ip, port)))
+    }
+}
+
+impl TryFrom<Bytes> for Peers {
+    type Error = Error;
+    fn try_from(raw: Bytes) -> Result<Peers, Error> {
+        let mut buf = raw.into_buf();
+        let (vi_n, _) = match VarInt::parse_buf(&mut buf) {
+            Ok(None) => return Err(PeerDeserialisationError.into()),
+            Err(err) => return Err(PeerDeserialisationError.into()),
+            Ok(Some(some)) => some,
+        };
+        
+        let n = usize::from(vi_n);
+        if buf.remaining() < 6 * n {
+            return Err(PeerDeserialisationError.into())
+        }
+
+        let mut vec_peers = vec![];
+        for i in 0..n {
+            let mut dst = vec![0; 6];
+            buf.copy_to_slice(&mut dst);
+            vec_peers.push(Peer::from(Bytes::from(&dst[..])));
+        }
+
+        Ok(Peers::new(vec_peers))
+
+
+    }
+}
+
+impl From<Peers> for Bytes {
+    fn from(peers: Peers) -> Bytes {
+        let vec_peers = peers.to_vec();
+        let usize_n = vec_peers.len();
+        let mut buf = BytesMut::with_capacity(6 * usize_n);
+
+        let vi_n = VarInt::from(usize_n as u64);
+        buf.put(&Bytes::from(vi_n));
+
+        for peer in vec_peers {
+            buf.put(Bytes::from(peer));
+        }
+
+        buf.freeze()
     }
 }

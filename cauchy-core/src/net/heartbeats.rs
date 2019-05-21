@@ -46,8 +46,7 @@ pub fn heartbeat_work(
         .map_err(|_| HeartBeatWorkError.into())
 }
 
-// TODO: How does this thread die?
-// TODO: Clean up
+
 pub fn heartbeat_reconcile(arena: Arc<Mutex<Arena>>) -> impl Future<Item = (), Error = ()> {
     Interval::new_interval(config.network.reconcile_heartbeat_ms)
         .map_err(|_| ()) // TODO: Catch
