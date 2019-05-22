@@ -21,7 +21,7 @@ use core::{
     daemon::{Origin, Priority},
     db::{mongodb::MongoDB, DataType, Database},
     primitives::tx_pool::TxPool,
-    utils::{constants::config, errors::RPCError},
+    utils::{constants::CONFIG, errors::RPCError},
 };
 
 pub fn server(
@@ -29,7 +29,7 @@ pub fn server(
     mempool: Arc<Mutex<TxPool>>,
     db: MongoDB,
 ) -> Box<Future<Item = (), Error = ()> + Send + 'static> {
-    let addr = format!("0.0.0.0:{}", config.network.rpc_server_port).to_string();
+    let addr = format!("0.0.0.0:{}", CONFIG.network.rpc_server_port).to_string();
     let addr = addr.parse::<SocketAddr>().unwrap();
 
     let listener = TcpListener::bind(&addr)

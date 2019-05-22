@@ -5,20 +5,20 @@ use rand::seq::SliceRandom;
 #[derive(Clone)]
 enum Liveness {
     Live,
-    Dormant
+    Dormant,
 }
 
 #[derive(Clone)]
 pub struct Peer {
     liveness: Liveness,
-    addr: SocketAddr
+    addr: SocketAddr,
 }
 
 impl Peer {
     pub fn new(addr: SocketAddr) -> Peer {
         Peer {
             liveness: Liveness::Live,
-            addr
+            addr,
         }
     }
     pub fn get_addr(&self) -> SocketAddr {

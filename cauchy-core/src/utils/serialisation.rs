@@ -1,19 +1,24 @@
-use std::{convert::TryFrom, net::{SocketAddr, IpAddr, Ipv4Addr, Ipv6Addr}};
+use std::{
+    convert::TryFrom,
+    net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
+};
 
 use bytes::{Buf, BufMut, Bytes, BytesMut, IntoBuf};
 use failure::Error;
 
 use crate::{
     crypto::{signatures::ecdsa::*, sketches::dummy_sketch::*},
+    net::peers::{Peer, Peers},
     primitives::{
         access_pattern::*, transaction::Transaction, varint::VarInt, work_site::WorkSite,
     },
-    net::peers::{Peers, Peer}
 };
 
 use super::{
     constants::*,
-    errors::{TransactionDeserialisationError, VarIntDeserialisationError, PeerDeserialisationError},
+    errors::{
+        PeerDeserialisationError, TransactionDeserialisationError, VarIntDeserialisationError,
+    },
     parsing::*,
 };
 
@@ -176,7 +181,7 @@ impl From<Peer> for Bytes {
         let addr = peer.get_addr();
         let ip = match addr.ip() {
             IpAddr::V4(some) => some.octets(),
-            _ => unreachable!() // TODO: IPV6
+            _ => unreachable!(), // TODO: IPV6
         };
         let port = addr.port();
         let mut raw = BytesMut::with_capacity(6);
@@ -208,10 +213,10 @@ impl TryFrom<Bytes> for Peers {
             Err(err) => return Err(PeerDeserialisationError.into()),
             Ok(Some(some)) => some,
         };
-        
+
         let n = usize::from(vi_n);
         if buf.remaining() < 6 * n {
-            return Err(PeerDeserialisationError.into())
+            return Err(PeerDeserialisationError.into());
         }
 
         let mut vec_peers = vec![];
@@ -222,8 +227,6 @@ impl TryFrom<Bytes> for Peers {
         }
 
         Ok(Peers::new(vec_peers))
-
-
     }
 }
 

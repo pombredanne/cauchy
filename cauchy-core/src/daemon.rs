@@ -27,7 +27,7 @@ use crate::{
 
 macro_rules! daemon_info {
     ($($arg:tt)*) => {
-        if config.debugging.daemon_verbose {
+        if CONFIG.debugging.daemon_verbose {
             info!(target: "daemon_event", $($arg)*);
         }
     };
@@ -35,7 +35,7 @@ macro_rules! daemon_info {
 
 macro_rules! daemon_warn {
     ($($arg:tt)*) => {
-        if config.debugging.daemon_verbose {
+        if CONFIG.debugging.daemon_verbose {
             warn!(target: "daemon_event", $($arg)*);
         }
     };
@@ -43,7 +43,7 @@ macro_rules! daemon_warn {
 
 macro_rules! daemon_error {
     ($($arg:tt)*) => {
-        if config.debugging.daemon_verbose {
+        if CONFIG.debugging.daemon_verbose {
             error!(target: "daemon_event", $($arg)*);
         }
     };
@@ -70,7 +70,7 @@ pub fn server(
     daemon_info!("spawning deamon");
 
     // Bind socket
-    let addr = format!("0.0.0.0:{}", config.network.server_port).to_string();
+    let addr = format!("0.0.0.0:{}", CONFIG.network.server_port).to_string();
     let addr = addr.parse::<SocketAddr>().unwrap();
     let listener = TcpListener::bind(&addr)
         .map_err(|_| DaemonError::BindFailure)
@@ -160,48 +160,55 @@ pub fn server(
                 // Lock peer ego
                 let mut peer_ego_guard = arc_peer_ego.lock().unwrap();
 
-                // Only respond if the pk is reconciliation target
-                if peer_ego_guard.get_status() == Status::StatePull {
-                    let peer_oddsketch = peer_ego_guard.get_oddsketch();
+                // Only respond to reconciliation target
+                match (
+                    peer_ego_guard.get_status(),
+                    peer_ego_guard.get_perceived_minisketch(),
+                    peer_ego_guard.get_perceived_oddsketch(),
+                ) {
+                    (Status::StatePull, Some(perceived_minisketch), Some(perceived_oddsketch)) => {
+                        let peer_oddsketch = peer_ego_guard.get_oddsketch();
 
-                    // Decode difference
-                    let perception_minisketch = peer_ego_guard.get_perceived_minisketch();
-                    let (excess_actor_ids, missing_actor_ids) = (perception_minisketch
-                        - minisketch.clone())
-                    .decode()
-                    .unwrap();
+                        // Decode difference
+                        let (excess_actor_ids, missing_actor_ids) = (perceived_minisketch
+                            - minisketch.clone())
+                        .decode()
+                        .unwrap();
 
-                    daemon_info!(
-                        "minisketch decode reveals excess {} and mising {}",
-                        excess_actor_ids.len(),
-                        missing_actor_ids.len()
-                    );
+                        daemon_info!(
+                            "minisketch decode reveals excess {} and mising {}",
+                            excess_actor_ids.len(),
+                            missing_actor_ids.len()
+                        );
 
-                    let perception_oddsketch = peer_ego_guard.get_perceived_oddsketch();
-                    // Check for fraud
-                    if OddSketch::sketch_ids(&excess_actor_ids)
-                        .xor(&OddSketch::sketch_ids(&missing_actor_ids))
-                        == perception_oddsketch.xor(&peer_oddsketch)
-                    {
-                        daemon_info!("minisketch passed validation");
-                        // Set expected IDs
-                        peer_ego_guard.update_ids(missing_actor_ids.clone());
-                        peer_ego_guard.update_expected_minisketch(minisketch);
+                        // Check for fraud
+                        if OddSketch::sketch_ids(&excess_actor_ids)
+                            .xor(&OddSketch::sketch_ids(&missing_actor_ids))
+                            == perceived_oddsketch.xor(&peer_oddsketch)
+                        {
+                            daemon_info!("minisketch passed validation");
+                            // Set expected IDs
+                            peer_ego_guard.expectation.update_ids(missing_actor_ids.clone());
+                            peer_ego_guard.expectation.update_minisketch(minisketch);
 
-                        Some(Message::GetTransactions {
-                            ids: missing_actor_ids,
-                        })
-                    } else {
-                        daemon_error!("fraudulent minisketch from {}", socket_addr);
+                            Some(Message::GetTransactions {
+                                ids: missing_actor_ids,
+                            })
+                        } else {
+                            daemon_error!("fraudulent minisketch from {}", socket_addr);
+                            // TODO: Ban here
+                            // Stop reconciliation
+                            peer_ego_guard.update_status(Status::Gossiping);
+                            None
+                        }
+                    }
+                    _ => {
                         // TODO: Ban here
-                        // Stop reconciliation
+                        // TODO: More matches
+                        daemon_error!("received minisketch from non-pull target {}", socket_addr);
                         peer_ego_guard.update_status(Status::Gossiping);
                         None
                     }
-                } else {
-                    daemon_error!("received minisketch from non-pull target {}", socket_addr);
-                    peer_ego_guard.update_status(Status::Gossiping);
-                    None
                 }
             }
             Message::GetTransactions { ids } => {
@@ -216,12 +223,12 @@ pub fn server(
 
                 // Find transactions
                 for id in ids {
-                    // if config.debugging.daemon_verbose {
+                    // if CONFIG.debugging.daemon_verbose {
                     //     println!("searching for transaction {:?}", id);
                     // }
                     match Transaction::from_db(&mut tx_db_inner.clone(), id.clone()) {
                         Ok(Some(tx)) => {
-                            // if config.debugging.daemon_verbose {
+                            // if CONFIG.debugging.daemon_verbose {
                             //     println!("Found {:?}", id);
                             // }
                             tx_pool.insert(tx, Some(id.clone()), None);
@@ -263,20 +270,23 @@ pub fn server(
                         tokio::spawn(
                             send_reconcile_inner
                                 .clone()
-                                .send((Origin::Peer(arc_peer_ego.clone()), tx_pool, Priority::Standard)) // TODO: Force vs Standard here
+                                .send((
+                                    Origin::Peer(arc_peer_ego.clone()),
+                                    tx_pool,
+                                    Priority::Standard,
+                                )) // TODO: Force vs Standard here
                                 .map_err(|_| ())
                                 .and_then(|_| future::ok(())),
                         );
-                    },
+                    }
                     Status::Gossiping => {
                         mempool_inner.lock().unwrap().insert_batch(txs, true);
-                    },
+                    }
                     Status::StatePush => {
                         // TODO: Ban
 
                     }
                 }
-
 
                 None
             }
@@ -293,7 +303,7 @@ pub fn server(
                     // Set status of peer push
                     peer_ego_guard.update_status(Status::StatePush);
                     Some(Message::MiniSketch {
-                        minisketch: peer_ego_guard.get_perceived_minisketch(),
+                        minisketch: peer_ego_guard.get_perceived_minisketch()?,
                     })
                 } else {
                     daemon_info!("replying to {} with work negack", socket_addr);
@@ -325,9 +335,7 @@ pub fn server(
                 }
                 None
             }
-            Message::Peers { peers } => {
-                unreachable!()
-            }
+            Message::Peers { peers } => unreachable!(),
         });
 
         // Remove failed responses and merge with heartbeats

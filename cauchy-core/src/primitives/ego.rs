@@ -1,12 +1,12 @@
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
-use rand::Rng;
 use bus::BusReader;
 use bytes::Bytes;
 use futures::sync::mpsc::{channel, Receiver, Sender};
 use futures::{Future, Sink};
 use log::info;
+use rand::Rng;
 use secp256k1::{PublicKey, SecretKey, Signature};
 
 use crate::{
@@ -16,14 +16,14 @@ use crate::{
         sketches::{dummy_sketch::DummySketch, odd_sketch::OddSketch, SketchInsertable},
     },
     net::messages::*,
-    utils::constants::{config, HASH_LEN},
+    utils::constants::{CONFIG, HASH_LEN},
 };
 
 use super::{transaction::Transaction, varint::VarInt, work_site::WorkSite};
 
 macro_rules! ego_info {
     ($($arg:tt)*) => {
-        if config.debugging.ego_verbose {
+        if CONFIG.debugging.ego_verbose {
             info!(target: "ego_event", $($arg)*);
         }
     };
@@ -195,33 +195,102 @@ impl Status {
     }
 }
 
+#[derive(Clone)]
+pub struct WorkStack {
+    root: Bytes,
+    nonce: u64,
+    oddsketch: OddSketch,
+    minisketch: DummySketch, // The minisketch to send to peer
+}
+
+impl WorkState for WorkStack {
+    fn get_oddsketch(&self) -> OddSketch {
+        self.oddsketch.clone()
+    }
+    fn get_root(&self) -> Bytes {
+        self.root.clone()
+    }
+    fn get_nonce(&self) -> u64 {
+        self.nonce
+    }
+    fn update_oddsketch(&mut self, oddsketch: OddSketch) {
+        self.oddsketch = oddsketch;
+    }
+    fn update_root(&mut self, root: Bytes) {
+        self.root = root;
+    }
+    fn update_nonce(&mut self, nonce: u64) {
+        self.nonce = nonce;
+    }
+}
+
+impl WorkStack {
+    fn get_minisketch(&self) -> DummySketch {
+        self.minisketch.clone()
+    }
+}
+
+pub struct Expectation {
+    ids: Option<HashSet<Bytes>>,
+    minisketch: Option<DummySketch>, // Post reconciliation our minisketch should match this
+}
+
+impl Expectation {
+    pub fn new() -> Expectation {
+        Expectation {
+            ids: None,
+            minisketch: None
+        }
+    }
+    pub fn get_ids(&self) -> Option<HashSet<Bytes>> {
+        self.ids.clone()
+    }
+
+    pub fn get_minisketch(&self) -> Option<DummySketch> {
+        self.minisketch.clone()
+    }
+
+    pub fn update_ids(&mut self, ids: HashSet<Bytes>) {
+        self.ids = Some(ids)
+    }
+
+    pub fn update_minisketch(&mut self, minisketch: DummySketch) {
+        self.minisketch = Some(minisketch)
+    }
+
+    pub fn is_expected_payload(&self, transactions: &HashSet<Transaction>) -> bool {
+        Some(transactions.iter().map(|tx| tx.get_id()).collect()) == self.ids
+    }
+
+    pub fn clear_ids(&mut self) {
+        self.ids = None
+    }
+
+    pub fn clear_minisketch(&mut self) {
+        self.minisketch = None
+    }
+}
+
 pub struct PeerEgo {
     pubkey: Option<PublicKey>,
     sink: Sender<Message>,
     secret: u64,
+    status: Status,
+    work_status: WorkStatus,
 
     // Reported
     reported_oddsketch: OddSketch,
     reported_root: Bytes,
     reported_nonce: u64,
 
-    // Pending
-    pending_root: Bytes,
-    pending_nonce: u64,
-    pending_oddsketch: OddSketch,
-    pending_minisketch: DummySketch, // The minisketch to send to peer
-    work_status: WorkStatus,
+    // Pre-acknowledgement perception
+    pending: Option<WorkStack>,
 
-    // Perceived
-    perceived_root: Bytes,
-    perceived_nonce: u64,
-    perceived_oddsketch: OddSketch,
-    perceived_minisketch: DummySketch, // The minisketch to send to peer
+    // How peer perceives own ego
+    pub perception: Option<WorkStack>,
 
-    // Reconciliation
-    status: Status,
-    expected_ids: Option<HashSet<Bytes>>,
-    expected_minisketch: Option<DummySketch>, // Post reconciliation our minisketch should match this
+    // Expectation of state post-reconciliation
+    pub expectation: Expectation,
 }
 
 impl WorkState for PeerEgo {
@@ -257,23 +326,16 @@ impl PeerEgo {
         (
             PeerEgo {
                 pubkey: None,
+                secret: rng.gen::<u64>(),
                 reported_oddsketch: OddSketch::new(),
                 reported_root: Bytes::from(&[0; HASH_LEN][..]),
                 reported_nonce: 0,
-                pending_root: Bytes::from(&[0; HASH_LEN][..]),
-                pending_nonce: 0,
-                pending_oddsketch: OddSketch::new(),
-                pending_minisketch: DummySketch::new(),
+                pending: None,
                 work_status: WorkStatus::Ready,
-                perceived_root: Bytes::from(&[0; HASH_LEN][..]),
-                perceived_nonce: 0,
-                perceived_oddsketch: OddSketch::new(),
-                perceived_minisketch: DummySketch::new(),
+                perception: None,
                 status: Status::Gossiping,
                 sink: peer_sink,
-                secret: rng.gen::<u64>(),
-                expected_ids: None,
-                expected_minisketch: None,
+                expectation: Expectation::new(),
             },
             peer_stream,
         )
@@ -307,20 +369,21 @@ impl PeerEgo {
         self.pubkey
     }
 
-    pub fn get_perceived_oddsketch(&self) -> OddSketch {
-        self.perceived_oddsketch.clone()
+    pub fn get_perceived_oddsketch(&self) -> Option<OddSketch> {
+        match &self.perception {
+            Some(perception) => Some(perception.get_oddsketch()),
+            None => None
+        }
     }
 
-    pub fn get_perceived_minisketch(&self) -> DummySketch {
-        self.perceived_minisketch.clone() // TODO: Catch? This panics if reconcile before work is sent
-    }
+    pub fn get_perceived_minisketch(&self) -> Option<DummySketch> {
+        match &self.perception {
+            Some(perception) => Some(perception.get_minisketch()),
+            None => None
+        }    }
 
-    pub fn get_expected_minisketch(&self) -> DummySketch {
-        self.expected_minisketch.clone().unwrap() // TODO: Catch? This panics if reconcile before work is sent
-    }
-
-    pub fn is_expected_payload(&self, transactions: &HashSet<Transaction>) -> bool {
-        Some(transactions.iter().map(|tx| tx.get_id()).collect()) == self.expected_ids
+    pub fn get_expected_minisketch(&self) -> Option<DummySketch> {
+        self.expectation.get_minisketch()
     }
 
     pub fn get_work_site(&self) -> Option<WorkSite> {
@@ -334,11 +397,6 @@ impl PeerEgo {
         }
     }
 
-    // Update expected IDs
-    pub fn update_ids(&mut self, ids: HashSet<Bytes>) {
-        self.expected_ids = Some(ids)
-    }
-
     pub fn update_status(&mut self, status: Status) {
         ego_info!("{} -> {}", self.status.to_str(), status.to_str());
         self.status = status;
@@ -347,11 +405,6 @@ impl PeerEgo {
     pub fn update_work_status(&mut self, work_status: WorkStatus) {
         ego_info!("{} -> {}", self.work_status.to_str(), work_status.to_str());
         self.work_status = work_status;
-    }
-
-    // Update expected minisketch
-    pub fn update_expected_minisketch(&mut self, minisketch: DummySketch) {
-        self.expected_minisketch = Some(minisketch)
     }
 
     // On received
@@ -380,17 +433,16 @@ impl PeerEgo {
     // Update pending
     pub fn commit_work(&mut self, ego: &Ego) {
         // Send work
-        self.pending_root = ego.root.clone();
-        self.pending_oddsketch = ego.oddsketch.clone();
-        self.pending_nonce = ego.nonce;
-        self.pending_minisketch = ego.minisketch.clone();
+        self.pending = Some(WorkStack {
+            root: ego.root.clone(),
+            oddsketch: ego.oddsketch.clone(),
+            nonce: ego.nonce,
+            minisketch: ego.minisketch.clone()
+        });
     }
 
     pub fn push_work(&mut self) {
         // Confirm worked was received
-        self.perceived_root = self.pending_root.clone();
-        self.perceived_oddsketch = self.pending_oddsketch.clone();
-        self.perceived_nonce = self.pending_nonce.clone();
-        self.perceived_minisketch = self.pending_minisketch.clone();
+        self.perception = self.pending.clone();
     }
 }

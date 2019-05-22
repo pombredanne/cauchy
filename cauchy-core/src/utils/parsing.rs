@@ -13,7 +13,7 @@ use super::{constants::*, errors::VarIntParseError};
 
 macro_rules! parsing_info {
     ($($arg:tt)*) => {
-        if config.debugging.parsing_verbose {
+        if CONFIG.debugging.parsing_verbose {
             info!(target: "parsing_event", $($arg)*);
         }
     };

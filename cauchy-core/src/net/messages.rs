@@ -8,7 +8,7 @@ use secp256k1::key::PublicKey;
 use secp256k1::Signature;
 use tokio::codec::{Decoder, Encoder};
 
-use super::peers::{Peers, Peer};
+use super::peers::{Peer, Peers};
 
 use crate::{
     crypto::{
@@ -21,7 +21,7 @@ use crate::{
 
 macro_rules! encoding_info {
     ($($arg:tt)*) => {
-        if config.debugging.decoding_verbose {
+        if CONFIG.debugging.decoding_verbose {
             info!(target: "encoding_event", $($arg)*);
         }
     };
@@ -29,7 +29,7 @@ macro_rules! encoding_info {
 
 macro_rules! decoding_info {
     ($($arg:tt)*) => {
-        if config.debugging.decoding_verbose {
+        if CONFIG.debugging.decoding_verbose {
             info!(target: "decoding_event", $($arg)*);
         }
     };
@@ -60,11 +60,13 @@ pub enum Message {
     Transactions {
         txs: Vec<Transaction>,
     }, // 6 || Number of Bytes VarInt || Tx ...
-    Reconcile, // 7
-    WorkAck, //8
-    WorkNegAck, // 9
+    Reconcile,       // 7
+    WorkAck,         //8
+    WorkNegAck,      // 9
     ReconcileNegAck, // 10
-    Peers { peers: Peers } // 11 || Number of peers || Peers
+    Peers {
+        peers: Peers,
+    }, // 11 || Number of peers || Peers
 }
 
 pub struct MessageCodec;
@@ -309,10 +311,10 @@ impl Decoder for MessageCodec {
                     None => return Ok(None),
                     Some(some) => some,
                 };
-                
+
                 let n = usize::from(vi_n);
                 if buf.remaining() < 6 * n {
-                    return Ok(None)
+                    return Ok(None);
                 }
 
                 let mut vec_peers = vec![];
@@ -322,7 +324,9 @@ impl Decoder for MessageCodec {
                     vec_peers.push(Peer::from(Bytes::from(&dst[..])));
                 }
 
-                Ok(Some(Message::Peers{peers:Peers::new(vec_peers)}))                
+                Ok(Some(Message::Peers {
+                    peers: Peers::new(vec_peers),
+                }))
             }
             _ => {
                 // TODO: Remove malformed msgs

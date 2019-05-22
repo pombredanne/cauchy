@@ -2,7 +2,7 @@ use bytes::Bytes;
 use rand::Rng;
 
 use crate::{
-    primitives::{tx_pool::TxPool, transaction::Transaction},
+    primitives::{transaction::Transaction, tx_pool::TxPool},
     utils::errors::TxPoolError,
 };
 
@@ -33,7 +33,9 @@ fn test_put_full() {
 
     let mut mempool = TxPool::new(3);
 
-    assert!(mempool.insert_batch(vec![tx_a, tx_b, tx_c, tx_d], true).is_err())
+    assert!(mempool
+        .insert_batch(vec![tx_a, tx_b, tx_c, tx_d], true)
+        .is_err())
 }
 
 #[test]

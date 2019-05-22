@@ -1,5 +1,3 @@
-use std::cell::Cell;
-
 use bytes::Bytes;
 use secp256k1::PublicKey;
 

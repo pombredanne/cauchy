@@ -17,7 +17,7 @@ pub fn heartbeat_work(
     ego: Arc<Mutex<Ego>>,
     peer_ego: Arc<Mutex<PeerEgo>>,
 ) -> impl futures::stream::Stream<Item = Message, Error = Error> {
-    Interval::new_interval(config.network.work_heartbeat_ms)
+    Interval::new_interval(CONFIG.network.work_heartbeat_ms)
         .filter_map(move |_| {
             // Don't push work to anyone but gossipers
             let ego_guard = ego.lock().unwrap();
@@ -25,7 +25,7 @@ pub fn heartbeat_work(
             if peer_ego_guard.get_status() != Status::Gossiping
                 || peer_ego_guard.get_work_status() == WorkStatus::Waiting
             {
-                if config.debugging.heartbeat_verbose {
+                if CONFIG.debugging.heartbeat_verbose {
                     info!(target: "heartbeat_event",
                         "work heartbeat paused while {}",
                         peer_ego_guard.get_status().to_str()
@@ -46,9 +46,8 @@ pub fn heartbeat_work(
         .map_err(|_| HeartBeatWorkError.into())
 }
 
-
 pub fn heartbeat_reconcile(arena: Arc<Mutex<Arena>>) -> impl Future<Item = (), Error = ()> {
-    Interval::new_interval(config.network.reconcile_heartbeat_ms)
+    Interval::new_interval(CONFIG.network.reconcile_heartbeat_ms)
         .map_err(|_| ()) // TODO: Catch
         .for_each(move |_| {
             arena.lock().unwrap().reconcile_leader();

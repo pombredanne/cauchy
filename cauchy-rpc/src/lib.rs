@@ -1,7 +1,7 @@
 pub mod native;
 
-use std::sync::{Arc, Mutex};
 use std::net::SocketAddr;
+use std::sync::{Arc, Mutex};
 
 use bytes::Bytes;
 use futures::{sync::mpsc::Sender, Future};
@@ -16,7 +16,7 @@ use core::{
 #[macro_export]
 macro_rules! rpc_info {
     ($($arg:tt)*) => {
-        if config.debugging.rpc_verbose {
+        if CONFIG.debugging.rpc_verbose {
             info!(target: "rpc_event", $($arg)*);
         }
     };
@@ -25,7 +25,7 @@ macro_rules! rpc_info {
 #[macro_export]
 macro_rules! rpc_error {
     ($($arg:tt)*) => {
-        if config.debugging.rpc_verbose {
+        if CONFIG.debugging.rpc_verbose {
             error!(target: "rpc_event", $($arg)*);
         }
     };

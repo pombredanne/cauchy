@@ -60,16 +60,21 @@ impl TxPool {
         }
     }
 
-    pub fn insert(&mut self, tx: Transaction, opt_tx_id: Option<Bytes>, cached_perf: Option<Performance>) -> Result<(), Error> {
+    pub fn insert(
+        &mut self,
+        tx: Transaction,
+        opt_tx_id: Option<Bytes>,
+        cached_perf: Option<Performance>,
+    ) -> Result<(), Error> {
         if self.txs.len() < self.size {
             let tx_id = match opt_tx_id {
                 Some(tx_id) => tx_id,
-                None => tx.get_id()
+                None => tx.get_id(),
             };
             let item = TxPoolItem {
                 tx_id,
                 tx,
-                cached_perf
+                cached_perf,
             };
             self.txs.push(item);
             Ok(())
@@ -79,7 +84,11 @@ impl TxPool {
     }
 
     pub fn to_sorted_txs(self) -> Vec<Transaction> {
-        self.txs.into_sorted_vec().into_iter().map(|item| item.tx).collect()
+        self.txs
+            .into_sorted_vec()
+            .into_iter()
+            .map(|item| item.tx)
+            .collect()
     }
 
     pub fn insert_batch(

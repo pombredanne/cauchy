@@ -26,7 +26,7 @@ use crate::{
         transaction::*,
         tx_pool::TxPool,
     },
-    utils::constants::{config, HASH_LEN},
+    utils::constants::{CONFIG, HASH_LEN},
 };
 
 pub struct Stage {
@@ -46,7 +46,8 @@ impl Stage {
 
     pub fn manager(
         self,
-        mempool: Arc<Mutex<TxPool>>, incoming: futures::sync::mpsc::Receiver<(Origin, TxPool, Priority)>,
+        mempool: Arc<Mutex<TxPool>>,
+        incoming: futures::sync::mpsc::Receiver<(Origin, TxPool, Priority)>,
     ) -> impl Future<Item = (), Error = ()> + Send {
         incoming.for_each(move |(origin, txs, priority)| {
             let performances = match origin {

@@ -65,7 +65,7 @@ pub struct CoreConfig {
 }
 
 lazy_static! {
-    pub static ref config: CoreConfig = load_config();
+    pub static ref CONFIG: CoreConfig = load_config();
 }
 
 pub fn default_config() -> CoreConfig {
