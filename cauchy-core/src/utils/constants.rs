@@ -28,6 +28,18 @@ pub struct Networking {
     pub rpc_server_port: u16,
 }
 
+impl Default for Networking {
+    fn default() -> Self {
+        Networking {
+            work_heartbeat_ms: duration_from_millis(1_000),
+            reconcile_heartbeat_ms: duration_from_millis(30_000),
+            reconcile_timeout_ms: duration_from_millis(5_000),
+            server_port: 8332,
+            rpc_server_port: 8333,
+        }
+    }
+}
+
 fn from_u64<'de, D>(deserializer: D) -> Result<Duration, D::Error>
 where
     D: Deserializer<'de>,
@@ -52,35 +64,9 @@ pub struct Debugging {
     pub ego_verbose: bool,
 }
 
-#[derive(Deserialize)]
-pub struct Mining {
-    pub n_mining_threads: u8,
-}
-
-#[derive(Deserialize)]
-pub struct CoreConfig {
-    pub network: Networking,
-    pub mining: Mining,
-    pub debugging: Debugging,
-}
-
-lazy_static! {
-    pub static ref CONFIG: CoreConfig = load_config();
-}
-
-pub fn default_config() -> CoreConfig {
-    CoreConfig {
-        network: Networking {
-            work_heartbeat_ms: duration_from_millis(1_000),
-            reconcile_heartbeat_ms: duration_from_millis(30_000),
-            reconcile_timeout_ms: duration_from_millis(5_000),
-            server_port: 8332,
-            rpc_server_port: 8333,
-        },
-        mining: Mining {
-            n_mining_threads: 2,
-        },
-        debugging: Debugging {
+impl Default for Debugging {
+    fn default() -> Self {
+        Debugging {
             test_tx_interval: duration_from_millis(500), // TODO: Remove?
             arena_verbose: false,
             heartbeat_verbose: false,
@@ -92,8 +78,32 @@ pub fn default_config() -> CoreConfig {
             rpc_verbose: true,
             mining_verbose: true,
             ego_verbose: true,
-        },
+        }
     }
+}
+
+#[derive(Deserialize)]
+pub struct Mining {
+    pub n_mining_threads: u8,
+}
+
+impl Default for Mining {
+    fn default() -> Self {
+        Mining {
+            n_mining_threads: 2,
+        }
+    }
+}
+
+#[derive(Deserialize, Default)]
+pub struct CoreConfig {
+    pub network: Networking,
+    pub mining: Mining,
+    pub debugging: Debugging,
+}
+
+lazy_static! {
+    pub static ref CONFIG: CoreConfig = load_config();
 }
 
 // TODO: Catch with defaults
@@ -108,13 +118,13 @@ pub fn load_config() -> CoreConfig {
                 Ok(r_config) => r_config,
                 Err(e) => {
                     warn!(target: "startup_event", "config file failed to parse {:?}, using default configuration", e);
-                    default_config()
+                    Default::default()
                 }
             }
         }
         Err(e) => {
             warn!(target: "startup_event", "config file could not be read = {:?}, using default configuration", e);
-            default_config()
+            Default::default()
         }
     }
 }

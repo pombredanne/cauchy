@@ -1,8 +1,7 @@
-extern crate bytes;
-
 use bytes::{Buf, Bytes, IntoBuf};
 use std::ops::*;
 
+#[macro_export]
 macro_rules! bytes {
     ($val: ident) => {
         Bytes::from(&b$val[..])
