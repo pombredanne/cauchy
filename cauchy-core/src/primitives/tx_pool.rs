@@ -83,7 +83,7 @@ impl TxPool {
         }
     }
 
-    pub fn to_sorted_txs(self) -> Vec<Transaction> {
+    pub fn into_sorted_txs(self) -> Vec<Transaction> {
         self.txs
             .into_sorted_vec()
             .into_iter()
@@ -107,14 +107,14 @@ impl TxPool {
 
         let res: Result<Vec<TxPoolItem>, Error> = txs
             .into_iter()
-            .map(|tx| TxPoolItem::from(tx))
+            .map(TxPoolItem::from)
             .tuple_windows()
             .map(|(item_a, item_b)| {
                 // Check order
                 if item_a < item_b || !validate_order {
                     Ok(item_a)
                 } else {
-                    return Err(TxPoolError::NotSorted.into());
+                    Err(TxPoolError::NotSorted.into())
                 }
             })
             .collect();

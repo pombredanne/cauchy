@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use bus::Bus;
 
 use core::{
@@ -96,8 +94,8 @@ fn main() {
         }))
     });
 
-    // Update local state
-    let mining_updator = thread::spawn(move || Ego::updater(ego, distance_recv, mining_reset));
-    mining_updator.join();
+    // Spawn mining updater
+    thread::spawn(move || Ego::updater(ego, distance_recv, mining_reset));
+
     main_loop.join();
 }

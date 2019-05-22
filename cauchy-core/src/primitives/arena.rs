@@ -22,7 +22,7 @@ pub struct Arena {
 impl Arena {
     pub fn new(ego: Arc<Mutex<Ego>>) -> Arena {
         Arena {
-            ego: ego,
+            ego,
             peer_egos: HashMap::new(),
         }
     }
@@ -59,15 +59,13 @@ impl Arena {
             for (i, guard) in participants.iter().enumerate() {
                 let oddsketch = guard.get_oddsketch();
                 let mut distance = 0;
+                // TODO: Locking all peers could be avoided by moving state into the key of hashmap
                 for guard_inner in participants.iter() {
-                    match guard_inner.get_work_site() {
-                        Some(work_site) => {
-                            distance += work_site.mine(&oddsketch);
-                            if distance > best_distance {
-                                break;
-                            }
+                    if let Some(work_site) = guard_inner.get_work_site() {
+                        distance += work_site.mine(&oddsketch);
+                        if distance > best_distance {
+                            break;
                         }
-                        None => (),
                     }
                 }
                 if distance < best_distance {

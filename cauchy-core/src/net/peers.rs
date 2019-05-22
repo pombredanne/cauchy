@@ -1,4 +1,4 @@
-use std::{collections::HashSet, net::SocketAddr};
+use std::net::SocketAddr;
 
 use rand::seq::SliceRandom;
 
@@ -47,7 +47,7 @@ impl Peers {
         self.0.choose_multiple(&mut rng, n).cloned().collect()
     }
 
-    pub fn to_vec(self) -> Vec<Peer> {
+    pub fn into_vec(self) -> Vec<Peer> {
         self.0
     }
 }

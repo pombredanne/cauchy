@@ -1,5 +1,4 @@
 use std::sync::mpsc::Sender;
-use std::time;
 
 use bus::BusReader;
 use bytes::Bytes;

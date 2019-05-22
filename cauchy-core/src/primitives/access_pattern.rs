@@ -1,12 +1,12 @@
 use std::collections::{HashMap, HashSet};
 use std::iter::Iterator;
-use std::ops::{Add, AddAssign};
+use std::ops::AddAssign;
 
 use bytes::Bytes;
 
 use crate::utils::byte_ops::*;
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Default)]
 pub struct AccessPattern {
     pub read: HashSet<Bytes>,
     pub write: HashMap<Bytes, Bytes>,
@@ -25,13 +25,6 @@ impl AddAssign for AccessPattern {
 }
 
 impl AccessPattern {
-    pub fn new() -> AccessPattern {
-        AccessPattern {
-            read: HashSet::new(),
-            write: HashMap::new(),
-        }
-    }
-
     pub fn commute(&self, other: &AccessPattern) -> bool {
         !(other.read.iter().any(|key| self.write.contains_key(key))
             || self.write.keys().any(|key| other.read.contains(key)))

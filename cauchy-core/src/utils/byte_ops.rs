@@ -3,7 +3,7 @@ extern crate bytes;
 use bytes::{Buf, Bytes, IntoBuf};
 use std::ops::*;
 
-macro_rules! from_bytes {
+macro_rules! bytes {
     ($val: ident) => {
         Bytes::from(&b$val[..])
     };

@@ -8,7 +8,7 @@ use tokio::timer::Interval;
 
 use crate::{
     primitives::{arena::*, ego::*},
-    utils::{constants::*, errors::HeartBeatWorkError, timing::*},
+    utils::{constants::*, errors::HeartBeatWorkError},
 };
 
 use super::messages::Message;

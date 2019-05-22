@@ -28,9 +28,9 @@ pub trait Database<DB> {
 
 impl DataType {
     pub fn as_str(&self) -> &str {
-        match self {
-            &DataType::TX => "txs",
-            &DataType::State => "states",
+        match *self {
+            DataType::TX => "txs",
+            DataType::State => "states",
         }
     }
 }

@@ -145,18 +145,16 @@ impl Ego {
 
         loop {
             if let Ok((nonce, distance)) = distance_receive.recv() {
-                if let Ok(_) = mining_reset.try_recv() {
+                if mining_reset.try_recv().is_ok() {
                     let mut ego_locked = ego.lock().unwrap();
                     ego_locked.update_nonce(nonce);
                     ego_locked.update_current_distance(best_distance);
                     best_distance = distance;
-                } else {
-                    if distance < best_distance {
-                        let mut ego_locked = ego.lock().unwrap();
-                        ego_locked.update_nonce(nonce);
-                        ego_locked.update_current_distance(best_distance);
-                        best_distance = distance;
-                    }
+                } else if distance < best_distance {
+                    let mut ego_locked = ego.lock().unwrap();
+                    ego_locked.update_nonce(nonce);
+                    ego_locked.update_current_distance(best_distance);
+                    best_distance = distance;
                 }
             }
         }
@@ -230,18 +228,13 @@ impl WorkStack {
     }
 }
 
+#[derive(Default)]
 pub struct Expectation {
     ids: Option<HashSet<Bytes>>,
     minisketch: Option<DummySketch>, // Post reconciliation our minisketch should match this
 }
 
 impl Expectation {
-    pub fn new() -> Expectation {
-        Expectation {
-            ids: None,
-            minisketch: None
-        }
-    }
     pub fn get_ids(&self) -> Option<HashSet<Bytes>> {
         self.ids.clone()
     }
@@ -335,7 +328,7 @@ impl PeerEgo {
                 perception: None,
                 status: Status::Gossiping,
                 sink: peer_sink,
-                expectation: Expectation::new(),
+                expectation: Default::default(),
             },
             peer_stream,
         )
@@ -343,9 +336,8 @@ impl PeerEgo {
 
     pub fn check_handshake(&mut self, sig: &Signature, pubkey: &PublicKey) {
         let secret_msg = ecdsa::message_from_preimage(Bytes::from(VarInt::new(self.secret)));
-        match ecdsa::verify(&secret_msg, sig, pubkey) {
-            Ok(true) => self.pubkey = Some(*pubkey),
-            _ => (), // TODO: Ban here?
+        if let Ok(true) = ecdsa::verify(&secret_msg, sig, pubkey) {
+            self.pubkey = Some(*pubkey)
         }
     }
 
@@ -372,15 +364,16 @@ impl PeerEgo {
     pub fn get_perceived_oddsketch(&self) -> Option<OddSketch> {
         match &self.perception {
             Some(perception) => Some(perception.get_oddsketch()),
-            None => None
+            None => None,
         }
     }
 
     pub fn get_perceived_minisketch(&self) -> Option<DummySketch> {
         match &self.perception {
             Some(perception) => Some(perception.get_minisketch()),
-            None => None
-        }    }
+            None => None,
+        }
+    }
 
     pub fn get_expected_minisketch(&self) -> Option<DummySketch> {
         self.expectation.get_minisketch()
@@ -437,7 +430,7 @@ impl PeerEgo {
             root: ego.root.clone(),
             oddsketch: ego.oddsketch.clone(),
             nonce: ego.nonce,
-            minisketch: ego.minisketch.clone()
+            minisketch: ego.minisketch.clone(),
         });
     }
 

@@ -3,9 +3,7 @@ use std::convert::TryFrom;
 use bytes::Bytes;
 use failure::Error;
 
-use crate::{
-    crypto::hashes::*, primitives::transaction::*, utils::serialisation::*, vm::session::Session,
-};
+use crate::{crypto::hashes::*, primitives::transaction::*, vm::session::Session};
 
 use super::{mongodb::MongoDB, DataType, Database};
 use bson::spec::BinarySubtype;

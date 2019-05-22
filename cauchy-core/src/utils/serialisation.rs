@@ -232,7 +232,7 @@ impl TryFrom<Bytes> for Peers {
 
 impl From<Peers> for Bytes {
     fn from(peers: Peers) -> Bytes {
-        let vec_peers = peers.to_vec();
+        let vec_peers = peers.into_vec();
         let usize_n = vec_peers.len();
         let mut buf = BytesMut::with_capacity(6 * usize_n);
 

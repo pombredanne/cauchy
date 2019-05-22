@@ -45,12 +45,12 @@ impl VM {
         parent_branch: oneshot::Sender<Arc<Mutex<Performance>>>,
     ) -> Result<u8, Error> {
         // Construct session
-        let mut performance = Arc::new(Mutex::new(Performance::new()));
+        let performance = Arc::new(Mutex::new(Performance::new()));
         let id = tx.get_id();
         let session = Session {
             mailbox,
             id: id.clone(),
-            perfid: perfid,
+            perfid,
             timestamp: tx.get_time(),
             binary_hash: tx.get_binary_hash(),
             aux: tx.get_aux(),

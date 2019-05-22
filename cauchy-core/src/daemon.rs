@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 
@@ -188,7 +187,9 @@ pub fn server(
                         {
                             daemon_info!("minisketch passed validation");
                             // Set expected IDs
-                            peer_ego_guard.expectation.update_ids(missing_actor_ids.clone());
+                            peer_ego_guard
+                                .expectation
+                                .update_ids(missing_actor_ids.clone());
                             peer_ego_guard.expectation.update_minisketch(minisketch);
 
                             Some(Message::GetTransactions {
@@ -245,7 +246,7 @@ pub fn server(
                         }
                     }
                 }
-                let txs = tx_pool.to_sorted_txs();
+                let txs = tx_pool.into_sorted_txs();
                 // Send transactions
                 daemon_info!(
                     "replying to {} with {} transactions",
@@ -307,7 +308,7 @@ pub fn server(
                     })
                 } else {
                     daemon_info!("replying to {} with work negack", socket_addr);
-                    return Some(Message::ReconcileNegAck);
+                    Some(Message::ReconcileNegAck)
                 }
             }
             Message::WorkAck => {

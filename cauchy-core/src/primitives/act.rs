@@ -1,25 +1,14 @@
-use std::collections::{HashMap, HashSet};
-use std::ops::{Add, AddAssign};
+use std::ops::AddAssign;
 
 use bytes::Bytes;
 
 use super::access_pattern::*;
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Default)]
 pub struct Act {
     pub access_pattern: AccessPattern,
     messages: Vec<Message>,
     operations: u64,
-}
-
-impl Act {
-    pub fn new() -> Act {
-        Act {
-            access_pattern: AccessPattern::new(),
-            messages: Vec::new(),
-            operations: 0,
-        }
-    }
 }
 
 #[derive(PartialEq, Eq, Hash, Clone)]

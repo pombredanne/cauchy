@@ -59,7 +59,7 @@ impl Performance {
         let act = match self.0.get_mut(id) {
             Some(some) => some,
             None => {
-                self.0.insert(id.clone(), Act::new());
+                self.0.insert(id.clone(), Default::default());
                 self.0.get_mut(id).unwrap()
             }
         };
@@ -70,7 +70,7 @@ impl Performance {
         let act = match self.0.get_mut(id) {
             Some(some) => some,
             None => {
-                self.0.insert(id.clone(), Act::new());
+                self.0.insert(id.clone(), Default::default());
                 self.0.get_mut(id).unwrap()
             }
         };
