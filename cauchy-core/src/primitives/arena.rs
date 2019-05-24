@@ -4,7 +4,13 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use log::info;
 
-use crate::{net::messages::Message, primitives::ego::*, utils::constants::CONFIG};
+use crate::{
+    crypto::sketches::odd_sketch::OddSketch,
+    ego::{ego::*, peer_ego::*, *},
+    net::messages::Message,
+    primitives::status::*,
+    utils::constants::CONFIG,
+};
 
 macro_rules! arena_info {
     ($($arg:tt)*) => {
@@ -43,8 +49,8 @@ impl Arena {
             .iter()
             .map(|(_, ego)| ego.lock().unwrap())
             .filter(|guard| {
-                guard.get_status() == Status::Gossiping
-                    && guard.get_work_status() == WorkStatus::Ready
+                guard.get_status() == Status::Idle
+                    && guard.get_work_status() == WorkStatus::Idle
                     && guard.get_pubkey().is_some()
             })
             .collect();
@@ -57,7 +63,7 @@ impl Arena {
             let mut best_distance = 1024;
             let mut best_index = 0;
             for (i, guard) in participants.iter().enumerate() {
-                let oddsketch = guard.get_oddsketch();
+                let oddsketch: OddSketch = Default::default();
                 let mut distance = 0;
                 // TODO: Locking all peers could be avoided by moving state into the key of hashmap
                 for guard_inner in participants.iter() {

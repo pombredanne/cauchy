@@ -6,7 +6,7 @@ use bytes::Bytes;
 
 use super::{super::hashes::*, *};
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Default)]
 pub struct DummySketch {
     pos_set: HashSet<Bytes>,
     neg_set: HashSet<Bytes>,
@@ -28,13 +28,6 @@ impl Sub for DummySketch {
 }
 
 impl SketchInsertable for DummySketch {
-    fn new() -> DummySketch {
-        DummySketch {
-            pos_set: HashSet::new(),
-            neg_set: HashSet::new(),
-        }
-    }
-
     fn insert<T: Identifiable>(&mut self, item: &T) {
         let digest = item.get_id();
         self.pos_set.insert(digest);

@@ -7,7 +7,8 @@ use tokio::prelude::*;
 use tokio::timer::Interval;
 
 use crate::{
-    primitives::{arena::*, ego::*},
+    ego::{ego::*, peer_ego::*, *},
+    primitives::{arena::*, status::*},
     utils::{constants::*, errors::HeartBeatWorkError},
 };
 
@@ -22,8 +23,8 @@ pub fn heartbeat_work(
             // Don't push work to anyone but gossipers
             let ego_guard = ego.lock().unwrap();
             let mut peer_ego_guard = peer_ego.lock().unwrap();
-            if peer_ego_guard.get_status() != Status::Gossiping
-                || peer_ego_guard.get_work_status() == WorkStatus::Waiting
+            if peer_ego_guard.get_status() != Status::Idle
+                || peer_ego_guard.get_work_status() == WorkStatus::Idle
             {
                 if CONFIG.debugging.heartbeat_verbose {
                     info!(target: "heartbeat_event",
@@ -34,7 +35,7 @@ pub fn heartbeat_work(
                 None
             } else {
                 // Send current work
-                peer_ego_guard.update_work_status(WorkStatus::Waiting);
+                peer_ego_guard.update_work_status(WorkStatus::Idle);
                 peer_ego_guard.commit_work(&ego_guard);
                 Some(Message::Work {
                     oddsketch: ego_guard.get_oddsketch(),

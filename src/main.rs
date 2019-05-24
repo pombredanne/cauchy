@@ -5,7 +5,8 @@ use core::{
     daemon::{Origin, Priority},
     db::{mongodb::MongoDB, *},
     net::heartbeats::*,
-    primitives::{arena::*, ego::Ego, transaction::Transaction, tx_pool::TxPool},
+    ego::ego::Ego,
+    primitives::{arena::*, tx_pool::TxPool},
     stage::Stage,
     utils::{constants::*, mining},
 };

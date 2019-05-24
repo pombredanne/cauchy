@@ -11,10 +11,11 @@ use tokio::prelude::*;
 use crate::{
     crypto::sketches::{odd_sketch::*, *},
     db::{mongodb::MongoDB, storing::Storable},
+    ego::{ego::*, peer_ego::*, WorkState},
     net::{heartbeats::*, messages::*},
     primitives::{
         arena::Arena,
-        ego::{Ego, PeerEgo, Status, WorkState, WorkStatus},
+        status::{Status, WorkStatus},
         transaction::Transaction,
         tx_pool::TxPool,
     },
@@ -123,13 +124,6 @@ pub fn server(
                 arc_peer_ego.lock().unwrap().check_handshake(&sig, &pubkey);
                 None
             }
-            Message::Nonce { nonce } => {
-                // Update nonce
-                daemon_info!("received nonce from {}", socket_addr);
-
-                arc_peer_ego.lock().unwrap().pull_nonce(nonce);
-                None
-            }
             Message::Work {
                 oddsketch,
                 root,
@@ -139,19 +133,12 @@ pub fn server(
 
                 // Lock peer ego
                 let mut peer_ego_guard = arc_peer_ego.lock().unwrap();
+                if peer_ego_guard.get_status() != Status::WorkPull {
+                    // TODO: Ban here
+                }
 
                 // Update work
-                if peer_ego_guard.get_status() == Status::Gossiping {
-                    info!("pull work from {}", socket_addr);
-
-                    peer_ego_guard.pull_work(oddsketch, nonce, root);
-                    Some(Message::WorkAck)
-                } else {
-                    // TODO: Ban here
-                    daemon_warn!("ignoring work from {}", socket_addr);
-
-                    Some(Message::WorkNegAck)
-                }
+                None
             }
             Message::MiniSketch { minisketch } => {
                 info!("received minisketch from {}", socket_addr);
@@ -199,7 +186,7 @@ pub fn server(
                             daemon_error!("fraudulent minisketch from {}", socket_addr);
                             // TODO: Ban here
                             // Stop reconciliation
-                            peer_ego_guard.update_status(Status::Gossiping);
+                            peer_ego_guard.update_status(Status::Idle);
                             None
                         }
                     }
@@ -207,7 +194,7 @@ pub fn server(
                         // TODO: Ban here
                         // TODO: More matches
                         daemon_error!("received minisketch from non-pull target {}", socket_addr);
-                        peer_ego_guard.update_status(Status::Gossiping);
+                        peer_ego_guard.update_status(Status::Idle);
                         None
                     }
                 }
@@ -236,12 +223,12 @@ pub fn server(
                         }
                         Err(err) => {
                             daemon_error!("database error {:?}", err);
-                            peer_ego_guard.update_status(Status::Gossiping);
+                            peer_ego_guard.update_status(Status::Idle);
                             return None;
                         }
                         Ok(None) => {
                             daemon_error!("transaction {:?} not found", id);
-                            peer_ego_guard.update_status(Status::Gossiping);
+                            peer_ego_guard.update_status(Status::Idle);
                             return None;
                         }
                     }
@@ -253,7 +240,7 @@ pub fn server(
                     socket_addr,
                     txs.len()
                 );
-                peer_ego_guard.update_status(Status::Gossiping);
+                peer_ego_guard.update_status(Status::Idle);
                 Some(Message::Transactions { txs })
             }
             Message::Transactions { txs } => {
@@ -280,12 +267,12 @@ pub fn server(
                                 .and_then(|_| future::ok(())),
                         );
                     }
-                    Status::Gossiping => {
-                        mempool_inner.lock().unwrap().insert_batch(txs, true);
-                    }
                     Status::StatePush => {
-                        // TODO: Ban
+                        // TODO: Ban here
 
+                    }
+                    _ => {
+                        mempool_inner.lock().unwrap().insert_batch(txs, true);
                     }
                 }
 
@@ -297,7 +284,7 @@ pub fn server(
                 // Lock peer ego
                 let mut peer_ego_guard = arc_peer_ego.lock().unwrap();
 
-                if peer_ego_guard.get_status() == Status::Gossiping {
+                if peer_ego_guard.get_status() == Status::Idle {
                     daemon_info!("replying to {} with minisketch", socket_addr);
 
                     // Send minisketch
@@ -311,26 +298,19 @@ pub fn server(
                     Some(Message::ReconcileNegAck)
                 }
             }
-            Message::WorkAck => {
-                daemon_info!("received work ack from {}", socket_addr);
+            Message::GetWork => {
+                daemon_info!("received get work from {}", socket_addr);
 
                 let mut peer_ego_guard = arc_peer_ego.lock().unwrap();
-                peer_ego_guard.update_work_status(WorkStatus::Ready);
+                peer_ego_guard.update_work_status(WorkStatus::Idle);
                 peer_ego_guard.push_work();
-                None
-            }
-            Message::WorkNegAck => {
-                daemon_info!("received work ack from {}", socket_addr);
-
-                let mut peer_ego_guard = arc_peer_ego.lock().unwrap();
-                peer_ego_guard.update_work_status(WorkStatus::Ready);
                 None
             }
             Message::ReconcileNegAck => {
                 daemon_info!("received reconcile negack from {}", socket_addr);
                 let mut peer_ego_guard = arc_peer_ego.lock().unwrap();
                 if peer_ego_guard.get_status() == Status::StatePull {
-                    peer_ego_guard.update_status(Status::Gossiping);
+                    peer_ego_guard.update_status(Status::Idle);
                 } else {
                     // TODO: Misbehaviour
                 }

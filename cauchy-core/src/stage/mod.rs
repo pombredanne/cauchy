@@ -20,9 +20,9 @@ use crate::{
     },
     daemon::{Origin, Priority},
     db::{mongodb::*, storing::Storable},
+    ego::{ego::Ego, WorkState},
     primitives::{
         act::{Act, Message},
-        ego::{Ego, PeerEgo, Status, WorkState, WorkStatus},
         transaction::*,
         tx_pool::TxPool,
     },

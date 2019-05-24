@@ -33,7 +33,7 @@ pub fn mine(
     let mut current_distance: u16;
 
     // TODO: Load from disk here
-    let mut current_oddsketch = OddSketch::new();
+    let mut current_oddsketch = Default::default();
     let mut current_root = Bytes::from(&[0; HASH_LEN][..]);
 
     let mut work_site = WorkSite::new(public_key, current_root, start_nonce);

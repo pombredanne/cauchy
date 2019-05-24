@@ -7,11 +7,13 @@ use super::{super::util, *};
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct OddSketch(pub BytesMut);
 
-impl SketchInsertable for OddSketch {
-    fn new() -> OddSketch {
+impl Default for OddSketch {
+    fn default() -> Self {
         OddSketch(BytesMut::from(&[0; SKETCH_CAPACITY][..]))
     }
+}
 
+impl SketchInsertable for OddSketch {
     fn insert<T>(&mut self, item: &T)
     where
         T: Identifiable,

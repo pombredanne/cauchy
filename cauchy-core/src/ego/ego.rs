@@ -16,10 +16,16 @@ use crate::{
         sketches::{dummy_sketch::DummySketch, odd_sketch::OddSketch, SketchInsertable},
     },
     net::messages::*,
+    primitives::{
+        status::{Status, WorkStatus},
+        transaction::Transaction,
+        varint::VarInt,
+        work_site::WorkSite,
+    },
     utils::constants::{CONFIG, HASH_LEN},
 };
 
-use super::{transaction::Transaction, varint::VarInt, work_site::WorkSite};
+use super::{WorkStack, WorkState};
 
 macro_rules! ego_info {
     ($($arg:tt)*) => {
@@ -39,15 +45,6 @@ pub struct Ego {
     nonce: u64,
 
     current_distance: u16,
-}
-
-pub trait WorkState {
-    fn get_oddsketch(&self) -> OddSketch;
-    fn get_root(&self) -> Bytes;
-    fn get_nonce(&self) -> u64;
-    fn update_oddsketch(&mut self, oddsketch: OddSketch);
-    fn update_root(&mut self, root: Bytes);
-    fn update_nonce(&mut self, nonce: u64);
 }
 
 impl WorkState for Ego {
@@ -81,11 +78,11 @@ impl Ego {
         Ego {
             pubkey,
             seckey,
-            oddsketch: OddSketch::new(),
-            minisketch: DummySketch::new(),
             root: Bytes::from(&[0; HASH_LEN][..]),
-            nonce: 0,
             current_distance: 512,
+            nonce: 0,
+            oddsketch: Default::default(),
+            minisketch: Default::default(),
         }
     }
 
@@ -158,67 +155,6 @@ impl Ego {
                 }
             }
         }
-    }
-}
-
-#[derive(PartialEq, Clone)]
-pub enum Status {
-    StatePush,
-    StatePull,
-    Gossiping,
-}
-
-#[derive(PartialEq, Clone)]
-pub enum WorkStatus {
-    Waiting,
-    Ready,
-}
-
-impl WorkStatus {
-    pub fn to_str(&self) -> &'static str {
-        match self {
-            WorkStatus::Waiting => "waiting",
-            WorkStatus::Ready => "ready",
-        }
-    }
-}
-
-impl Status {
-    pub fn to_str(&self) -> &'static str {
-        match self {
-            Status::StatePush => "pushing",
-            Status::StatePull => "pulling",
-            Status::Gossiping => "gossiping",
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct WorkStack {
-    root: Bytes,
-    nonce: u64,
-    oddsketch: OddSketch,
-    minisketch: DummySketch, // The minisketch to send to peer
-}
-
-impl WorkState for WorkStack {
-    fn get_oddsketch(&self) -> OddSketch {
-        self.oddsketch.clone()
-    }
-    fn get_root(&self) -> Bytes {
-        self.root.clone()
-    }
-    fn get_nonce(&self) -> u64 {
-        self.nonce
-    }
-    fn update_oddsketch(&mut self, oddsketch: OddSketch) {
-        self.oddsketch = oddsketch;
-    }
-    fn update_root(&mut self, root: Bytes) {
-        self.root = root;
-    }
-    fn update_nonce(&mut self, nonce: u64) {
-        self.nonce = nonce;
     }
 }
 
@@ -320,13 +256,13 @@ impl PeerEgo {
             PeerEgo {
                 pubkey: None,
                 secret: rng.gen::<u64>(),
-                reported_oddsketch: OddSketch::new(),
+                reported_oddsketch: Default::default(),
                 reported_root: Bytes::from(&[0; HASH_LEN][..]),
                 reported_nonce: 0,
                 pending: None,
-                work_status: WorkStatus::Ready,
+                work_status: Default::default(),
                 perception: None,
-                status: Status::Gossiping,
+                status: Default::default(),
                 sink: peer_sink,
                 expectation: Default::default(),
             },
