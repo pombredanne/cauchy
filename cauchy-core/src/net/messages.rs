@@ -9,13 +9,16 @@ use secp256k1::Signature;
 use tokio::codec::{Decoder, Encoder};
 
 use super::peers::{Peer, Peers};
-
 use crate::{
     crypto::{
         signatures::ecdsa::*,
         sketches::{dummy_sketch::*, odd_sketch::*},
     },
-    primitives::{transaction::*, varint::VarInt},
+    primitives::{
+        transaction::*,
+        varint::VarInt,
+        work::{WorkStack, WorkState},
+    },
     utils::{constants::*, errors::MalformedMessageError, parsing::*},
 };
 
@@ -36,33 +39,16 @@ macro_rules! decoding_info {
 }
 
 pub enum Message {
-    StartHandshake {
-        secret: u64,
-    }, // 0 || Secret VarInt
-    EndHandshake {
-        pubkey: PublicKey,
-        sig: Signature,
-    }, // 1 || Pk || Sig
-    Work {
-        oddsketch: OddSketch,
-        root: Bytes,
-        nonce: u64,
-    }, // 2 || OddSketch || Root || Nonce
-    MiniSketch {
-        minisketch: DummySketch,
-    }, // 3 || Number of Rows VarInt || IBLT
-    GetTransactions {
-        ids: HashSet<Bytes>,
-    }, // 4 || Number of Ids VarInt || Ids
-    Transactions {
-        txs: Vec<Transaction>,
-    }, // 5 || Number of Bytes VarInt || Tx ...
-    Reconcile,       // 6
-    ReconcileNegAck, // 7
-    GetWork,         // 8
-    Peers {
-        peers: Peers,
-    }, // 9 || Number of peers || Peers
+    StartHandshake { secret: u64 }, // 0 || Secret VarInt
+    EndHandshake { pubkey: PublicKey, sig: Signature }, // 1 || Pk || Sig
+    Work(WorkStack),                // 2 || OddSketch || Root || Nonce
+    MiniSketch { minisketch: DummySketch }, // 3 || Number of Rows VarInt || IBLT
+    GetTransactions { ids: HashSet<Bytes> }, // 4 || Number of Ids VarInt || Ids
+    Transactions { txs: Vec<Transaction> }, // 5 || Number of Bytes VarInt || Tx ...
+    Reconcile,                      // 6
+    ReconcileNegAck,                // 7
+    GetWork,                        // 8
+    Peers { peers: Peers },         // 9 || Number of peers || Peers
 }
 
 pub struct MessageCodec;
@@ -86,18 +72,14 @@ impl Encoder for MessageCodec {
                 dst.extend(bytes_from_pubkey(pubkey));
                 dst.extend(bytes_from_sig(sig));
             }
-            Message::Work {
-                oddsketch,
-                root,
-                nonce,
-            } => {
+            Message::Work(work_stack) => {
                 encoding_info!("encoding work");
                 dst.put_u8(2);
                 // TODO: Variable length
                 //dst.extend(Bytes::from(VarInt::new(sketch.len() as u64)));
-                dst.extend(Bytes::from(oddsketch));
-                dst.extend(root);
-                dst.extend(Bytes::from(VarInt::new(nonce)));
+                dst.extend(Bytes::from(work_stack.get_oddsketch()));
+                dst.extend(work_stack.get_root());
+                dst.extend(Bytes::from(VarInt::new(work_stack.get_nonce())));
             }
             Message::MiniSketch { minisketch } => {
                 encoding_info!("encoding minisketch");
@@ -193,11 +175,11 @@ impl Decoder for MessageCodec {
                     None => return Ok(None),
                 };
 
-                let msg = Message::Work {
-                    oddsketch: OddSketch::from(&sketch_dst[..]),
-                    root: Bytes::from(&root_dst[..]),
-                    nonce: u64::from(nonce_vi),
-                };
+                let msg = Message::Work(WorkStack::new(
+                    Bytes::from(&root_dst[..]),
+                    OddSketch::from(&sketch_dst[..]),
+                    u64::from(nonce_vi),
+                ));
                 src.advance(1 + SKETCH_CAPACITY + HASH_LEN + len);
                 Ok(Some(msg))
             }

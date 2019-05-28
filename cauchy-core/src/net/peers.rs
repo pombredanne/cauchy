@@ -3,24 +3,15 @@ use std::net::SocketAddr;
 use rand::seq::SliceRandom;
 
 #[derive(Clone)]
-enum Liveness {
-    Live,
-    Dormant,
-}
-
-#[derive(Clone)]
 pub struct Peer {
-    liveness: Liveness,
     addr: SocketAddr,
 }
 
 impl Peer {
     pub fn new(addr: SocketAddr) -> Peer {
-        Peer {
-            liveness: Liveness::Live,
-            addr,
-        }
+        Peer { addr }
     }
+
     pub fn get_addr(&self) -> SocketAddr {
         self.addr
     }

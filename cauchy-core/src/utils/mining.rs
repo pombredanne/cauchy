@@ -7,7 +7,7 @@ use secp256k1::PublicKey;
 
 use crate::{
     crypto::sketches::{odd_sketch::OddSketch, SketchInsertable},
-    primitives::work_site::WorkSite,
+    primitives::work::WorkSite,
     utils::constants::{CONFIG, HASH_LEN},
 };
 

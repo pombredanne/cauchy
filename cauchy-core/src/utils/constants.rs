@@ -19,9 +19,8 @@ use super::timing::duration_from_millis;
 #[serde(rename_all = "UPPERCASE")]
 pub struct Networking {
     #[serde(deserialize_with = "from_u64")]
-    pub work_heartbeat_ms: Duration,
-    #[serde(deserialize_with = "from_u64")]
-    pub reconcile_heartbeat_ms: Duration,
+    pub heartbeat_ms: Duration,
+    pub quorum_size: usize,
     #[serde(deserialize_with = "from_u64")]
     pub reconcile_timeout_ms: Duration,
     pub server_port: u16,
@@ -31,8 +30,8 @@ pub struct Networking {
 impl Default for Networking {
     fn default() -> Self {
         Networking {
-            work_heartbeat_ms: duration_from_millis(1_000),
-            reconcile_heartbeat_ms: duration_from_millis(30_000),
+            heartbeat_ms: duration_from_millis(1_000),
+            quorum_size: 32,
             reconcile_timeout_ms: duration_from_millis(5_000),
             server_port: 8332,
             rpc_server_port: 8333,

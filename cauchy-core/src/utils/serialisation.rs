@@ -9,9 +9,7 @@ use failure::Error;
 use crate::{
     crypto::{signatures::ecdsa::*, sketches::dummy_sketch::*},
     net::peers::{Peer, Peers},
-    primitives::{
-        access_pattern::*, transaction::Transaction, varint::VarInt, work_site::WorkSite,
-    },
+    primitives::{access_pattern::*, transaction::Transaction, varint::VarInt, work::WorkSite},
 };
 
 use super::{

@@ -5,4 +5,4 @@ pub mod status;
 pub mod transaction;
 pub mod tx_pool;
 pub mod varint;
-pub mod work_site;
+pub mod work;

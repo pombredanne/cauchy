@@ -20,11 +20,12 @@ use crate::{
     },
     daemon::{Origin, Priority},
     db::{mongodb::*, storing::Storable},
-    ego::{ego::Ego, WorkState},
+    ego::ego::Ego,
     primitives::{
         act::{Act, Message},
         transaction::*,
         tx_pool::TxPool,
+        work::WorkState,
     },
     utils::constants::{CONFIG, HASH_LEN},
 };
@@ -68,20 +69,20 @@ impl Stage {
             // done.wait();
 
             // Push to tx db and recreate ego
-            let mut ego_guard = self.ego.lock().unwrap();
-            let mut oddsketch = ego_guard.get_oddsketch(); // TODO: Replace these with get &mut
-            let mut minisketch = ego_guard.get_minisketch();
+            // let mut ego_guard = self.ego.lock().unwrap();
+            // let mut oddsketch = ego_guard.get_oddsketch(); // TODO: Replace these with get &mut
+            // let mut minisketch = ego_guard.get_minisketch();
 
             // for tx in txs {
             //     tx.to_db(&mut self.db.clone(), None);
             //     oddsketch.insert(&tx);
             //     minisketch.insert(&tx);
             // }
-            let root = Bytes::from(&[0; HASH_LEN][..]); // TODO: Actually generate bytes
-            let mut ego_bus_guard = self.ego_bus.lock().unwrap();
-            ego_guard.update_oddsketch(oddsketch.clone());
-            ego_guard.update_minisketch(minisketch);
-            ego_bus_guard.broadcast((oddsketch, root));
+            // let root = Bytes::from(&[0; HASH_LEN][..]); // TODO: Actually generate bytes
+            // let mut ego_bus_guard = self.ego_bus.lock().unwrap();
+            // ego_guard.update_oddsketch(oddsketch.clone());
+            // ego_guard.update_minisketch(minisketch);
+            // ego_bus_guard.broadcast((oddsketch, root));
 
             ok(())
         })
