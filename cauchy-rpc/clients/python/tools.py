@@ -1,6 +1,5 @@
 import six
 
-
 def encode_varint(num: int):
     parts = list()
     length = 0
