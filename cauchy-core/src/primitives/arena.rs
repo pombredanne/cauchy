@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex, MutexGuard};
+use std::ops::DerefMut;
 
 use log::info;
 use rand::seq::SliceRandom;
+use secp256k1::PublicKey;
 
 use crate::{
     crypto::sketches::odd_sketch::OddSketch,
@@ -11,7 +13,7 @@ use crate::{
     net::{messages::Message, peers::Peer},
     primitives::{
         status::*,
-        work::{WorkStack, WorkState},
+        work::{WorkStack, WorkState, WorkSite},
     },
     utils::constants::CONFIG,
 };
@@ -64,80 +66,59 @@ impl Arena {
             })
     }
 
-    // pub fn reconcile_leader(&self) {
-    //     // Lock everything
-    //     let ego_guard = self.ego.lock().unwrap();
-    //     let mut participants: Vec<MutexGuard<PeerEgo>> = self
-    //         .peer_egos
-    //         .values()
-    //         .filter_map(|peer_ego| {
-    //             // Select from only those fighting
-    //             let peer_ego_guard = peer_ego.lock().unwrap();
-    //             if peer_ego_guard.get_status() == Status::Fighting {
-    //                 Some(peer_ego_guard)
-    //             } else {
-    //                 None
-    //             }
-    //         })
-    //         .collect();
-
-    //     // Is a reconcile live?
-    //     if !participants
-    //         .iter()
-    //         .any(|ego| ego.get_status() == Status::StatePull)
-    //     {
-    //         let mut best_distance = 1024;
-    //         let mut best_index = 0;
-    //         for (i, guard) in participants.iter().enumerate() {
-    //             let oddsketch: OddSketch = Default::default();
-    //             let mut distance = 0;
-    //             // TODO: Locking all peers could be avoided by moving state into the key of hashmap
-    //             for guard_inner in participants.iter() {
-    //                 if let Some(work_site) = guard_inner.get_work_site() {
-    //                     distance += work_site.mine(&oddsketch);
-    //                     if distance > best_distance {
-    //                         break;
-    //                     }
-    //                 }
-    //             }
-    //             if distance < best_distance {
-    //                 best_distance = distance;
-    //                 best_index = i;
-    //             }
-    //         }
-
-    //         let mut self_distance: u16 = participants
-    //             .iter()
-    //             .map(|guard_inner| ego_guard.get_work_site().mine(&guard_inner.get_oddsketch()))
-    //             .sum(); // TODO: Should we filter non-miners here?
-    //         self_distance += ego_guard.get_current_distance();
-
-    //         arena_info!("self distance {}", self_distance);
-    //         arena_info!("best peer distance {}", best_distance);
-    //         if self_distance < best_distance {
-    //             arena_info!("leading");
-    //         } else {
-    //             arena_info!("sent reconcile");
-    //             participants[best_index].update_status(Status::StatePull);
-    //             participants[best_index].send_msg(Message::Reconcile);
-    //         }
-    //     }
-    // }
-
     pub fn reconcile_leader(&self) {
+        // Lock self
         let ego_guard = self.ego.lock().unwrap();
-        let profiles = self.peer_egos.iter().filter_map(|(addr, peer_ego)| {
+
+        // Lock fighters
+        let mut profiles: Vec<(MutexGuard<PeerEgo>, WorkStack, PublicKey)> = self.peer_egos.values().filter_map(|peer_ego| {
             let peer_ego_guard = peer_ego.lock().unwrap();
             match (peer_ego_guard.get_status(), peer_ego_guard.get_pubkey()) {
                 (Status::Fighting(work_state), Some(public_key)) => {
-                    Some((Some(addr), work_state, public_key))
+                    Some((peer_ego_guard, work_state, public_key))
                 }
                 _ => None,
             }
-        });
+        }).collect();
+        
+        let mut best_peer = None;
+        let mut best_dist = 0;
 
-        // profiles.map(|(Some(addr), work_state, public_key)| {
-        //     profiles.map(|(Some(addr), work_state, public_key)| 0).sum()
-        // });
+        // Calculate own distance
+        for (_, work_stack_inner, pubkey_inner) in &profiles {
+            let work_site = WorkSite::new(*pubkey_inner, work_stack_inner.get_root(), work_stack_inner.get_nonce());
+            best_dist += work_site.mine(ego_guard.work_stack.get_oddsketch())
+        }
+
+        // Calculate peer distance
+        for (i, (_, work_stack, _)) in profiles.iter().enumerate() {
+            let mut dist = 0;
+            for (_, work_stack_inner, pubkey_inner) in &profiles {
+                let work_site = WorkSite::new(*pubkey_inner, work_stack_inner.get_root(), work_stack_inner.get_nonce());
+                dist += work_site.mine(work_stack.get_oddsketch())
+            }
+            if dist < best_dist {
+                best_dist = dist;
+                best_peer = Some(i);
+            }
+        }
+
+        match best_peer {
+            Some(i) => {
+                let (peer_ego, work_stack, _) = profiles.get_mut(i).unwrap();
+                // Update status to State pull with expectation grabbed from
+                let expectation = Expectation::new(work_stack.get_oddsketch(), work_stack.get_root());
+                peer_ego.update_status(Status::StatePull(expectation));
+
+                // Send reconcile message
+                peer_ego.send_msg(Message::Reconcile);
+                },
+            None => {
+                // Leading
+                arena_info!("leading")
+            }
+        }
+
+
     }
 }

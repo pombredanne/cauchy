@@ -26,7 +26,7 @@ use crate::{
 };
 
 pub struct Ego {
-    pub pubkey: PublicKey,
+    pubkey: PublicKey,
     pub seckey: SecretKey,
 
     pub work_stack: WorkStack,
@@ -61,6 +61,10 @@ impl Ego {
             self.work_stack.get_root(),
             self.work_stack.get_nonce(),
         )
+    }
+
+    pub fn get_pubkey(&self) -> PublicKey {
+        self.pubkey
     }
 
     pub fn update_current_distance(&mut self, new_distance: u16) {

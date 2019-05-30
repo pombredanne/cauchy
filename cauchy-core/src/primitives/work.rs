@@ -112,7 +112,7 @@ impl WorkSite {
         self.blake2b().blake2b()
     }
 
-    pub fn mine(&self, state_sketch: &OddSketch) -> u16 {
-        Bytes::hamming_distance(&self.get_site_hash(), &Bytes::from(state_sketch.clone())) // TODO: Clunky, fix
+    pub fn mine(&self, oddsketch: OddSketch) -> u16 {
+        Bytes::hamming_distance(&self.get_site_hash(), &Bytes::from(oddsketch)) // TODO: Clunky, fix
     }
 }

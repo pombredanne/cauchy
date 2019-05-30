@@ -15,12 +15,21 @@ use bytes::Bytes;
 #[derive(Default, PartialEq, Clone)]
 pub struct Expectation {
     oddsketch: OddSketch,
-    root: Option<Bytes>,
+    root: Bytes,
     ids: Option<HashSet<Bytes>>,
     minisketch: Option<DummySketch>, // Post reconciliation our minisketch should match this
 }
 
 impl Expectation {
+    pub fn new(oddsketch: OddSketch, root: Bytes) -> Expectation {
+        Expectation {
+            oddsketch,
+            root,
+            ids: None,
+            minisketch: None
+        }
+    }
+
     pub fn get_ids(&self) -> Option<HashSet<Bytes>> {
         self.ids.clone()
     }
