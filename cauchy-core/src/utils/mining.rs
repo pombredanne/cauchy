@@ -49,6 +49,7 @@ pub fn mine(
                 Err(_) => {
                     current_distance = work_site.mine(current_oddsketch.clone());
                     if current_distance < best_distance {
+                        mining_info!("new best found: {}", current_distance);
                         best_nonce = work_site.get_nonce();
                         record_sender.send((best_nonce, current_distance));
                         best_distance = current_distance;

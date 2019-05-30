@@ -32,7 +32,7 @@ impl Default for Networking {
         Networking {
             heartbeat_ms: duration_from_millis(1_000),
             quorum_size: 32,
-            reconcile_timeout_ms: duration_from_millis(5_000),
+            reconcile_timeout_ms: duration_from_millis(5_00),
             server_port: 8332,
             rpc_server_port: 8333,
         }
@@ -67,12 +67,12 @@ impl Default for Debugging {
     fn default() -> Self {
         Debugging {
             test_tx_interval: duration_from_millis(500), // TODO: Remove?
-            arena_verbose: false,
-            heartbeat_verbose: false,
+            arena_verbose: true,
+            heartbeat_verbose: true,
             daemon_verbose: true,
-            encoding_verbose: false,
-            decoding_verbose: false,
-            parsing_verbose: false,
+            encoding_verbose: true,
+            decoding_verbose: true,
+            parsing_verbose: true,
             stage_verbose: true,
             rpc_verbose: true,
             mining_verbose: true,

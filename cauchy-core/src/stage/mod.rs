@@ -109,10 +109,10 @@ impl Stage {
     //     let mut peer_ego_guard = arc_peer_ego.lock().unwrap();
 
     //     // If received txs from reconciliation target check the payload matches reported
-    //     if peer_ego_guard.get_status() == Status::StatePull {
+    //     if peer_ego_guard.get_status() == PeerStatus::StatePull {
     //         // Is reconcile target
     //         // Cease reconciliation status
-    //         peer_ego_guard.update_status(Status::Gossiping);
+    //         peer_ego_guard.update_status(PeerStatus::Gossiping);
     //         if peer_ego_guard.is_expected_payload(&txs) {
     //             // TODO: Send backstage and verify
 
@@ -137,8 +137,8 @@ impl Stage {
     //     }
 
     //     // Send updated state immediately
-    //     peer_ego_guard.update_status(Status::Gossiping);
-    //     peer_ego_guard.update_work_status(WorkStatus::Waiting);
+    //     peer_ego_guard.update_status(PeerStatus::Gossiping);
+    //     peer_ego_guard.update_work_status(WorkPeerStatus::Waiting);
     //     peer_ego_guard.commit_work(&ego_guard);
 
     //     tokio::spawn(

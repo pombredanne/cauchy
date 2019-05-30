@@ -17,7 +17,7 @@ use crate::{
     ego::ego::Ego,
     net::messages::*,
     primitives::{
-        status::{Expectation, Status},
+        status::{Expectation, PeerStatus},
         transaction::Transaction,
         varint::VarInt,
         work::{WorkSite, WorkStack, WorkState},
@@ -57,7 +57,7 @@ pub struct PeerEgo {
     pubkey: Option<PublicKey>,
     sink: Sender<Message>,
     secret: u64,
-    status: Status,
+    status: PeerStatus,
 
     // How peer perceives own ego
     pub perception: Option<Perception>,
@@ -94,11 +94,11 @@ impl PeerEgo {
         self.secret
     }
 
-    pub fn get_status(&self) -> Status {
+    pub fn get_status(&self) -> PeerStatus {
         self.status.clone()
     }
 
-    pub fn get_status_mut(&mut self) -> &mut Status {
+    pub fn get_status_mut(&mut self) -> &mut PeerStatus {
         &mut self.status
     }
 
@@ -120,7 +120,7 @@ impl PeerEgo {
         }
     }
 
-    pub fn update_status(&mut self, status: Status) {
+    pub fn update_status(&mut self, status: PeerStatus) {
         ego_info!("{} -> {}", self.status.to_str(), status.to_str());
         self.status = status;
     }
@@ -137,7 +137,7 @@ impl PeerEgo {
 
     // Update reported
     pub fn pull_work(&mut self, work_stack: WorkStack) {
-        self.status = Status::Fighting(work_stack);
+        self.status = PeerStatus::Fighting(work_stack);
     }
 
     // Update pending

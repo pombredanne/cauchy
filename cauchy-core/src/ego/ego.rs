@@ -17,7 +17,7 @@ use crate::{
     },
     net::messages::*,
     primitives::{
-        status::Status,
+        status::{PeerStatus, Status},
         transaction::Transaction,
         varint::VarInt,
         work::{WorkSite, WorkStack, WorkState},
@@ -27,7 +27,9 @@ use crate::{
 
 pub struct Ego {
     pubkey: PublicKey,
-    pub seckey: SecretKey,
+    seckey: SecretKey,
+
+    status: Status,
 
     pub work_stack: WorkStack,
     pub minisketch: DummySketch,
@@ -39,10 +41,15 @@ impl Ego {
         Ego {
             pubkey,
             seckey,
+            status: Default::default(),
             work_stack: Default::default(),
             current_distance: 512,
             minisketch: Default::default(),
         }
+    }
+
+    pub fn get_status(&self) -> Status {
+        self.status.clone()
     }
 
     pub fn generate_end_handshake(&self, secret: u64) -> Message {

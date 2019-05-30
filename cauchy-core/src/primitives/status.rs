@@ -65,11 +65,8 @@ impl Expectation {
 
 #[derive(PartialEq, Clone)]
 pub enum Status {
-    StatePush,
-    StatePull(Expectation),
-    WorkPull,
-    Fighting(WorkStack),
-    Idle,
+    Pulling,
+    Idle
 }
 
 impl Default for Status {
@@ -78,14 +75,30 @@ impl Default for Status {
     }
 }
 
-impl Status {
+
+#[derive(PartialEq, Clone)]
+pub enum PeerStatus {
+    StatePush,
+    StatePull(Expectation),
+    WorkPull,
+    Fighting(WorkStack),
+    Idle,
+}
+
+impl Default for PeerStatus {
+    fn default() -> Self {
+        PeerStatus::Idle
+    }
+}
+
+impl PeerStatus {
     pub fn to_str(&self) -> &'static str {
         match self {
-            Status::StatePush => "state pushing",
-            Status::StatePull(_) => "state pulling",
-            Status::WorkPull => "work pulling",
-            Status::Idle => "idle",
-            Status::Fighting(_) => "fighting",
+            PeerStatus::StatePush => "state pushing",
+            PeerStatus::StatePull(_) => "state pulling",
+            PeerStatus::WorkPull => "work pulling",
+            PeerStatus::Idle => "idle",
+            PeerStatus::Fighting(_) => "fighting",
         }
     }
 }

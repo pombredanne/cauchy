@@ -39,7 +39,12 @@ impl Arena {
         }
     }
 
+    pub fn get_ego(&self) -> Arc<Mutex<Ego>> {
+        self.ego.clone()
+    }
+
     pub fn new_peer(&mut self, addr: &SocketAddr, peer_ego: Arc<Mutex<PeerEgo>>) {
+        arena_info!("added {} to arena", addr);
         self.peer_egos.insert(*addr, peer_ego);
     }
 
@@ -47,7 +52,7 @@ impl Arena {
         self.peer_egos.remove(addr);
     }
 
-    pub fn work_pulse(&mut self, size: usize) {
+    pub fn work_pulse(&self, size: usize) {
         self.peer_egos
             .values()
             .filter_map(|peer_ego| {
@@ -61,7 +66,7 @@ impl Arena {
             })
             .take(size)
             .for_each(|mut peer_ego_guard| {
-                peer_ego_guard.update_status(Status::WorkPull);
+                peer_ego_guard.update_status(PeerStatus::WorkPull);
                 peer_ego_guard.send_msg(Message::GetWork);
             })
     }
@@ -74,7 +79,7 @@ impl Arena {
         let mut profiles: Vec<(MutexGuard<PeerEgo>, WorkStack, PublicKey)> = self.peer_egos.values().filter_map(|peer_ego| {
             let peer_ego_guard = peer_ego.lock().unwrap();
             match (peer_ego_guard.get_status(), peer_ego_guard.get_pubkey()) {
-                (Status::Fighting(work_state), Some(public_key)) => {
+                (PeerStatus::Fighting(work_state), Some(public_key)) => {
                     Some((peer_ego_guard, work_state, public_key))
                 }
                 _ => None,
@@ -104,7 +109,7 @@ impl Arena {
 
             dist += ego_guard.get_work_site().mine(work_stack.get_oddsketch());
             arena_info!("peer distance: {}", dist);
-            if dist < best_dist {
+            if dist <= best_dist {
                 best_dist = dist;
                 best_peer = Some(i);
             }
@@ -115,7 +120,7 @@ impl Arena {
                 let (peer_ego, work_stack, _) = profiles.get_mut(i).unwrap();
                 // Update status to State pull with expectation grabbed from
                 let expectation = Expectation::new(work_stack.get_oddsketch(), work_stack.get_root());
-                peer_ego.update_status(Status::StatePull(expectation));
+                peer_ego.update_status(PeerStatus::StatePull(expectation));
 
                 // Send reconcile message
                 peer_ego.send_msg(Message::Reconcile);
