@@ -128,7 +128,7 @@ pub fn server(
                     peer_ego_guard.update_status(PeerStatus::Fighting(work_stack));
                 } else {
                     // TODO: Ban here
-
+                    daemon_error!("received work from non-pull target")
                 }
 
                 None
@@ -190,7 +190,7 @@ pub fn server(
                                 // TODO: Ban here
                                 // TODO: More matches
                                 daemon_error!(
-                                    "received minisketch from non-pull target {}",
+                                    "received minisketch from {} while not pulling state",
                                     socket_addr
                                 );
                                 peer_ego_guard.update_status(PeerStatus::Idle);
@@ -258,7 +258,6 @@ pub fn server(
                         tx_pool.insert_batch(txs, true); // TODO: Catch out-of-order
                         drop(peer_ego_guard);
 
-                        ego_inner.lock().unwrap().set_status(Status::Idle);
                         tokio::spawn(
                             send_reconcile_inner
                                 .clone()
@@ -270,10 +269,13 @@ pub fn server(
                                 .map_err(|_| ())
                                 .and_then(|_| future::ok(())),
                         );
+
+                        // Finished pull
+                        ego_inner.lock().unwrap().update_status(Status::Idle);
                     }
                     PeerStatus::StatePush => {
                         // TODO: Ban here
-
+                        daemon_error!("received transactions from {} while pushing state", socket_addr);
                     }
                     _ => {
                         mempool_inner.lock().unwrap().insert_batch(txs, true);
@@ -317,6 +319,7 @@ pub fn server(
                     PeerStatus::StatePull(_) => peer_ego_guard.update_status(PeerStatus::Idle),
                     _ => {
                         // TODO: Misbehaviour
+                        daemon_error!("received negack from {} while not pulling state", socket_addr);
                     }
                 };
                 None

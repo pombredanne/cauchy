@@ -75,6 +75,15 @@ impl Default for Status {
     }
 }
 
+impl Status {
+    pub fn to_str(&self) -> &'static str {
+        match self {
+            Status::Pulling => "pulling",
+            Status::Idle => "idle",
+        }
+    }
+}
+
 
 #[derive(PartialEq, Clone)]
 pub enum PeerStatus {

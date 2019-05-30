@@ -25,6 +25,14 @@ use crate::{
     utils::constants::{CONFIG, HASH_LEN},
 };
 
+macro_rules! ego_info {
+    ($($arg:tt)*) => {
+        if CONFIG.debugging.ego_verbose {
+            info!(target: "ego_event", $($arg)*);
+        }
+    };
+}
+
 pub struct Ego {
     pubkey: PublicKey,
     seckey: SecretKey,
@@ -52,7 +60,8 @@ impl Ego {
         self.status.clone()
     }
 
-    pub fn set_status(&mut self, status: Status) {
+    pub fn update_status(&mut self, status: Status) {
+        ego_info!("{} -> {}", self.status.to_str(), status.to_str());
         self.status = status;
     }
 

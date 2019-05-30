@@ -49,6 +49,7 @@ impl Arena {
     }
 
     pub fn remove_peer(&mut self, addr: &SocketAddr) {
+        arena_info!("removed {} from arena", addr);
         self.peer_egos.remove(addr);
     }
 
@@ -64,7 +65,7 @@ impl Arena {
                     None
                 }
             })
-            .take(size)
+            .take(size) // TODO: Shuffle before taking
             .for_each(|mut peer_ego_guard| {
                 peer_ego_guard.update_status(PeerStatus::WorkPull);
                 peer_ego_guard.send_msg(Message::GetWork);
@@ -103,8 +104,8 @@ impl Arena {
         for (i, (_, work_stack, _)) in profiles.iter().enumerate() {
             let mut dist = 0;
             for (_, work_stack_inner, pubkey_inner) in &profiles {
-                let work_site = WorkSite::new(*pubkey_inner, work_stack_inner.get_root(), work_stack_inner.get_nonce());
-                dist += work_site.mine(work_stack.get_oddsketch())
+                let work_site_inner = WorkSite::new(*pubkey_inner, work_stack_inner.get_root(), work_stack_inner.get_nonce());
+                dist += work_site_inner.mine(work_stack.get_oddsketch())
             }
 
             dist += ego_guard.get_work_site().mine(work_stack.get_oddsketch());
@@ -117,19 +118,29 @@ impl Arena {
 
         match best_peer {
             Some(i) => {
-                let (peer_ego, work_stack, _) = profiles.get_mut(i).unwrap();
+                for (j, (peer_ego, work_stack, _)) in profiles.iter_mut().enumerate() {
+                    if i == j {
+                        // Update status to pulling with expectation grabbed from
+                        let expectation = Expectation::new(work_stack.get_oddsketch(), work_stack.get_root());
+                        peer_ego.update_status(PeerStatus::StatePull(expectation));
+                        ego_guard.update_status(Status::Pulling);
 
-                // Update status to pulling with expectation grabbed from
-                let expectation = Expectation::new(work_stack.get_oddsketch(), work_stack.get_root());
-                peer_ego.update_status(PeerStatus::StatePull(expectation));
-                ego_guard.set_status(Status::Pulling);
-
-                // Send reconcile message
-                peer_ego.send_msg(Message::Reconcile);
+                        // Send reconcile message
+                        peer_ego.send_msg(Message::Reconcile);
+                    } else {
+                        // Reset to losers to idle
+                        peer_ego.update_status(PeerStatus::Idle);
+                    }
+                }
                 },
             None => {
                 // Leading
-                arena_info!("leading")
+                arena_info!("leading");
+
+                // Reset losers to idle
+                for (peer_ego,_, _) in profiles.iter_mut() {
+                    peer_ego.update_status(PeerStatus::Idle);
+                }
             }
         }
     }

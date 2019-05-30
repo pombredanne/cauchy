@@ -28,7 +28,7 @@ use crate::{
 macro_rules! ego_info {
     ($($arg:tt)*) => {
         if CONFIG.debugging.ego_verbose {
-            info!(target: "ego_event", $($arg)*);
+            info!(target: "peer_ego_event", $($arg)*);
         }
     };
 }
