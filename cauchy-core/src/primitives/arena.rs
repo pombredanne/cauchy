@@ -90,6 +90,10 @@ impl Arena {
             best_dist += work_site.mine(ego_guard.work_stack.get_oddsketch())
         }
 
+        best_dist += ego_guard.get_work_site().mine(ego_guard.work_stack.get_oddsketch());
+
+        arena_info!("self distance: {}", best_dist);
+
         // Calculate peer distance
         for (i, (_, work_stack, _)) in profiles.iter().enumerate() {
             let mut dist = 0;
@@ -97,6 +101,9 @@ impl Arena {
                 let work_site = WorkSite::new(*pubkey_inner, work_stack_inner.get_root(), work_stack_inner.get_nonce());
                 dist += work_site.mine(work_stack.get_oddsketch())
             }
+
+            dist += ego_guard.get_work_site().mine(work_stack.get_oddsketch());
+            arena_info!("peer distance: {}", dist);
             if dist < best_dist {
                 best_dist = dist;
                 best_peer = Some(i);
@@ -118,7 +125,5 @@ impl Arena {
                 arena_info!("leading")
             }
         }
-
-
     }
 }
