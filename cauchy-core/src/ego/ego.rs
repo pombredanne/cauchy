@@ -52,6 +52,10 @@ impl Ego {
         self.status.clone()
     }
 
+    pub fn set_status(&mut self, status: Status) {
+        self.status = status;
+    }
+
     pub fn generate_end_handshake(&self, secret: u64) -> Message {
         Message::EndHandshake {
             pubkey: self.pubkey,

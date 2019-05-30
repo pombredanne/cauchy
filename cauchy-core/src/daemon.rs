@@ -14,7 +14,7 @@ use crate::{
     ego::{ego::*, peer_ego::*},
     net::{heartbeats::*, messages::*},
     primitives::{
-        arena::Arena, status::PeerStatus, transaction::Transaction, tx_pool::TxPool, work::WorkStack,
+        arena::Arena, status::{PeerStatus, Status}, transaction::Transaction, tx_pool::TxPool, work::WorkStack,
     },
     utils::{
         constants::*,
@@ -249,14 +249,16 @@ pub fn server(
                 daemon_info!("received transactions from {}", socket_addr);
 
                 // Lock peer ego
-                let mut peer_ego_guard = arc_peer_ego.lock().unwrap();
+                let peer_ego_guard = arc_peer_ego.lock().unwrap();
 
                 match peer_ego_guard.get_status() {
                     PeerStatus::StatePull(expectation) => {
                         // Send to back stage
                         let mut tx_pool = TxPool::new(txs.len());
                         tx_pool.insert_batch(txs, true); // TODO: Catch out-of-order
+                        drop(peer_ego_guard);
 
+                        ego_inner.lock().unwrap().set_status(Status::Idle);
                         tokio::spawn(
                             send_reconcile_inner
                                 .clone()

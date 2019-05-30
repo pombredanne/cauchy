@@ -73,7 +73,7 @@ impl Arena {
 
     pub fn reconcile_leader(&self) {
         // Lock self
-        let ego_guard = self.ego.lock().unwrap();
+        let mut ego_guard = self.ego.lock().unwrap();
 
         // Lock fighters
         let mut profiles: Vec<(MutexGuard<PeerEgo>, WorkStack, PublicKey)> = self.peer_egos.values().filter_map(|peer_ego| {
@@ -118,9 +118,11 @@ impl Arena {
         match best_peer {
             Some(i) => {
                 let (peer_ego, work_stack, _) = profiles.get_mut(i).unwrap();
-                // Update status to State pull with expectation grabbed from
+
+                // Update status to pulling with expectation grabbed from
                 let expectation = Expectation::new(work_stack.get_oddsketch(), work_stack.get_root());
                 peer_ego.update_status(PeerStatus::StatePull(expectation));
+                ego_guard.set_status(Status::Pulling);
 
                 // Send reconcile message
                 peer_ego.send_msg(Message::Reconcile);
