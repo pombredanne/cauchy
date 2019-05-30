@@ -1,9 +1,9 @@
 import socket
 from time import time
-
+from tools import encode_varint
 
 class Transaction:
-    def __init__(timestamp: int = None, aux: bytes = None, aux_path: str = None, binary: bytes = None, binary_path: str = None):
+    def __init__(self, timestamp: int = None, aux: bytes = None, aux_path: str = None, binary: bytes = None, binary_path: str = None):
         if timestamp is None:
             self.timestamp = int(time() * 1_000)
         else:
@@ -25,11 +25,11 @@ class Transaction:
         else:
             self.binary = binary
 
-    def encode(raw: bytes):
+    def encode(self):
         time_vi = encode_varint(int(time() * 1_000))
-        aux_len = encode_varint(len(aux))
-        bin_len = encode_varint(len(binary))
-        msg = time_vi + aux_len + aux + bin_len + binary
+        aux_len = encode_varint(len(self.aux))
+        bin_len = encode_varint(len(self.binary))
+        msg = time_vi + aux_len + self.aux + bin_len + self.binary
         return msg
 
     @staticmethod
@@ -79,6 +79,6 @@ class NativeClient:
             raise Exception("unexpected response")
 
         value_size = int.from_bytes(self.socket.recv(8), "big")
-        value = self.socket.recv(vaue_size)
+        value = self.socket.recv(value_size)
 
         return value
