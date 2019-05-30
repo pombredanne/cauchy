@@ -38,12 +38,13 @@ class Transaction:
 
 
 class NativeClient:
-    def __init__(self, address: str):
-        self.address = address
+    def __init__(self, ip: str, port: int):
+        self.ip = ip
+        self.port = port
         self.socket = socket.socket()
 
     def connect(self):
-        self.socket.connect(self.address)
+        self.socket.connect((self.ip, self.port))
 
     def close(self):
         self.socket.close()
