@@ -1,6 +1,7 @@
 pub mod crypto;
 pub mod daemon;
 pub mod db;
+pub mod ego;
 pub mod net;
 pub mod primitives;
 pub mod stage;

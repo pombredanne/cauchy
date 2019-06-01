@@ -7,7 +7,7 @@ use secp256k1::PublicKey;
 
 use crate::{
     crypto::sketches::{odd_sketch::OddSketch, SketchInsertable},
-    primitives::work_site::WorkSite,
+    primitives::work::WorkSite,
     utils::constants::{CONFIG, HASH_LEN},
 };
 
@@ -33,7 +33,7 @@ pub fn mine(
     let mut current_distance: u16;
 
     // TODO: Load from disk here
-    let mut current_oddsketch = OddSketch::new();
+    let mut current_oddsketch = Default::default();
     let mut current_root = Bytes::from(&[0; HASH_LEN][..]);
 
     let mut work_site = WorkSite::new(public_key, current_root, start_nonce);
@@ -47,8 +47,9 @@ pub fn mine(
                     best_distance = 512;
                 }
                 Err(_) => {
-                    current_distance = work_site.mine(&current_oddsketch);
+                    current_distance = work_site.mine(current_oddsketch.clone());
                     if current_distance < best_distance {
+                        mining_info!("new best found: {}", current_distance);
                         best_nonce = work_site.get_nonce();
                         record_sender.send((best_nonce, current_distance));
                         best_distance = current_distance;

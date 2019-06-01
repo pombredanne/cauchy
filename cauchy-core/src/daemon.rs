@@ -11,12 +11,10 @@ use tokio::prelude::*;
 use crate::{
     crypto::sketches::{odd_sketch::*, *},
     db::{mongodb::MongoDB, storing::Storable},
+    ego::{ego::*, peer_ego::*},
     net::{heartbeats::*, messages::*},
     primitives::{
-        arena::Arena,
-        ego::{Ego, PeerEgo, Status, WorkState, WorkStatus},
-        transaction::Transaction,
-        tx_pool::TxPool,
+        arena::Arena, status::{PeerStatus, Status}, transaction::Transaction, tx_pool::TxPool, work::WorkStack,
     },
     utils::{
         constants::*,
@@ -98,9 +96,6 @@ pub fn server(
         arena_guard.new_peer(&socket_addr, arc_peer_ego.clone());
         drop(arena_guard);
 
-        // Start work heartbeat
-        let work_heartbeat = heartbeat_work(ego.clone(), arc_peer_ego.clone());
-
         // Frame the socket
         let framed_sock = Framed::new(socket, MessageCodec);
         let (send_stream, received_stream) = framed_sock.split();
@@ -123,35 +118,20 @@ pub fn server(
                 arc_peer_ego.lock().unwrap().check_handshake(&sig, &pubkey);
                 None
             }
-            Message::Nonce { nonce } => {
-                // Update nonce
-                daemon_info!("received nonce from {}", socket_addr);
-
-                arc_peer_ego.lock().unwrap().pull_nonce(nonce);
-                None
-            }
-            Message::Work {
-                oddsketch,
-                root,
-                nonce,
-            } => {
+            Message::Work(work_stack) => {
                 daemon_info!("received work from {}", socket_addr);
 
                 // Lock peer ego
                 let mut peer_ego_guard = arc_peer_ego.lock().unwrap();
-
-                // Update work
-                if peer_ego_guard.get_status() == Status::Gossiping {
-                    info!("pull work from {}", socket_addr);
-
-                    peer_ego_guard.pull_work(oddsketch, nonce, root);
-                    Some(Message::WorkAck)
+                if peer_ego_guard.get_status() == PeerStatus::WorkPull {
+                    // Update work
+                    peer_ego_guard.update_status(PeerStatus::Fighting(work_stack));
                 } else {
                     // TODO: Ban here
-                    daemon_warn!("ignoring work from {}", socket_addr);
-
-                    Some(Message::WorkNegAck)
+                    daemon_error!("received work from non-pull target")
                 }
+
+                None
             }
             Message::MiniSketch { minisketch } => {
                 info!("received minisketch from {}", socket_addr);
@@ -159,57 +139,66 @@ pub fn server(
                 // Lock peer ego
                 let mut peer_ego_guard = arc_peer_ego.lock().unwrap();
 
+                // TODO: This can be done properly
+                let perceived_oddsketch = peer_ego_guard.get_perceived_oddsketch();
+                let perceived_minisketch = peer_ego_guard.get_perceived_minisketch();
+
                 // Only respond to reconciliation target
-                match (
-                    peer_ego_guard.get_status(),
-                    peer_ego_guard.get_perceived_minisketch(),
-                    peer_ego_guard.get_perceived_oddsketch(),
-                ) {
-                    (Status::StatePull, Some(perceived_minisketch), Some(perceived_oddsketch)) => {
-                        let peer_oddsketch = peer_ego_guard.get_oddsketch();
+                match peer_ego_guard.get_status_mut() {
+                    PeerStatus::StatePull(expectation) => {
+                        match (perceived_minisketch, perceived_oddsketch) {
+                            (Some(perceived_minisketch), Some(perceived_oddsketch)) => {
+                                let peer_oddsketch = expectation.get_oddsketch();
 
-                        // Decode difference
-                        let (excess_actor_ids, missing_actor_ids) = (perceived_minisketch
-                            - minisketch.clone())
-                        .decode()
-                        .unwrap();
+                                // Decode difference
+                                let (excess_actor_ids, missing_actor_ids) = (perceived_minisketch
+                                    - minisketch.clone())
+                                .decode()
+                                .unwrap();
 
-                        daemon_info!(
-                            "minisketch decode reveals excess {} and mising {}",
-                            excess_actor_ids.len(),
-                            missing_actor_ids.len()
-                        );
+                                daemon_info!(
+                                    "minisketch decode reveals excess {} and mising {}",
+                                    excess_actor_ids.len(),
+                                    missing_actor_ids.len()
+                                );
 
-                        // Check for fraud
-                        if OddSketch::sketch_ids(&excess_actor_ids)
-                            .xor(&OddSketch::sketch_ids(&missing_actor_ids))
-                            == perceived_oddsketch.xor(&peer_oddsketch)
-                        {
-                            daemon_info!("minisketch passed validation");
-                            // Set expected IDs
-                            peer_ego_guard
-                                .expectation
-                                .update_ids(missing_actor_ids.clone());
-                            peer_ego_guard.expectation.update_minisketch(minisketch);
+                                // Check for fraud
+                                if OddSketch::sketch_ids(&excess_actor_ids)
+                                    .xor(&OddSketch::sketch_ids(&missing_actor_ids))
+                                    == perceived_oddsketch.xor(&peer_oddsketch)
+                                {
+                                    daemon_info!("minisketch passed validation");
 
-                            Some(Message::GetTransactions {
-                                ids: missing_actor_ids,
-                            })
-                        } else {
-                            daemon_error!("fraudulent minisketch from {}", socket_addr);
-                            // TODO: Ban here
-                            // Stop reconciliation
-                            peer_ego_guard.update_status(Status::Gossiping);
-                            None
+                                    // Set expected IDs
+                                    expectation.update_ids(missing_actor_ids.clone());
+
+                                    // Set expected minisketch
+                                    expectation.update_minisketch(minisketch);
+
+                                    Some(Message::GetTransactions {
+                                        ids: missing_actor_ids,
+                                    })
+                                } else {
+                                    daemon_error!("fraudulent minisketch from {}", socket_addr);
+                                    // TODO: Ban here
+                                    // Stop reconciliation
+                                    peer_ego_guard.update_status(PeerStatus::Idle);
+                                    None
+                                }
+                            }
+                            _ => {
+                                // TODO: Ban here
+                                // TODO: More matches
+                                daemon_error!(
+                                    "received minisketch from {} while not pulling state",
+                                    socket_addr
+                                );
+                                peer_ego_guard.update_status(PeerStatus::Idle);
+                                None
+                            }
                         }
                     }
-                    _ => {
-                        // TODO: Ban here
-                        // TODO: More matches
-                        daemon_error!("received minisketch from non-pull target {}", socket_addr);
-                        peer_ego_guard.update_status(Status::Gossiping);
-                        None
-                    }
+                    _ => None, // TODO: Ban here
                 }
             }
             Message::GetTransactions { ids } => {
@@ -236,12 +225,12 @@ pub fn server(
                         }
                         Err(err) => {
                             daemon_error!("database error {:?}", err);
-                            peer_ego_guard.update_status(Status::Gossiping);
+                            peer_ego_guard.update_status(PeerStatus::Idle);
                             return None;
                         }
                         Ok(None) => {
                             daemon_error!("transaction {:?} not found", id);
-                            peer_ego_guard.update_status(Status::Gossiping);
+                            peer_ego_guard.update_status(PeerStatus::Idle);
                             return None;
                         }
                     }
@@ -253,20 +242,21 @@ pub fn server(
                     socket_addr,
                     txs.len()
                 );
-                peer_ego_guard.update_status(Status::Gossiping);
+                peer_ego_guard.update_status(PeerStatus::Idle);
                 Some(Message::Transactions { txs })
             }
             Message::Transactions { txs } => {
                 daemon_info!("received transactions from {}", socket_addr);
 
                 // Lock peer ego
-                let mut peer_ego_guard = arc_peer_ego.lock().unwrap();
+                let peer_ego_guard = arc_peer_ego.lock().unwrap();
 
                 match peer_ego_guard.get_status() {
-                    Status::StatePull => {
+                    PeerStatus::StatePull(expectation) => {
                         // Send to back stage
                         let mut tx_pool = TxPool::new(txs.len());
                         tx_pool.insert_batch(txs, true); // TODO: Catch out-of-order
+                        drop(peer_ego_guard);
 
                         tokio::spawn(
                             send_reconcile_inner
@@ -279,13 +269,16 @@ pub fn server(
                                 .map_err(|_| ())
                                 .and_then(|_| future::ok(())),
                         );
-                    }
-                    Status::Gossiping => {
-                        mempool_inner.lock().unwrap().insert_batch(txs, true);
-                    }
-                    Status::StatePush => {
-                        // TODO: Ban
 
+                        // Finished pull
+                        ego_inner.lock().unwrap().update_status(Status::Idle);
+                    }
+                    PeerStatus::StatePush => {
+                        // TODO: Ban here
+                        daemon_error!("received transactions from {} while pushing state", socket_addr);
+                    }
+                    _ => {
+                        mempool_inner.lock().unwrap().insert_batch(txs, true);
                     }
                 }
 
@@ -297,12 +290,12 @@ pub fn server(
                 // Lock peer ego
                 let mut peer_ego_guard = arc_peer_ego.lock().unwrap();
 
-                if peer_ego_guard.get_status() == Status::Gossiping {
+                if peer_ego_guard.get_status() == PeerStatus::Idle {
                     daemon_info!("replying to {} with minisketch", socket_addr);
 
                     // Send minisketch
                     // Set status of peer push
-                    peer_ego_guard.update_status(Status::StatePush);
+                    peer_ego_guard.update_status(PeerStatus::StatePush);
                     Some(Message::MiniSketch {
                         minisketch: peer_ego_guard.get_perceived_minisketch()?,
                     })
@@ -311,38 +304,32 @@ pub fn server(
                     Some(Message::ReconcileNegAck)
                 }
             }
-            Message::WorkAck => {
-                daemon_info!("received work ack from {}", socket_addr);
-
+            Message::GetWork => {
+                daemon_info!("received get work from {}", socket_addr);
+                let ego_guard = ego_inner.lock().unwrap();
                 let mut peer_ego_guard = arc_peer_ego.lock().unwrap();
-                peer_ego_guard.update_work_status(WorkStatus::Ready);
-                peer_ego_guard.push_work();
-                None
-            }
-            Message::WorkNegAck => {
-                daemon_info!("received work ack from {}", socket_addr);
-
-                let mut peer_ego_guard = arc_peer_ego.lock().unwrap();
-                peer_ego_guard.update_work_status(WorkStatus::Ready);
+                let work_stack = ego_guard.get_work_stack();
+                peer_ego_guard.push_work(work_stack, ego_guard.get_minisketch());
                 None
             }
             Message::ReconcileNegAck => {
                 daemon_info!("received reconcile negack from {}", socket_addr);
                 let mut peer_ego_guard = arc_peer_ego.lock().unwrap();
-                if peer_ego_guard.get_status() == Status::StatePull {
-                    peer_ego_guard.update_status(Status::Gossiping);
-                } else {
-                    // TODO: Misbehaviour
-                }
+                match peer_ego_guard.get_status() {
+                    PeerStatus::StatePull(_) => peer_ego_guard.update_status(PeerStatus::Idle),
+                    _ => {
+                        // TODO: Misbehaviour
+                        daemon_error!("received negack from {} while not pulling state", socket_addr);
+                    }
+                };
                 None
             }
             Message::Peers { peers } => unreachable!(),
         });
 
         // Remove failed responses and merge with heartbeats
-        let out_stream = response_stream
-            .select(work_heartbeat)
-            .select(peer_stream.map_err(|_| ImpulseReceiveError.into()));
+        let out_stream =
+            response_stream.select(peer_stream.map_err(|_| ImpulseReceiveError.into()));
 
         // Send responses
         let arena_inner = arena.clone();

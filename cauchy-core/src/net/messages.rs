@@ -9,13 +9,16 @@ use secp256k1::Signature;
 use tokio::codec::{Decoder, Encoder};
 
 use super::peers::{Peer, Peers};
-
 use crate::{
     crypto::{
         signatures::ecdsa::*,
         sketches::{dummy_sketch::*, odd_sketch::*},
     },
-    primitives::{transaction::*, varint::VarInt},
+    primitives::{
+        transaction::*,
+        varint::VarInt,
+        work::{WorkStack, WorkState},
+    },
     utils::{constants::*, errors::MalformedMessageError, parsing::*},
 };
 
@@ -36,37 +39,16 @@ macro_rules! decoding_info {
 }
 
 pub enum Message {
-    StartHandshake {
-        secret: u64,
-    }, // 0 || Secret VarInt
-    EndHandshake {
-        pubkey: PublicKey,
-        sig: Signature,
-    }, // 1 || Pk || Sig
-    Nonce {
-        nonce: u64,
-    }, // 2 || nonce VarInt
-    Work {
-        oddsketch: OddSketch,
-        root: Bytes,
-        nonce: u64,
-    }, // 3 || OddSketch || Root || Nonce
-    MiniSketch {
-        minisketch: DummySketch,
-    }, // 4 || Number of Rows VarInt || IBLT
-    GetTransactions {
-        ids: HashSet<Bytes>,
-    }, // 5 || Number of Ids VarInt || Ids
-    Transactions {
-        txs: Vec<Transaction>,
-    }, // 6 || Number of Bytes VarInt || Tx ...
-    Reconcile,       // 7
-    WorkAck,         //8
-    WorkNegAck,      // 9
-    ReconcileNegAck, // 10
-    Peers {
-        peers: Peers,
-    }, // 11 || Number of peers || Peers
+    StartHandshake { secret: u64 }, // 0 || Secret VarInt
+    EndHandshake { pubkey: PublicKey, sig: Signature }, // 1 || Pk || Sig
+    Work(WorkStack),                // 2 || OddSketch || Root || Nonce
+    MiniSketch { minisketch: DummySketch }, // 3 || Number of Rows VarInt || IBLT
+    GetTransactions { ids: HashSet<Bytes> }, // 4 || Number of Ids VarInt || Ids
+    Transactions { txs: Vec<Transaction> }, // 5 || Number of Bytes VarInt || Tx ...
+    Reconcile,                      // 6
+    ReconcileNegAck,                // 7
+    GetWork,                        // 8
+    Peers { peers: Peers },         // 9 || Number of peers || Peers
 }
 
 pub struct MessageCodec;
@@ -90,32 +72,23 @@ impl Encoder for MessageCodec {
                 dst.extend(bytes_from_pubkey(pubkey));
                 dst.extend(bytes_from_sig(sig));
             }
-            Message::Nonce { nonce } => {
-                encoding_info!("encoding nonce");
-                dst.put_u8(2);
-                dst.extend(Bytes::from(VarInt::new(nonce)));
-            }
-            Message::Work {
-                oddsketch,
-                root,
-                nonce,
-            } => {
+            Message::Work(work_stack) => {
                 encoding_info!("encoding work");
-                dst.put_u8(3);
+                dst.put_u8(2);
                 // TODO: Variable length
                 //dst.extend(Bytes::from(VarInt::new(sketch.len() as u64)));
-                dst.extend(Bytes::from(oddsketch));
-                dst.extend(root);
-                dst.extend(Bytes::from(VarInt::new(nonce)));
+                dst.extend(Bytes::from(work_stack.get_oddsketch()));
+                dst.extend(work_stack.get_root());
+                dst.extend(Bytes::from(VarInt::new(work_stack.get_nonce())));
             }
             Message::MiniSketch { minisketch } => {
                 encoding_info!("encoding minisketch");
-                dst.put_u8(4);
+                dst.put_u8(3);
                 dst.extend(Bytes::from(minisketch))
             }
             Message::GetTransactions { ids } => {
                 encoding_info!("encoding tx request");
-                dst.put_u8(5);
+                dst.put_u8(4);
                 dst.extend(Bytes::from(VarInt::new(ids.len() as u64)));
                 for id in ids {
                     dst.extend(id);
@@ -123,7 +96,7 @@ impl Encoder for MessageCodec {
             }
             Message::Transactions { txs } => {
                 encoding_info!("encoding txs");
-                dst.put_u8(6);
+                dst.put_u8(5);
                 let mut payload = BytesMut::new();
                 for tx in txs.into_iter() {
                     let raw = Bytes::from(tx);
@@ -134,12 +107,11 @@ impl Encoder for MessageCodec {
                 dst.extend(Bytes::from(VarInt::new(payload_len)));
                 dst.extend(payload);
             }
-            Message::Reconcile => dst.put_u8(7),
-            Message::WorkAck => dst.put_u8(8),
-            Message::WorkNegAck => dst.put_u8(9),
-            Message::ReconcileNegAck => dst.put_u8(10),
+            Message::Reconcile => dst.put_u8(6),
+            Message::ReconcileNegAck => dst.put_u8(7),
+            Message::GetWork => dst.put_u8(8),
             Message::Peers { peers } => {
-                dst.put_u8(11);
+                dst.put_u8(9);
                 dst.extend(Bytes::from(peers));
             }
         }
@@ -188,19 +160,6 @@ impl Decoder for MessageCodec {
                 Ok(Some(msg))
             }
             2 => {
-                decoding_info!("decoding nonce");
-                let (nonce_vi, len) = match VarInt::parse_buf(&mut buf)? {
-                    Some(some) => some,
-                    None => return Ok(None),
-                };
-
-                src.advance(1 + len);
-                let msg = Message::Nonce {
-                    nonce: u64::from(nonce_vi),
-                };
-                Ok(Some(msg))
-            }
-            3 => {
                 decoding_info!("decoding work");
                 if buf.remaining() < SKETCH_CAPACITY + HASH_LEN {
                     return Ok(None);
@@ -216,15 +175,15 @@ impl Decoder for MessageCodec {
                     None => return Ok(None),
                 };
 
-                let msg = Message::Work {
-                    oddsketch: OddSketch::from(&sketch_dst[..]),
-                    root: Bytes::from(&root_dst[..]),
-                    nonce: u64::from(nonce_vi),
-                };
+                let msg = Message::Work(WorkStack::new(
+                    Bytes::from(&root_dst[..]),
+                    OddSketch::from(&sketch_dst[..]),
+                    u64::from(nonce_vi),
+                ));
                 src.advance(1 + SKETCH_CAPACITY + HASH_LEN + len);
                 Ok(Some(msg))
             }
-            4 => {
+            3 => {
                 decoding_info!("decoding minisketch");
                 let (minisketch, len) = match DummySketch::parse_buf(&mut buf)? {
                     Some(some) => some,
@@ -234,7 +193,7 @@ impl Decoder for MessageCodec {
                 let msg = Message::MiniSketch { minisketch };
                 Ok(Some(msg))
             }
-            5 => {
+            4 => {
                 decoding_info!("decoding get transactions");
                 let (n_tx_ids_vi, n_tx_ids_vi_len) = match VarInt::parse_buf(&mut buf)? {
                     Some(some) => some,
@@ -258,7 +217,7 @@ impl Decoder for MessageCodec {
                     Ok(Some(msg))
                 }
             }
-            6 => {
+            5 => {
                 decoding_info!("decoding transactions");
                 let (payload_len_vi, payload_len_len) = match VarInt::parse_buf(&mut buf)? {
                     Some(some) => some,
@@ -285,27 +244,22 @@ impl Decoder for MessageCodec {
                 src.advance(1 + payload_len_len + payload_len);
                 Ok(Some(msg))
             }
-            7 => {
+            6 => {
                 decoding_info!("decoding reconcile");
                 src.advance(1);
                 Ok(Some(Message::Reconcile))
             }
-            8 => {
-                decoding_info!("decoding work ack");
-                src.advance(1);
-                Ok(Some(Message::WorkAck))
-            }
-            9 => {
-                decoding_info!("decoding work ack");
-                src.advance(1);
-                Ok(Some(Message::WorkNegAck))
-            }
-            10 => {
+            7 => {
                 decoding_info!("decoding reconcile negack");
                 src.advance(1);
                 Ok(Some(Message::ReconcileNegAck))
             }
-            11 => {
+            8 => {
+                decoding_info!("decoding get work");
+                src.advance(1);
+                Ok(Some(Message::GetWork))
+            }
+            90 => {
                 decoding_info!("decoding peers");
                 let (vi_n, _) = match VarInt::parse_buf(&mut buf)? {
                     None => return Ok(None),

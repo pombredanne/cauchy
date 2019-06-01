@@ -20,3 +20,5 @@ Cargo.lock
 cauchy-vm/target/
 
 cauchy-vm/src/tests/scripts_rust/target/
+
+cauchy-rpc/clients/python/__pycache__/

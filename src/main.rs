@@ -4,8 +4,9 @@ use core::{
     crypto::signatures::ecdsa,
     daemon::{Origin, Priority},
     db::{mongodb::MongoDB, *},
+    ego::ego::Ego,
     net::heartbeats::*,
-    primitives::{arena::*, ego::Ego, transaction::Transaction, tx_pool::TxPool},
+    primitives::{arena::*, tx_pool::TxPool},
     stage::Stage,
     utils::{constants::*, mining},
 };
@@ -79,7 +80,7 @@ fn main() {
     let rpc_server_stack = rpc::construct_rpc_stack(socket_send, mempool, db.clone());
 
     // Reconciliation heartbeat
-    let reconcile_heartbeat = heartbeat_reconcile(arena.clone());
+    let heartbeat_fut = heartbeat(arena.clone());
 
     // Spawn servers
     let main_loop = thread::spawn(move || {
@@ -89,7 +90,7 @@ fn main() {
             for server in rpc_server_stack {
                 tokio::spawn(server);
             }
-            tokio::spawn(reconcile_heartbeat);
+            tokio::spawn(heartbeat_fut);
             Ok(())
         }))
     });

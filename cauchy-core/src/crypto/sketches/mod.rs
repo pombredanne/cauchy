@@ -8,7 +8,6 @@ use bytes::Bytes;
 use super::hashes::*;
 
 pub trait SketchInsertable {
-    fn new() -> Self;
     fn insert<T>(&mut self, item: &T)
     where
         T: Identifiable;
@@ -29,13 +28,14 @@ pub trait Sketchable {
 impl<V> Sketchable for V
 where
     V: SketchInsertable,
+    V: Default,
 {
     fn sketch<T: Identifiable, U>(items: &U) -> Self
     where
         U: IntoIterator<Item = T>,
         U: Clone,
     {
-        let mut new_sketch = Self::new();
+        let mut new_sketch: Self = Default::default();
         for item in items.clone().into_iter() {
             new_sketch.insert(&item);
         }
@@ -47,7 +47,7 @@ where
         U: IntoIterator<Item = Bytes>,
         U: Clone,
     {
-        let mut sketch = Self::new();
+        let mut sketch: Self = Default::default();
         for item in items.clone().into_iter() {
             sketch.insert_id(&item);
         }

@@ -1,6 +1,5 @@
 import six
 
-
 def encode_varint(num: int):
     parts = list()
     length = 0
@@ -10,8 +9,8 @@ def encode_varint(num: int):
         else:
             e = 0x80
         parts.append(six.int2byte((num & 0x7f) | e))
-        if number <= 0x7f:
+        if num <= 0x7f:
             break
-        number = (number >> 7) - 1
+        num = (num >> 7) - 1
         length += 1
     return b''.join(reversed(parts))

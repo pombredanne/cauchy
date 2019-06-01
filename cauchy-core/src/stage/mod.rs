@@ -20,11 +20,12 @@ use crate::{
     },
     daemon::{Origin, Priority},
     db::{mongodb::*, storing::Storable},
+    ego::ego::Ego,
     primitives::{
         act::{Act, Message},
-        ego::{Ego, PeerEgo, Status, WorkState, WorkStatus},
         transaction::*,
         tx_pool::TxPool,
+        work::WorkState,
     },
     utils::constants::{CONFIG, HASH_LEN},
 };
@@ -68,20 +69,20 @@ impl Stage {
             // done.wait();
 
             // Push to tx db and recreate ego
-            let mut ego_guard = self.ego.lock().unwrap();
-            let mut oddsketch = ego_guard.get_oddsketch(); // TODO: Replace these with get &mut
-            let mut minisketch = ego_guard.get_minisketch();
+            // let mut ego_guard = self.ego.lock().unwrap();
+            // let mut oddsketch = ego_guard.get_oddsketch(); // TODO: Replace these with get &mut
+            // let mut minisketch = ego_guard.get_minisketch();
 
             // for tx in txs {
             //     tx.to_db(&mut self.db.clone(), None);
             //     oddsketch.insert(&tx);
             //     minisketch.insert(&tx);
             // }
-            let root = Bytes::from(&[0; HASH_LEN][..]); // TODO: Actually generate bytes
-            let mut ego_bus_guard = self.ego_bus.lock().unwrap();
-            ego_guard.update_oddsketch(oddsketch.clone());
-            ego_guard.update_minisketch(minisketch);
-            ego_bus_guard.broadcast((oddsketch, root));
+            // let root = Bytes::from(&[0; HASH_LEN][..]); // TODO: Actually generate bytes
+            // let mut ego_bus_guard = self.ego_bus.lock().unwrap();
+            // ego_guard.update_oddsketch(oddsketch.clone());
+            // ego_guard.update_minisketch(minisketch);
+            // ego_bus_guard.broadcast((oddsketch, root));
 
             ok(())
         })
@@ -108,10 +109,10 @@ impl Stage {
     //     let mut peer_ego_guard = arc_peer_ego.lock().unwrap();
 
     //     // If received txs from reconciliation target check the payload matches reported
-    //     if peer_ego_guard.get_status() == Status::StatePull {
+    //     if peer_ego_guard.get_status() == PeerStatus::StatePull {
     //         // Is reconcile target
     //         // Cease reconciliation status
-    //         peer_ego_guard.update_status(Status::Gossiping);
+    //         peer_ego_guard.update_status(PeerStatus::Gossiping);
     //         if peer_ego_guard.is_expected_payload(&txs) {
     //             // TODO: Send backstage and verify
 
@@ -136,8 +137,8 @@ impl Stage {
     //     }
 
     //     // Send updated state immediately
-    //     peer_ego_guard.update_status(Status::Gossiping);
-    //     peer_ego_guard.update_work_status(WorkStatus::Waiting);
+    //     peer_ego_guard.update_status(PeerStatus::Gossiping);
+    //     peer_ego_guard.update_work_status(WorkPeerStatus::Waiting);
     //     peer_ego_guard.commit_work(&ego_guard);
 
     //     tokio::spawn(
