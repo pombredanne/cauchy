@@ -42,10 +42,10 @@ impl VM {
         mailbox: Mailbox,
         tx: Transaction,
         perfid: Bytes,
-        parent_branch: oneshot::Sender<Arc<Mutex<Performance>>>,
+        performance: Arc<Mutex<Performance>>,
+        parent_branch: oneshot::Sender<()>,
     ) -> Result<u8, Error> {
         // Construct session
-        let performance = Arc::new(Mutex::new(Performance::new()));
         let id = tx.get_id();
         let session = Session {
             mailbox,
@@ -54,7 +54,7 @@ impl VM {
             timestamp: tx.get_time(),
             binary_hash: tx.get_binary_hash(),
             aux: tx.get_aux(),
-            performance: performance.clone(),
+            performance,
             child_branch: None,
             store: self.store.clone(),
         };
@@ -72,7 +72,7 @@ impl VM {
         drop(machine);
 
         // Send termination alert to parent
-        parent_branch.send(performance);
+        parent_branch.send(());
 
         // Return act and result
         result
@@ -81,13 +81,11 @@ impl VM {
 
 pub struct Mailbox {
     inbox: Receiver<Message>,
-    outbox: Sender<(Message, oneshot::Sender<Performance>)>,
+    outbox: Sender<(Message, oneshot::Sender<()>)>,
 }
 
 impl Mailbox {
-    pub fn new(
-        outbox: Sender<(Message, oneshot::Sender<Performance>)>,
-    ) -> (Mailbox, Sender<Message>) {
+    pub fn new(outbox: Sender<(Message, oneshot::Sender<()>)>) -> (Mailbox, Sender<Message>) {
         let (inbox_send, inbox) = channel(128);
         (Mailbox { inbox, outbox }, inbox_send)
     }

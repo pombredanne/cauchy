@@ -14,7 +14,11 @@ use crate::{
     ego::{ego::*, peer_ego::*},
     net::{heartbeats::*, messages::*},
     primitives::{
-        arena::Arena, status::{PeerStatus, Status}, transaction::Transaction, tx_pool::TxPool, work::WorkStack,
+        arena::Arena,
+        status::{PeerStatus, Status},
+        transaction::Transaction,
+        tx_pool::TxPool,
+        work::WorkStack,
     },
     utils::{
         constants::*,
@@ -275,7 +279,10 @@ pub fn server(
                     }
                     PeerStatus::StatePush => {
                         // TODO: Ban here
-                        daemon_error!("received transactions from {} while pushing state", socket_addr);
+                        daemon_error!(
+                            "received transactions from {} while pushing state",
+                            socket_addr
+                        );
                     }
                     _ => {
                         mempool_inner.lock().unwrap().insert_batch(txs, true);
@@ -319,7 +326,10 @@ pub fn server(
                     PeerStatus::StatePull(_) => peer_ego_guard.update_status(PeerStatus::Idle),
                     _ => {
                         // TODO: Misbehaviour
-                        daemon_error!("received negack from {} while not pulling state", socket_addr);
+                        daemon_error!(
+                            "received negack from {} while not pulling state",
+                            socket_addr
+                        );
                     }
                 };
                 None

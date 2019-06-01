@@ -17,7 +17,7 @@ pub fn heartbeat(arena: Arc<Mutex<Arena>>) -> impl Future<Item = (), Error = ()>
         .map_err(|_| ()) // TODO: Catch?
         .for_each(move |_| {
             let arena_guard = arena.lock().unwrap();
-            
+
             // Only heartbeat when idle
             if arena_guard.get_ego().lock().unwrap().get_status() == Status::Idle {
                 arena_guard.work_pulse(CONFIG.network.quorum_size);

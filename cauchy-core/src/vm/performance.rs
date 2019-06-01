@@ -22,7 +22,9 @@ use crate::{
 
 use super::{Mailbox, VM};
 
-#[derive(Clone, PartialEq, Eq)]
+/* TODO: Given that each actor will write to one key
+this probably best as some sort of concurrent hashmap */
+#[derive(Clone, PartialEq, Eq, Default)]
 pub struct Performance(pub HashMap<Bytes, Act>); // Actor ID: Total Act
 
 impl Performance {
@@ -51,10 +53,6 @@ impl AddAssign for Performance {
 }
 
 impl Performance {
-    pub fn new() -> Performance {
-        Performance(HashMap::new())
-    }
-
     pub fn add_read(&mut self, id: &Bytes, key: Bytes) {
         let act = match self.0.get_mut(id) {
             Some(some) => some,
@@ -77,75 +75,105 @@ impl Performance {
         act.access_pattern.write.insert(key, value);
     }
 
-    // pub fn from_tx(
-    //     db: MongoDB,
-    //     tx: Transaction,
-    // ) -> impl Future<Item = Performance, Error = ()> + Send {
-    //     let (root_send, root_recv) = oneshot::channel();
+    pub fn from_tx(
+        db: MongoDB,
+        tx: Transaction,
+    ) -> impl Future<Item = Performance, Error = ()> + Send {
+        // Performance to be mutated during run
+        let arc_performance = Arc::new(Mutex::new(Performance::default()));
 
-    //     // Create new actor from tx binary
-    //     let vm = VM::new(db.clone());
+        let (root_send, root_recv) = oneshot::channel();
 
-    //     // Create mail system
-    //     let mut inboxes: HashMap<Bytes, Sender<Message>> = HashMap::new();
-    //     let (outbox, outbox_recv) = mpsc::channel(512);
+        // Initialize VM
+        let vm = VM::new(db.clone());
 
-    //     let id = tx.get_id();
-    //     let (first_mailbox, inbox_send) = Mailbox::new(outbox.clone());
-    //     inboxes.insert(id.clone(), inbox_send);
-    //     tokio::spawn(
-    //         ok({
-    //             vm.run(first_mailbox, tx, id.clone(), root_send).unwrap();
-    //             // The performance is over
-    //             Performance::finalize(db.clone(), id.clone());
-    //         })
-    //         .and_then(move |_| {
-    //             // For each new message
-    //             outbox_recv.for_each(move |(message, parent_branch)| {
-    //                 let receiver_id = message.get_receiver();
-    //                 match inboxes.get(&receiver_id) {
-    //                     // If receiver already live
-    //                     Some(inbox_sender) => {
-    //                         // Relay message to receiver
-    //                         tokio::spawn(
-    //                             inbox_sender
-    //                                 .clone()
-    //                                 .send(message)
-    //                                 .map(|_| ())
-    //                                 .map_err(|_| ()),
-    //                         );
-    //                         ok(())
-    //                     }
-    //                     // If receiver sleeping
-    //                     None => {
-    //                         // Load binary
-    //                         let tx = match Transaction::from_db(&mut db, receiver_id) {
-    //                             Ok(Some(tx)) => tx,
-    //                             Ok(None) => return err(()),
-    //                             Err(_) => return err(()),
-    //                         };
-    //                         let recvr_id = tx.get_id();
+        // Create mail system
+        let mut inboxes: HashMap<Bytes, Sender<Message>> = HashMap::new();
+        let (outbox, outbox_recv) = mpsc::channel(512);
 
-    //                         // Boot receiver
-    //                         let (new_mailbox, new_inbox_send) = Mailbox::new(outbox.clone());
+        let id = tx.get_id(); // Used as the performance ID
 
-    //                         // Add to list of live inboxes
-    //                         inboxes.insert(tx.get_id(), new_inbox_send);
+        // Initialize mailboxes
+        let (first_mailbox, inbox_send) = Mailbox::new(outbox.clone());
 
-    //                         // Run receiver VM
-    //                         tokio::spawn(ok({
-    //                             vm.run(new_mailbox, tx, id.clone(), parent_branch).unwrap();
-    //                             // Remove from live inboxes
-    //                             inboxes.remove(&recvr_id);
-    //                         }));
-    //                         ok(())
-    //                     }
-    //                 }
-    //             })
-    //         }),
-    //     );
-    //     root_recv.map_err(|_| ())
-    // }
+        // Add originating transaction to the mailbox
+        inboxes.insert(id.clone(), inbox_send);
+
+        let arc_performance_outer = arc_performance.clone();
+        tokio::spawn(
+            ok({
+                // Run
+                vm.run(
+                    first_mailbox,
+                    tx,
+                    id.clone(),
+                    arc_performance.clone(),
+                    root_send,
+                )
+                .unwrap();
+            })
+            .and_then(move |_| {
+                // For each new message
+                outbox_recv.for_each(move |(message, parent_branch)| {
+                    let receiver_id = message.get_receiver();
+                    match inboxes.get(&receiver_id) {
+                        // If receiver already live
+                        Some(inbox_sender) => {
+                            // Relay message to receiver
+                            tokio::spawn(
+                                inbox_sender
+                                    .clone()
+                                    .send(message)
+                                    .map(|_| ())
+                                    .map_err(|_| ()),
+                            );
+                            ok(())
+                        }
+                        // If receiver sleeping
+                        None => {
+                            // Load binary
+                            let mut db = db.clone();
+                            let tx = match Transaction::from_db(&mut db, receiver_id) {
+                                Ok(Some(tx)) => tx,
+                                Ok(None) => return err(()),
+                                Err(_) => return err(()),
+                            };
+                            let recvr_id = tx.get_id();
+
+                            // Boot receiver
+                            let (new_mailbox, new_inbox_send) = Mailbox::new(outbox.clone());
+
+                            // Add to list of live inboxes
+                            inboxes.insert(tx.get_id(), new_inbox_send);
+
+                            // Run receiver VM
+                            let arc_performance_inner = arc_performance.clone();
+                            tokio::spawn(ok({
+                                vm.run(
+                                    new_mailbox,
+                                    tx,
+                                    id.clone(),
+                                    arc_performance_inner,
+                                    parent_branch,
+                                )
+                                .unwrap();
+                                // Remove from live inboxes
+                                inboxes.remove(&recvr_id);
+                            }));
+                            ok(())
+                        }
+                    }
+                })
+            }),
+        );
+        root_recv.map_err(|_| ()).map(move |_| {
+            // Pop the value out of Mutex
+            match Arc::try_unwrap(arc_performance_outer) {
+                Ok(ok) => ok.into_inner().unwrap(),
+                _ => unreachable!(),
+            }
+        })
+    }
 
     fn finalize(db: MongoDB, perfid: Bytes) {
         db.update(

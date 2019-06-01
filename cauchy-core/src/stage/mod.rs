@@ -62,8 +62,7 @@ impl Stage {
                     //     peer_ego_guard.get_root(),
                     // );
                 }
-                Origin::RPC => unreachable!()
-                // Origin::RPC => self.process_txs_from_rpc(&txs, priority),
+                Origin::RPC => self.process_txs_from_rpc(txs, priority),
             };
             // let done = futures::future::join_all(performances);
             // done.wait();
@@ -88,15 +87,16 @@ impl Stage {
         })
     }
 
-    // pub fn process_txs_from_rpc(
-    //     &self,
-    //     txs: &HashSet<Transaction>,
-    //     priority: Priority,
-    // ) -> Vec<impl Future<Item = Performance, Error = ()> + Send> {
-    //     txs.into_iter()
-    //         .map(|tx| Performance::from_tx(self.db.clone(), tx.clone()))
-    //         .collect()
-    // }
+    pub fn process_txs_from_rpc(
+        &self,
+        txs: TxPool,
+        priority: Priority,
+    ) -> Vec<impl Future<Item = Performance, Error = ()> + Send> {
+        txs.into_sorted_txs()
+            .iter()
+            .map(|tx| Performance::from_tx(self.db.clone(), tx.clone()))
+            .collect()
+    }
 
     // pub fn process_txs_from_peer(
     //     &self,

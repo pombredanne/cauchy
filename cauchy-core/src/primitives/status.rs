@@ -26,7 +26,7 @@ impl Expectation {
             oddsketch,
             root,
             ids: None,
-            minisketch: None
+            minisketch: None,
         }
     }
 
@@ -66,7 +66,7 @@ impl Expectation {
 #[derive(PartialEq, Clone)]
 pub enum Status {
     Pulling,
-    Idle
+    Idle,
 }
 
 impl Default for Status {
@@ -83,7 +83,6 @@ impl Status {
         }
     }
 }
-
 
 #[derive(PartialEq, Clone)]
 pub enum PeerStatus {

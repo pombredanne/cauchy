@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::sync::{Arc, Mutex, MutexGuard};
 use std::ops::DerefMut;
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use log::info;
 use rand::seq::SliceRandom;
@@ -13,7 +13,7 @@ use crate::{
     net::{messages::Message, peers::Peer},
     primitives::{
         status::*,
-        work::{WorkStack, WorkState, WorkSite},
+        work::{WorkSite, WorkStack, WorkState},
     },
     utils::constants::CONFIG,
 };
@@ -77,26 +77,36 @@ impl Arena {
         let mut ego_guard = self.ego.lock().unwrap();
 
         // Lock fighters
-        let mut profiles: Vec<(MutexGuard<PeerEgo>, WorkStack, PublicKey)> = self.peer_egos.values().filter_map(|peer_ego| {
-            let peer_ego_guard = peer_ego.lock().unwrap();
-            match (peer_ego_guard.get_status(), peer_ego_guard.get_pubkey()) {
-                (PeerStatus::Fighting(work_state), Some(public_key)) => {
-                    Some((peer_ego_guard, work_state, public_key))
+        let mut profiles: Vec<(MutexGuard<PeerEgo>, WorkStack, PublicKey)> = self
+            .peer_egos
+            .values()
+            .filter_map(|peer_ego| {
+                let peer_ego_guard = peer_ego.lock().unwrap();
+                match (peer_ego_guard.get_status(), peer_ego_guard.get_pubkey()) {
+                    (PeerStatus::Fighting(work_state), Some(public_key)) => {
+                        Some((peer_ego_guard, work_state, public_key))
+                    }
+                    _ => None,
                 }
-                _ => None,
-            }
-        }).collect();
-        
+            })
+            .collect();
+
         let mut best_peer = None;
         let mut best_dist = 0;
 
         // Calculate own distance
         for (_, work_stack_inner, pubkey_inner) in &profiles {
-            let work_site = WorkSite::new(*pubkey_inner, work_stack_inner.get_root(), work_stack_inner.get_nonce());
+            let work_site = WorkSite::new(
+                *pubkey_inner,
+                work_stack_inner.get_root(),
+                work_stack_inner.get_nonce(),
+            );
             best_dist += work_site.mine(ego_guard.work_stack.get_oddsketch())
         }
 
-        best_dist += ego_guard.get_work_site().mine(ego_guard.work_stack.get_oddsketch());
+        best_dist += ego_guard
+            .get_work_site()
+            .mine(ego_guard.work_stack.get_oddsketch());
 
         arena_info!("self distance: {}", best_dist);
 
@@ -104,7 +114,11 @@ impl Arena {
         for (i, (_, work_stack, _)) in profiles.iter().enumerate() {
             let mut dist = 0;
             for (_, work_stack_inner, pubkey_inner) in &profiles {
-                let work_site_inner = WorkSite::new(*pubkey_inner, work_stack_inner.get_root(), work_stack_inner.get_nonce());
+                let work_site_inner = WorkSite::new(
+                    *pubkey_inner,
+                    work_stack_inner.get_root(),
+                    work_stack_inner.get_nonce(),
+                );
                 dist += work_site_inner.mine(work_stack.get_oddsketch())
             }
 
@@ -121,7 +135,8 @@ impl Arena {
                 for (j, (peer_ego, work_stack, _)) in profiles.iter_mut().enumerate() {
                     if i == j {
                         // Update status to pulling with expectation grabbed from current status
-                        let expectation = Expectation::new(work_stack.get_oddsketch(), work_stack.get_root());
+                        let expectation =
+                            Expectation::new(work_stack.get_oddsketch(), work_stack.get_root());
                         peer_ego.update_status(PeerStatus::StatePull(expectation));
                         ego_guard.update_status(Status::Pulling);
 
@@ -132,13 +147,13 @@ impl Arena {
                         peer_ego.update_status(PeerStatus::Idle);
                     }
                 }
-                },
+            }
             None => {
                 // Leading
                 arena_info!("leading");
 
                 // Reset losers to idle
-                for (peer_ego,_, _) in profiles.iter_mut() {
+                for (peer_ego, _, _) in profiles.iter_mut() {
                     peer_ego.update_status(PeerStatus::Idle);
                 }
             }

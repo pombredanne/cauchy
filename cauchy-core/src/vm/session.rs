@@ -25,15 +25,15 @@ pub struct Session {
     pub binary_hash: Bytes,
     pub aux: Bytes,
     pub performance: Arc<Mutex<Performance>>,
-    pub child_branch: Option<oneshot::Receiver<Performance>>,
+    pub child_branch: Option<oneshot::Receiver<()>>,
     pub store: MongoDB,
 }
 
 impl Session {
     pub fn recv(&mut self) -> Option<Message> {
+        // Wait while children still live
         if let Some(branch) = self.child_branch.take() {
             let child_perforamnce = branch.wait().unwrap();
-            *self.performance.lock().unwrap() += child_perforamnce;
         }
 
         match self.mailbox.inbox.poll() {
@@ -43,9 +43,9 @@ impl Session {
     }
 
     pub fn send(&mut self, msg: Message) {
+        // Wait whiel children still live
         if let Some(branch) = self.child_branch.take() {
             let child_perforamnce = branch.wait().unwrap();
-            *self.performance.lock().unwrap() += child_perforamnce;
         }
 
         let (child_send, child_branch) = oneshot::channel();
