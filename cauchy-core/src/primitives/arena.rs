@@ -120,7 +120,7 @@ impl Arena {
             Some(i) => {
                 for (j, (peer_ego, work_stack, _)) in profiles.iter_mut().enumerate() {
                     if i == j {
-                        // Update status to pulling with expectation grabbed from
+                        // Update status to pulling with expectation grabbed from current status
                         let expectation = Expectation::new(work_stack.get_oddsketch(), work_stack.get_root());
                         peer_ego.update_status(PeerStatus::StatePull(expectation));
                         ego_guard.update_status(Status::Pulling);
