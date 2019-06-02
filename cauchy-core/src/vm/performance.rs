@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex};
 
 use bson::{spec::BinarySubtype, *};
 use bytes::Bytes;
+use log::info;
 use futures::future::{err, ok};
 use futures::sink::Sink;
 use futures::sync::mpsc::{Receiver, Sender};
@@ -18,9 +19,18 @@ use crate::{
         act::{Act, Message},
         transaction::Transaction,
     },
+    utils::constants::CONFIG
 };
 
 use super::{Mailbox, VM};
+
+macro_rules! vm_info {
+    ($($arg:tt)*) => {
+        if CONFIG.debugging.vm_verbose {
+            info!(target: "vm_event", $($arg)*);
+        }
+    };
+}
 
 /* TODO: Given that each actor will write to one key
 this probably best as some sort of concurrent hashmap */
@@ -85,9 +95,11 @@ impl Performance {
         let (root_send, root_recv) = oneshot::channel();
 
         // Initialize VM
+        vm_info!("initialising VM");
         let vm = VM::new(db.clone());
 
         // Create mail system
+        vm_info!("initialising mail system");
         let mut inboxes: HashMap<Bytes, Sender<Message>> = HashMap::new();
         let (outbox, outbox_recv) = mpsc::channel(512);
 

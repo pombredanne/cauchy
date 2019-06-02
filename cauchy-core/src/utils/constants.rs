@@ -61,6 +61,7 @@ pub struct Debugging {
     pub rpc_verbose: bool,
     pub mining_verbose: bool,
     pub ego_verbose: bool,
+    pub vm_verbose: bool
 }
 
 impl Default for Debugging {
@@ -77,6 +78,7 @@ impl Default for Debugging {
             rpc_verbose: true,
             mining_verbose: true,
             ego_verbose: true,
+            vm_verbose: true
         }
     }
 }
