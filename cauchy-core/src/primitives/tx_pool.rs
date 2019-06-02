@@ -47,13 +47,14 @@ impl Ord for TxPoolItem {
     }
 }
 
+#[derive(Clone)]
 pub struct TxPool {
     txs: BinaryHeap<TxPoolItem>,
     size: usize,
 }
 
 impl TxPool {
-    pub fn new(size: usize) -> TxPool {
+    pub fn with_capacity(size: usize) -> TxPool {
         TxPool {
             txs: BinaryHeap::with_capacity(size),
             size,

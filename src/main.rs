@@ -17,6 +17,8 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 fn main() {
+    std::env::set_var("RUST_LOG", "info");
+    
     // Enviroment logger
     env_logger::init();
 
@@ -57,13 +59,13 @@ fn main() {
     let arena = Arc::new(Mutex::new(Arena::new(ego.clone())));
 
     // Init mempool
-    let mempool = Arc::new(Mutex::new(TxPool::new(1024))); // TODO: Make mempool size constant
+    let mempool = Arc::new(Mutex::new(TxPool::with_capacity(1024))); // TODO: Make mempool size constant
 
     // Spawn stage manager
     // let (reset_send, reset_recv) = std::sync::mpsc::channel(); // TODO: Reset mining best
-    let (reconcile_send, reconcile_recv) = mpsc::channel::<(Origin, TxPool, Priority)>(128);
+    let (stage_send, stage_recv) = mpsc::channel::<(Origin, TxPool, Priority)>(128);
     let stage = Stage::new(ego.clone(), db.clone(), ego_bus);
-    let stage_mananger = stage.manager(mempool.clone(), reconcile_recv);
+    let stage_mananger = stage.manager(mempool.clone(), stage_recv);
 
     // Server
     let (socket_send, socket_recv) = mpsc::channel::<tokio::net::TcpStream>(128);
@@ -73,11 +75,11 @@ fn main() {
         socket_recv,
         arena.clone(),
         mempool.clone(),
-        reconcile_send.clone(),
+        stage_send.clone(),
     );
 
     // Construct RPC server stack
-    let rpc_server_stack = rpc::construct_rpc_stack(socket_send, mempool, db.clone());
+    let rpc_server_stack = rpc::construct_rpc_stack(socket_send, stage_send, db.clone());
 
     // Reconciliation heartbeat
     let heartbeat_fut = heartbeat(arena.clone());

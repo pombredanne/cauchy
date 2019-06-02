@@ -4,6 +4,7 @@ use std::sync::{Arc, Mutex};
 
 use bus::Bus;
 use bytes::{Bytes, BytesMut};
+use log::info;
 use failure::Error;
 use futures::future::{err, ok};
 use futures::sink::Sink;
@@ -29,6 +30,14 @@ use crate::{
     },
     utils::constants::{CONFIG, HASH_LEN},
 };
+
+macro_rules! stage_info {
+    ($($arg:tt)*) => {
+        if CONFIG.debugging.arena_verbose {
+            info!(target: "stage_event", $($arg)*);
+        }
+    };
+}
 
 pub struct Stage {
     ego: Arc<Mutex<Ego>>,
@@ -62,26 +71,26 @@ impl Stage {
                     //     peer_ego_guard.get_root(),
                     // );
                 }
-                Origin::RPC => self.process_txs_from_rpc(txs, priority),
+                Origin::RPC => self.process_txs_from_rpc(txs.clone(), priority),
             };
-            // let done = futures::future::join_all(performances);
-            // done.wait();
+            let done = futures::future::join_all(performances);
+            done.wait();
 
-            // Push to tx db and recreate ego
-            // let mut ego_guard = self.ego.lock().unwrap();
-            // let mut oddsketch = ego_guard.get_oddsketch(); // TODO: Replace these with get &mut
-            // let mut minisketch = ego_guard.get_minisketch();
+            //Push to tx db and recreate ego
+            let mut ego_guard = self.ego.lock().unwrap();
+            let mut oddsketch = ego_guard.work_stack.get_oddsketch(); // TODO: Replace these with get &mut
+            let mut minisketch = ego_guard.get_minisketch();
 
-            // for tx in txs {
-            //     tx.to_db(&mut self.db.clone(), None);
-            //     oddsketch.insert(&tx);
-            //     minisketch.insert(&tx);
-            // }
-            // let root = Bytes::from(&[0; HASH_LEN][..]); // TODO: Actually generate bytes
-            // let mut ego_bus_guard = self.ego_bus.lock().unwrap();
-            // ego_guard.update_oddsketch(oddsketch.clone());
-            // ego_guard.update_minisketch(minisketch);
-            // ego_bus_guard.broadcast((oddsketch, root));
+            for tx in txs.into_sorted_txs().iter() {
+                tx.to_db(&mut self.db.clone(), None);
+                oddsketch.insert(tx);
+                minisketch.insert(tx);
+            }
+            let root = Bytes::from(&[0; HASH_LEN][..]); // TODO: Actually generate bytes
+            let mut ego_bus_guard = self.ego_bus.lock().unwrap();
+            ego_guard.work_stack.update_oddsketch(oddsketch.clone());
+            ego_guard.update_minisketch(minisketch);
+            ego_bus_guard.broadcast((oddsketch, root));
 
             ok(())
         })
@@ -92,6 +101,7 @@ impl Stage {
         txs: TxPool,
         priority: Priority,
     ) -> Vec<impl Future<Item = Performance, Error = ()> + Send> {
+        stage_info!("processing tx batch from rpc");
         txs.into_sorted_txs()
             .iter()
             .map(|tx| Performance::from_tx(self.db.clone(), tx.clone()))

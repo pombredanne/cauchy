@@ -1,12 +1,11 @@
 use std::net::SocketAddr;
-use std::sync::{Arc, Mutex};
 
 use bson::{bson, doc, spec::BinarySubtype, Bson};
 use bytes::Bytes;
 
 use failure::Error;
 use futures::sync::mpsc::Sender;
-use futures::Future;
+use futures::{Future, Stream};
 use log::{error, info};
 use tokio::codec::Framed;
 use tokio::net::{TcpListener, TcpStream};
@@ -25,7 +24,7 @@ use core::{
 
 pub fn server(
     socket_sender: Sender<TcpStream>,
-    mempool: Arc<Mutex<TxPool>>,
+    stage_send: Sender<(Origin, TxPool, Priority)>,
     db: MongoDB,
 ) -> Box<Future<Item = (), Error = ()> + Send + 'static> {
     let addr = format!("0.0.0.0:{}", CONFIG.network.rpc_server_port).to_string();
@@ -50,8 +49,8 @@ pub fn server(
 
         // New TCP socket sender
         let socket_sender_inner = socket_sender.clone();
-        let mempool_inner = mempool.clone();
         let db_inner = db.clone();
+        let stage_send_inner = stage_send.clone();
         let responses = received_stream.map(move |msg| match msg {
             Request::AddPeer { addr } => {
                 rpc_info!("received addpeer {} message from {}", addr, socket_addr);
@@ -76,7 +75,19 @@ pub fn server(
             }
             Request::NewTransaction { tx } => {
                 rpc_info!("received new transaction from {}", socket_addr);
-                mempool_inner.lock().unwrap().insert(tx, None, None);
+                let stage_send_inner = stage_send_inner.clone();
+                let mut tx_pool = TxPool::with_capacity(1); // TODO: Make single insertion less clunky
+                tx_pool.insert(tx, None, None);
+                tokio::spawn(
+                    stage_send_inner
+                        .send((Origin::RPC, tx_pool, Priority::Standard))
+                        .and_then(|_| future::ok(()))
+                        .map(|_| ())
+                        .or_else(|e| {
+                            rpc_error!("error = {:?}", e);
+                            Ok(())
+                        }),
+                );
                 Response::Success
             }
             Request::FetchValue { actor_id, key } => {

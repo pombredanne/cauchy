@@ -19,7 +19,7 @@ fn test_put_sorted() {
     let tx_b = generate_random_tx(1);
     let tx_c = generate_random_tx(2);
 
-    let mut mempool = TxPool::new(3);
+    let mut mempool = TxPool::with_capacity(3);
 
     assert!(mempool.insert_batch(vec![tx_a, tx_b, tx_c], true).is_ok())
 }
@@ -31,7 +31,7 @@ fn test_put_full() {
     let tx_c = generate_random_tx(2);
     let tx_d = generate_random_tx(3);
 
-    let mut mempool = TxPool::new(3);
+    let mut mempool = TxPool::with_capacity(3);
 
     assert!(mempool
         .insert_batch(vec![tx_a, tx_b, tx_c, tx_d], true)
@@ -44,7 +44,7 @@ fn test_put_unsorted() {
     let tx_b = generate_random_tx(1);
     let tx_c = generate_random_tx(2);
 
-    let mut mempool = TxPool::new(3);
+    let mut mempool = TxPool::with_capacity(3);
 
     assert!(mempool.insert_batch(vec![tx_a, tx_c, tx_b], true).is_err())
 }

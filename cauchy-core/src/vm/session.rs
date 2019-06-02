@@ -33,7 +33,7 @@ impl Session {
     pub fn recv(&mut self) -> Option<Message> {
         // Wait while children still live
         if let Some(branch) = self.child_branch.take() {
-            let child_perforamnce = branch.wait().unwrap();
+            branch.wait().unwrap();
         }
 
         match self.mailbox.inbox.poll() {
@@ -45,7 +45,7 @@ impl Session {
     pub fn send(&mut self, msg: Message) {
         // Wait whiel children still live
         if let Some(branch) = self.child_branch.take() {
-            let child_perforamnce = branch.wait().unwrap();
+            branch.wait().unwrap();
         }
 
         let (child_send, child_branch) = oneshot::channel();

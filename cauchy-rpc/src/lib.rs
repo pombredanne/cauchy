@@ -1,7 +1,6 @@
 pub mod native;
 
 use std::net::SocketAddr;
-use std::sync::{Arc, Mutex};
 
 use bytes::Bytes;
 use futures::{sync::mpsc::Sender, Future};
@@ -46,13 +45,13 @@ pub enum Response {
 
 pub fn construct_rpc_stack(
     socket_sender: Sender<TcpStream>,
-    mempool: Arc<Mutex<TxPool>>,
+    stage_send: Sender<(Origin, TxPool, Priority)>,
     db: MongoDB,
 ) -> Vec<Box<Future<Item = (), Error = ()> + Send + 'static>> {
     let mut stack: Vec<Box<Future<Item = (), Error = ()> + Send + 'static>> = Vec::new();
 
     #[cfg(feature = "native-rpc")]
-    stack.push(native::interface::server(socket_sender, mempool, db));
+    stack.push(native::interface::server(socket_sender, stage_send, db));
 
     stack
 }

@@ -213,7 +213,7 @@ pub fn server(
                 let mut peer_ego_guard = arc_peer_ego.lock().unwrap();
 
                 // Init tx pool
-                let mut tx_pool = TxPool::new(ids.len());
+                let mut tx_pool = TxPool::with_capacity(ids.len());
 
                 // Find transactions
                 for id in ids {
@@ -258,7 +258,7 @@ pub fn server(
                 match peer_ego_guard.get_status() {
                     PeerStatus::StatePull(expectation) => {
                         // Send to back stage
-                        let mut tx_pool = TxPool::new(txs.len());
+                        let mut tx_pool = TxPool::with_capacity(txs.len());
                         tx_pool.insert_batch(txs, true); // TODO: Catch out-of-order
                         drop(peer_ego_guard);
 
