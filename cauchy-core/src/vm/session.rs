@@ -31,19 +31,23 @@ pub struct Session {
 
 impl Session {
     pub fn recv(&mut self) -> Option<Message> {
-        // Wait while children still live
-        if let Some(branch) = self.child_branch.take() {
-            branch.wait().unwrap();
-        }
-
+        // Wait while children still live and no messages
         match self.mailbox.inbox.poll() {
             Ok(Async::Ready(msg)) => msg,
+            Ok(Async::NotReady) => {
+                if let Some(branch) = self.child_branch.take() {
+                    branch.wait().unwrap();
+                    self.recv()
+                } else {
+                    None
+                }
+            },
             _ => unreachable!(),
         }
     }
 
     pub fn send(&mut self, msg: Message) {
-        // Wait whiel children still live
+        // Wait while children still live
         if let Some(branch) = self.child_branch.take() {
             branch.wait().unwrap();
         }
