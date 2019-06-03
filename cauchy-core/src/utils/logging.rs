@@ -50,11 +50,6 @@ impl Log for CLogger {
                     return;
                 }
             }
-            "stage_event" => {
-                if !CONFIG.debugging.stage_verbose {
-                    return;
-                }
-            }
             "rpc_event" => {
                 if !CONFIG.debugging.rpc_verbose {
                     return;
