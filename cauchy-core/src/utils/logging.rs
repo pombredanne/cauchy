@@ -4,7 +4,6 @@ use log::{Level, Log, Metadata, Record};
 
 use crate::utils::constants::CONFIG;
 
-#[derive(Default)]
 pub struct CLogger;
 
 impl Log for CLogger {

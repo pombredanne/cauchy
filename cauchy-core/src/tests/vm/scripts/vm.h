@@ -127,6 +127,8 @@ void __vm_rand(void *const buffer, uint32_t size)
 void __vm_exit(const int ret)
 {
     __asm__ volatile(
+        "li a7, 0xCBF8\n\t"
+        "ecall\n\t"
         "mv a0, %0\n\t"
         "li a7, 93\n\t"
         "ecall\n\t"

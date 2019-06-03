@@ -17,6 +17,8 @@ pub extern "C" fn abort() -> ! {
 fn __vm_exit(code: u8) {
     unsafe {
         asm!("
+        li a7, 0xCBF8
+        ecall
         mv a0, $0     
         li a7, 93
         ecall"

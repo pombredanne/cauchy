@@ -332,7 +332,7 @@ impl<'a, Mac: SupportMachine> Syscalls<Mac> for Session {
                     .unwrap();
                 Ok(true)
             }
-            93 => {
+            0xCBF8 => {
                 self.exit();
                 Ok(true)
             }
