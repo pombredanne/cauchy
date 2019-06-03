@@ -66,4 +66,12 @@ impl Session {
                 .and_then(|_| ok(())),
         );
     }
+
+    pub fn exit(&mut self) {
+        info!(target: "vm_event", "exit syscall");
+        // Wait while children still live
+        if let Some(branch) = self.child_branch.take() {
+            branch.wait().unwrap();
+        }
+    }
 }

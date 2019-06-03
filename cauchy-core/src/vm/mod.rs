@@ -1,7 +1,6 @@
 pub mod performance;
 pub mod session;
 
-#[macro_use(bson, doc)]
 use std::sync::{Arc, Mutex};
 use bytes::*;
 
@@ -9,6 +8,7 @@ use futures::sync::{
     mpsc::{channel, Receiver, Sender},
     oneshot,
 };
+use log::info;
 use rand::{rngs::ThreadRng, RngCore};
 
 use performance::Performance;
@@ -99,6 +99,8 @@ impl<'a, Mac: SupportMachine> Syscalls<Mac> for Session {
     fn ecall(&mut self, machine: &mut Mac) -> Result<bool, Error> {
         let code = &machine.registers()[A7];
         let code = code.to_i32();
+
+        info!(target: "vm_event", "vm call {}", code);
 
         // fn read_from_addr<Mac>(addr: u32, size: u32, machine: &Mac) -> Vec<u8> {
         //     let bytes = Vec::<u8>::new();
