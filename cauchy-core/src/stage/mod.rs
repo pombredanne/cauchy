@@ -4,13 +4,13 @@ use std::sync::{Arc, Mutex};
 
 use bus::Bus;
 use bytes::{Bytes, BytesMut};
-use log::info;
 use failure::Error;
 use futures::future::{err, ok};
 use futures::sink::Sink;
 use futures::sync::mpsc::{Receiver, Sender};
 use futures::sync::{mpsc, oneshot};
 use futures::{Future, Stream};
+use log::info;
 
 use crate::vm::performance::Performance;
 use crate::vm::{Mailbox, VM};
@@ -30,14 +30,6 @@ use crate::{
     },
     utils::constants::{CONFIG, HASH_LEN},
 };
-
-macro_rules! stage_info {
-    ($($arg:tt)*) => {
-        if CONFIG.debugging.arena_verbose {
-            info!(target: "stage_event", $($arg)*);
-        }
-    };
-}
 
 pub struct Stage {
     ego: Arc<Mutex<Ego>>,
@@ -101,7 +93,7 @@ impl Stage {
         txs: TxPool,
         priority: Priority,
     ) -> Vec<impl Future<Item = Performance, Error = ()> + Send> {
-        stage_info!("processing tx batch from rpc");
+        info!(target: "stage_event", "processing tx batch from rpc");
         txs.into_sorted_txs()
             .iter()
             .map(|tx| Performance::from_tx(self.db.clone(), tx.clone()))

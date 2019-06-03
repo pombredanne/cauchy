@@ -8,7 +8,7 @@ use core::{
     net::heartbeats::*,
     primitives::{arena::*, tx_pool::TxPool},
     stage::Stage,
-    utils::{constants::*, mining},
+    utils::{constants::*, logging::*, mining},
 };
 
 use futures::lazy;
@@ -17,10 +17,10 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 fn main() {
-    std::env::set_var("RUST_LOG", "info");
-    
+    // std::env::set_var("RUST_LOG", "info");
+
     // Enviroment logger
-    env_logger::init();
+    log::set_logger(&CLogger).map(|()| log::set_max_level(log::LevelFilter::Info));
 
     // Init DB
     let db = MongoDB::open_db("cauchy").unwrap();

@@ -13,7 +13,7 @@ use tokio::prelude::*;
 
 use super::messages::RPCCodec;
 
-use crate::{rpc_error, rpc_info, Request, Response};
+use crate::{Request, Response};
 
 use core::{
     daemon::{Origin, Priority},
@@ -37,11 +37,11 @@ pub fn server(
     let incoming = listener
         .incoming()
         .map_err(|err| Error::from(RPCError::SocketAcceptanceFailure { err }))
-        .map_err(|e| rpc_error!("error accepting socket; error = {:?}", e));
+        .map_err(|e| error!("error accepting socket; error = {:?}", e));
 
     let server = incoming.for_each(move |socket| {
         let socket_addr = socket.peer_addr().unwrap();
-        rpc_info!("new rpc connection to {}", socket_addr);
+        info!(target: "rpc_event", "new rpc connection to {}", socket_addr);
 
         // Frame sockets
         let framed_sock = Framed::new(socket, RPCCodec);
@@ -53,7 +53,7 @@ pub fn server(
         let stage_send_inner = stage_send.clone();
         let responses = received_stream.map(move |msg| match msg {
             Request::AddPeer { addr } => {
-                rpc_info!("received addpeer {} message from {}", addr, socket_addr);
+                info!(target: "rpc_event", "received addpeer {} message from {}", addr, socket_addr);
                 let socket_sender_inner = socket_sender_inner.clone();
                 tokio::spawn(
                     TcpStream::connect(&addr)
@@ -67,14 +67,14 @@ pub fn server(
                         })
                         .map(|_| ())
                         .or_else(|e| {
-                            rpc_error!("error = {:?}", e);
+                            error!("error = {:?}", e);
                             Ok(())
                         }),
                 );
                 Response::Success
             }
             Request::NewTransaction { tx } => {
-                rpc_info!("received new transaction from {}", socket_addr);
+                info!(target: "rpc_event", "received new transaction from {}", socket_addr);
                 let stage_send_inner = stage_send_inner.clone();
                 let mut tx_pool = TxPool::with_capacity(1); // TODO: Make single insertion less clunky
                 tx_pool.insert(tx, None, None);
@@ -84,7 +84,7 @@ pub fn server(
                         .and_then(|_| future::ok(()))
                         .map(|_| ())
                         .or_else(|e| {
-                            rpc_error!("error = {:?}", e);
+                            error!("error = {:?}", e);
                             Ok(())
                         }),
                 );
@@ -111,7 +111,7 @@ pub fn server(
             .send_all(responses.map_err(|_| RPCError::BindFailure))
             .map(|_| ())
             .or_else(move |e| {
-                rpc_error!("socket error {:?}", e);
+                error!("socket error {:?}", e);
                 Ok(())
             });
         tokio::spawn(send)

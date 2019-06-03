@@ -11,21 +11,13 @@ use crate::{
     utils::constants::{CONFIG, HASH_LEN},
 };
 
-macro_rules! mining_info {
-    ($($arg:tt)*) => {
-        if CONFIG.debugging.mining_verbose {
-            info!(target: "mining_event", $($arg)*);
-        }
-    };
-}
-
 pub fn mine(
     public_key: PublicKey,
     mut ego_recv: BusReader<(OddSketch, Bytes)>,
     record_sender: Sender<(u64, u16)>,
     start_nonce: u64,
 ) {
-    mining_info!("mining thread started");
+    info!(target: "mining_event", "mining thread started");
 
     let mut best_nonce: u64;
     let mut best_distance: u16 = 512;
@@ -41,6 +33,7 @@ pub fn mine(
         {
             match ego_recv.try_recv() {
                 Ok((new_oddsketch, new_root)) => {
+                    info!(target: "mining_event", "mining reset");
                     current_oddsketch = new_oddsketch;
                     current_root = new_root;
                     work_site = WorkSite::new(public_key, current_root, start_nonce);
@@ -49,7 +42,7 @@ pub fn mine(
                 Err(_) => {
                     current_distance = work_site.mine(current_oddsketch.clone());
                     if current_distance < best_distance {
-                        mining_info!("new best found: {}", current_distance);
+                        info!(target: "mining_event", "new best found: {}", current_distance);
                         best_nonce = work_site.get_nonce();
                         record_sender.send((best_nonce, current_distance));
                         best_distance = current_distance;

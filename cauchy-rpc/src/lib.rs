@@ -12,24 +12,6 @@ use core::{
     primitives::{transaction::Transaction, tx_pool::TxPool},
 };
 
-#[macro_export]
-macro_rules! rpc_info {
-    ($($arg:tt)*) => {
-        if CONFIG.debugging.rpc_verbose {
-            info!(target: "rpc_event", $($arg)*);
-        }
-    };
-}
-
-#[macro_export]
-macro_rules! rpc_error {
-    ($($arg:tt)*) => {
-        if CONFIG.debugging.rpc_verbose {
-            error!(target: "rpc_event", $($arg)*);
-        }
-    };
-}
-
 pub enum Request {
     AddPeer { addr: SocketAddr },               // 0 || Peer addr
     NewTransaction { tx: Transaction },         // 1 || Transaction

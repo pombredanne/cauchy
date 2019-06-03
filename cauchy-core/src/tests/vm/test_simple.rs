@@ -1,7 +1,7 @@
 use std::fs::File;
 use std::io::Read;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use bytes::Bytes;
 use futures::future::{ok, Future};
@@ -75,7 +75,13 @@ fn test_simple() {
                 // Run the VM
                 ok({
                     println!("Execution start");
-                    let result = vm.run(mailbox, tx.clone(), tx.get_id(), Arc::new(Mutex::new(Performance::default())), parent_branch);
+                    let result = vm.run(
+                        mailbox,
+                        tx.clone(),
+                        tx.get_id(),
+                        Arc::new(Mutex::new(Performance::default())),
+                        parent_branch,
+                    );
                     assert!(result.is_ok());
                     assert_eq!(result.unwrap(), 0);
                     println!("Execution end");
@@ -111,7 +117,13 @@ fn test_ecdsa() {
     let (outbox, outbox_recv) = mpsc::channel(512);
     let tx = Transaction::new(407548800, Bytes::from(&b"aux"[..]), Bytes::from(script));
     let (mailbox, inbox_send) = Mailbox::new(outbox);
-    let result = vm.run(mailbox, tx.clone(), tx.get_id(), Arc::new(Mutex::new(Performance::default())), parent_branch);
+    let result = vm.run(
+        mailbox,
+        tx.clone(),
+        tx.get_id(),
+        Arc::new(Mutex::new(Performance::default())),
+        parent_branch,
+    );
     assert_eq!(result.unwrap(), 8);
 }
 
@@ -147,6 +159,12 @@ fn test_store() {
     );
     let (mailbox, inbox_send) = Mailbox::new(outbox);
 
-    let result = vm.run(mailbox, tx.clone(), tx.get_id(), Arc::new(Mutex::new(Performance::default())), parent_branch);
+    let result = vm.run(
+        mailbox,
+        tx.clone(),
+        tx.get_id(),
+        Arc::new(Mutex::new(Performance::default())),
+        parent_branch,
+    );
     assert_eq!(result.unwrap(), 0);
 }

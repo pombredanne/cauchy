@@ -5,12 +5,12 @@ use std::sync::{Arc, Mutex};
 
 use bson::{spec::BinarySubtype, *};
 use bytes::Bytes;
-use log::info;
 use futures::future::{err, ok};
 use futures::sink::Sink;
 use futures::sync::mpsc::{Receiver, Sender};
 use futures::sync::{mpsc, oneshot};
 use futures::{Future, Stream};
+use log::info;
 
 use crate::{
     crypto::hashes::Identifiable,
@@ -19,18 +19,9 @@ use crate::{
         act::{Act, Message},
         transaction::Transaction,
     },
-    utils::constants::CONFIG
 };
 
 use super::{Mailbox, VM};
-
-macro_rules! vm_info {
-    ($($arg:tt)*) => {
-        if CONFIG.debugging.vm_verbose {
-            info!(target: "vm_event", $($arg)*);
-        }
-    };
-}
 
 /* TODO: Given that each actor will write to one key
 this probably best as some sort of concurrent hashmap */
@@ -95,11 +86,11 @@ impl Performance {
         let (root_send, root_recv) = oneshot::channel();
 
         // Initialize VM
-        vm_info!("initialising vm");
+        info!(target: "vm_event", "initialising vm");
         let vm = VM::new(db.clone());
 
         // Create mail system
-        vm_info!("initialising mail system");
+        info!(target: "vm_event", "initialising mail system");
         let mut inboxes: HashMap<Bytes, Sender<Message>> = HashMap::new();
         let (outbox, outbox_recv) = mpsc::channel(512);
 
@@ -114,7 +105,7 @@ impl Performance {
         let arc_performance_outer = arc_performance.clone();
         tokio::spawn(
             ok({
-                vm_info!("spawning root vm");
+                info!(target: "vm_event", "spawning root vm");
                 // Run
                 vm.run(
                     first_mailbox,
@@ -129,12 +120,12 @@ impl Performance {
                 // For each new message
                 outbox_recv.for_each(move |(message, parent_branch)| {
                     let receiver_id = message.get_receiver();
-                    vm_info!("new message to {:?}", receiver_id);
+                    info!(target: "vm_event", "new message to {:?}", receiver_id);
 
                     match inboxes.get(&receiver_id) {
                         // If receiver already live
                         Some(inbox_sender) => {
-                            vm_info!("{:?} is live", receiver_id);          
+                            info!("{:?} is live", receiver_id);
                             // Relay message to receiver
                             tokio::spawn(
                                 inbox_sender
@@ -147,18 +138,21 @@ impl Performance {
                         }
                         // If receiver sleeping
                         None => {
-                            vm_info!("{:?} is not live", receiver_id);
+                            info!(target: "vm_event", "{:?} is not live", receiver_id);
 
                             // Load binary
                             let mut db = db.clone();
                             let tx = match Transaction::from_db(&mut db, receiver_id.clone()) {
                                 Ok(Some(tx)) => tx,
-                                Ok(None) => return err(()),
+                                Ok(None) => {
+                                    info!("tx {:?} not found", receiver_id.clone());
+                                    return err(());
+                                }
                                 Err(_) => return err(()),
                             };
 
                             // Initialize receiver
-                            vm_info!("spawning {:?} mailbox", receiver_id.clone());
+                            info!(target: "vm_event", "spawning {:?} mailbox", receiver_id.clone());
                             let (new_mailbox, new_inbox_send) = Mailbox::new(outbox.clone());
 
                             // Add to list of live inboxes
@@ -167,7 +161,7 @@ impl Performance {
                             // Run receiver VM
                             let arc_performance_inner = arc_performance.clone();
                             tokio::spawn(ok({
-                                vm_info!("spawning {:?} vm", receiver_id.clone());
+                                info!(target: "vm_event", "spawning {:?} vm", receiver_id.clone());
                                 vm.run(
                                     new_mailbox,
                                     tx,

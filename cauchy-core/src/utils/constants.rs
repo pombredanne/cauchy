@@ -61,7 +61,7 @@ pub struct Debugging {
     pub rpc_verbose: bool,
     pub mining_verbose: bool,
     pub ego_verbose: bool,
-    pub vm_verbose: bool
+    pub vm_verbose: bool,
 }
 
 impl Default for Debugging {
@@ -78,7 +78,7 @@ impl Default for Debugging {
             rpc_verbose: true,
             mining_verbose: true,
             ego_verbose: true,
-            vm_verbose: true
+            vm_verbose: true,
         }
     }
 }
@@ -97,18 +97,17 @@ impl Default for Mining {
 }
 
 #[derive(Deserialize, Default)]
-pub struct CoreConfig {
+pub struct Config {
     pub network: Networking,
     pub mining: Mining,
     pub debugging: Debugging,
 }
 
 lazy_static! {
-    pub static ref CONFIG: CoreConfig = load_config();
+    pub static ref CONFIG: Config = load_config();
 }
 
-// TODO: Catch with defaults
-pub fn load_config() -> CoreConfig {
+pub fn load_config() -> Config {
     let mut path = dirs::home_dir().unwrap();
     path.push(".cauchy/config.toml");
     match &mut fs::File::open(path) {

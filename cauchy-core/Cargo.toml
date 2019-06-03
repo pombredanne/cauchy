@@ -23,6 +23,8 @@ serde = "*"
 itertools = "*"
 log = "*"
 ckb-vm = { git = "https://github.com/nervosnetwork/ckb-vm", rev="1e52302" }
+chrono = "*"
+colored = "*"
 
 [dependencies.secp256k1]
 version = "*"

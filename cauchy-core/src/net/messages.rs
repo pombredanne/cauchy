@@ -22,22 +22,6 @@ use crate::{
     utils::{constants::*, errors::MalformedMessageError, parsing::*},
 };
 
-macro_rules! encoding_info {
-    ($($arg:tt)*) => {
-        if CONFIG.debugging.decoding_verbose {
-            info!(target: "encoding_event", $($arg)*);
-        }
-    };
-}
-
-macro_rules! decoding_info {
-    ($($arg:tt)*) => {
-        if CONFIG.debugging.decoding_verbose {
-            info!(target: "decoding_event", $($arg)*);
-        }
-    };
-}
-
 pub enum Message {
     StartHandshake { secret: u64 }, // 0 || Secret VarInt
     EndHandshake { pubkey: PublicKey, sig: Signature }, // 1 || Pk || Sig
@@ -62,18 +46,18 @@ impl Encoder for MessageCodec {
         dst.reserve(1);
         match item {
             Message::StartHandshake { secret } => {
-                encoding_info!("encoding starthandshake");
+                info!(target: "encoding_event", "encoding starthandshake");
                 dst.put_u8(0);
                 dst.extend(Bytes::from(VarInt::new(secret)));
             }
             Message::EndHandshake { pubkey, sig } => {
-                encoding_info!("encoding endhandshake");
+                info!(target: "encoding_event", "encoding endhandshake");
                 dst.put_u8(1);
                 dst.extend(bytes_from_pubkey(pubkey));
                 dst.extend(bytes_from_sig(sig));
             }
             Message::Work(work_stack) => {
-                encoding_info!("encoding work");
+                info!(target: "encoding_event", "encoding work");
                 dst.put_u8(2);
                 // TODO: Variable length
                 //dst.extend(Bytes::from(VarInt::new(sketch.len() as u64)));
@@ -82,12 +66,12 @@ impl Encoder for MessageCodec {
                 dst.extend(Bytes::from(VarInt::new(work_stack.get_nonce())));
             }
             Message::MiniSketch { minisketch } => {
-                encoding_info!("encoding minisketch");
+                info!(target: "encoding_event", "encoding minisketch");
                 dst.put_u8(3);
                 dst.extend(Bytes::from(minisketch))
             }
             Message::GetTransactions { ids } => {
-                encoding_info!("encoding tx request");
+                info!(target: "encoding_event", "encoding tx request");
                 dst.put_u8(4);
                 dst.extend(Bytes::from(VarInt::new(ids.len() as u64)));
                 for id in ids {
@@ -95,7 +79,7 @@ impl Encoder for MessageCodec {
                 }
             }
             Message::Transactions { txs } => {
-                encoding_info!("encoding txs");
+                info!(target: "encoding_event", "encoding txs");
                 dst.put_u8(5);
                 let mut payload = BytesMut::new();
                 for tx in txs.into_iter() {
@@ -131,7 +115,7 @@ impl Decoder for MessageCodec {
 
         match buf.get_u8() {
             0 => {
-                decoding_info!("decoding start handshake");
+                info!(target: "decoding_event", "decoding start handshake");
                 let (preimage_vi, len) = match VarInt::parse_buf(&mut buf)? {
                     Some(some) => some,
                     None => return Ok(None),
@@ -144,7 +128,7 @@ impl Decoder for MessageCodec {
                 Ok(Some(msg))
             }
             1 => {
-                decoding_info!("decoding end handshake");
+                info!(target: "decoding_event", "decoding end handshake");
                 if buf.remaining() < PUBKEY_LEN + SIG_LEN {
                     return Ok(None);
                 }
@@ -160,7 +144,7 @@ impl Decoder for MessageCodec {
                 Ok(Some(msg))
             }
             2 => {
-                decoding_info!("decoding work");
+                info!(target: "decoding_event", "decoding work");
                 if buf.remaining() < SKETCH_CAPACITY + HASH_LEN {
                     return Ok(None);
                 }
@@ -184,7 +168,7 @@ impl Decoder for MessageCodec {
                 Ok(Some(msg))
             }
             3 => {
-                decoding_info!("decoding minisketch");
+                info!(target: "decoding_event", "decoding minisketch");
                 let (minisketch, len) = match DummySketch::parse_buf(&mut buf)? {
                     Some(some) => some,
                     None => return Ok(None),
@@ -194,13 +178,13 @@ impl Decoder for MessageCodec {
                 Ok(Some(msg))
             }
             4 => {
-                decoding_info!("decoding get transactions");
+                info!(target: "decoding_event", "decoding get transactions");
                 let (n_tx_ids_vi, n_tx_ids_vi_len) = match VarInt::parse_buf(&mut buf)? {
                     Some(some) => some,
                     None => return Ok(None),
                 };
                 let us_n_tx_ids = usize::from(n_tx_ids_vi);
-                decoding_info!("number of txns to decode {}", us_n_tx_ids);
+                info!(target: "decoding_event", "number of txns to decode {}", us_n_tx_ids);
                 let total_size = us_n_tx_ids * HASH_LEN;
                 let mut ids = HashSet::with_capacity(us_n_tx_ids);
 
@@ -218,7 +202,7 @@ impl Decoder for MessageCodec {
                 }
             }
             5 => {
-                decoding_info!("decoding transactions");
+                info!(target: "decoding_event", "decoding transactions");
                 let (payload_len_vi, payload_len_len) = match VarInt::parse_buf(&mut buf)? {
                     Some(some) => some,
                     None => return Ok(None),
@@ -237,7 +221,7 @@ impl Decoder for MessageCodec {
                         None => return Ok(None),
                     };
                     txs.push(tx);
-                    decoding_info!("decoded transaction");
+                    info!(target: "decoding_event", "decoded transaction");
                 }
 
                 let msg = Message::Transactions { txs };
@@ -245,22 +229,22 @@ impl Decoder for MessageCodec {
                 Ok(Some(msg))
             }
             6 => {
-                decoding_info!("decoding reconcile");
+                info!(target: "decoding_event", "decoding reconcile");
                 src.advance(1);
                 Ok(Some(Message::Reconcile))
             }
             7 => {
-                decoding_info!("decoding reconcile negack");
+                info!(target: "decoding_event", "decoding reconcile negack");
                 src.advance(1);
                 Ok(Some(Message::ReconcileNegAck))
             }
             8 => {
-                decoding_info!("decoding get work");
+                info!(target: "decoding_event", "decoding get work");
                 src.advance(1);
                 Ok(Some(Message::GetWork))
             }
             90 => {
-                decoding_info!("decoding peers");
+                info!(target: "decoding_event", "decoding peers");
                 let (vi_n, _) = match VarInt::parse_buf(&mut buf)? {
                     None => return Ok(None),
                     Some(some) => some,
@@ -284,7 +268,7 @@ impl Decoder for MessageCodec {
             }
             _ => {
                 // TODO: Remove malformed msgs
-                decoding_info!(
+                info!(target: "decoding_event",
                     "received malformed msg: {}",
                     String::from_utf8_lossy(&src.clone().freeze())
                 );

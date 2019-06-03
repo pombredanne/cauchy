@@ -18,14 +18,6 @@ use crate::{
     utils::constants::CONFIG,
 };
 
-macro_rules! arena_info {
-    ($($arg:tt)*) => {
-        if CONFIG.debugging.arena_verbose {
-            info!(target: "arena_event", $($arg)*);
-        }
-    };
-}
-
 pub struct Arena {
     ego: Arc<Mutex<Ego>>,
     peer_egos: HashMap<SocketAddr, Arc<Mutex<PeerEgo>>>,
@@ -44,12 +36,12 @@ impl Arena {
     }
 
     pub fn new_peer(&mut self, addr: &SocketAddr, peer_ego: Arc<Mutex<PeerEgo>>) {
-        arena_info!("added {} to arena", addr);
+        info!(target: "arena_event", "added {} to arena", addr);
         self.peer_egos.insert(*addr, peer_ego);
     }
 
     pub fn remove_peer(&mut self, addr: &SocketAddr) {
-        arena_info!("removed {} from arena", addr);
+        info!(target: "arena_event", "removed {} from arena", addr);
         self.peer_egos.remove(addr);
     }
 
@@ -108,7 +100,7 @@ impl Arena {
             .get_work_site()
             .mine(ego_guard.work_stack.get_oddsketch());
 
-        arena_info!("self distance: {}", best_dist);
+        info!(target: "arena_event", "self distance: {}", best_dist);
 
         // Calculate peer distance
         for (i, (_, work_stack, _)) in profiles.iter().enumerate() {
@@ -123,7 +115,7 @@ impl Arena {
             }
 
             dist += ego_guard.get_work_site().mine(work_stack.get_oddsketch());
-            arena_info!("peer distance: {}", dist);
+            info!(target: "arena_event", "peer distance: {}", dist);
             if dist <= best_dist {
                 best_dist = dist;
                 best_peer = Some(i);
@@ -150,7 +142,7 @@ impl Arena {
             }
             None => {
                 // Leading
-                arena_info!("leading");
+                info!(target: "arena_event", "leading");
 
                 // Reset losers to idle
                 for (peer_ego, _, _) in profiles.iter_mut() {

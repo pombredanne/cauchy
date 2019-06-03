@@ -26,30 +26,6 @@ use crate::{
     },
 };
 
-macro_rules! daemon_info {
-    ($($arg:tt)*) => {
-        if CONFIG.debugging.daemon_verbose {
-            info!(target: "daemon_event", $($arg)*);
-        }
-    };
-}
-
-macro_rules! daemon_warn {
-    ($($arg:tt)*) => {
-        if CONFIG.debugging.daemon_verbose {
-            warn!(target: "daemon_event", $($arg)*);
-        }
-    };
-}
-
-macro_rules! daemon_error {
-    ($($arg:tt)*) => {
-        if CONFIG.debugging.daemon_verbose {
-            error!(target: "daemon_event", $($arg)*);
-        }
-    };
-}
-
 pub enum Priority {
     Force,
     Standard,
@@ -68,7 +44,7 @@ pub fn server(
     mempool: Arc<Mutex<TxPool>>,
     send_reconcile: mpsc::Sender<(Origin, TxPool, Priority)>,
 ) -> impl Future<Item = (), Error = ()> + Send + 'static {
-    daemon_info!("spawning deamon");
+    info!(target: "daemon_event", "spawning deamon");
 
     // Bind socket
     let addr = format!("0.0.0.0:{}", CONFIG.network.server_port).to_string();
@@ -81,11 +57,11 @@ pub fn server(
         .incoming()
         .map_err(|err| Error::from(DaemonError::SocketAcceptanceFailure { err }))
         .select(socket_recv.map_err(|_err| Error::from(DaemonError::Unreachable)))
-        .map_err(|e| daemon_error!("error accepting socket; error = {:?}", e));
+        .map_err(|e| error!(target: "daemon_event", "error accepting socket; error = {:?}", e));
 
     let server = incoming.for_each(move |socket| {
         let socket_addr = socket.peer_addr().unwrap();
-        daemon_info!("new server socket to {}", socket_addr);
+        info!(target: "daemon_event", "new server socket to {}", socket_addr);
 
         // Construct peer ego
         let (peer_ego, peer_stream) = PeerEgo::new();
@@ -111,19 +87,19 @@ pub fn server(
         let mempool_inner = mempool.clone();
         let response_stream = received_stream.filter_map(move |msg| match msg {
             Message::StartHandshake { secret } => {
-                daemon_info!("received handshake initialisation from {}", socket_addr);
+                info!(target: "daemon_event", "received handshake initialisation from {}", socket_addr);
 
                 Some(ego_inner.lock().unwrap().generate_end_handshake(secret))
             }
             Message::EndHandshake { pubkey, sig } => {
-                daemon_info!("received handshake finalisation from {}", socket_addr);
+                info!(target: "daemon_event", "received handshake finalisation from {}", socket_addr);
 
                 // If peer correctly signs our secret we upgrade them from a dummy pk
                 arc_peer_ego.lock().unwrap().check_handshake(&sig, &pubkey);
                 None
             }
             Message::Work(work_stack) => {
-                daemon_info!("received work from {}", socket_addr);
+                info!(target: "daemon_event", "received work from {}", socket_addr);
 
                 // Lock peer ego
                 let mut peer_ego_guard = arc_peer_ego.lock().unwrap();
@@ -132,13 +108,13 @@ pub fn server(
                     peer_ego_guard.update_status(PeerStatus::Fighting(work_stack));
                 } else {
                     // TODO: Ban here
-                    daemon_error!("received work from non-pull target")
+                    error!(target: "daemon_event", "received work from non-pull target")
                 }
 
                 None
             }
             Message::MiniSketch { minisketch } => {
-                info!("received minisketch from {}", socket_addr);
+                info!(target: "daemon_event", "received minisketch from {}", socket_addr);
 
                 // Lock peer ego
                 let mut peer_ego_guard = arc_peer_ego.lock().unwrap();
@@ -160,7 +136,8 @@ pub fn server(
                                 .decode()
                                 .unwrap();
 
-                                daemon_info!(
+                                info!(
+                                    target: "daemon_event", 
                                     "minisketch decode reveals excess {} and mising {}",
                                     excess_actor_ids.len(),
                                     missing_actor_ids.len()
@@ -171,7 +148,7 @@ pub fn server(
                                     .xor(&OddSketch::sketch_ids(&missing_actor_ids))
                                     == perceived_oddsketch.xor(&peer_oddsketch)
                                 {
-                                    daemon_info!("minisketch passed validation");
+                                    info!(target: "daemon_event", "minisketch passed validation");
 
                                     // Set expected IDs
                                     expectation.update_ids(missing_actor_ids.clone());
@@ -183,7 +160,7 @@ pub fn server(
                                         ids: missing_actor_ids,
                                     })
                                 } else {
-                                    daemon_error!("fraudulent minisketch from {}", socket_addr);
+                                    error!(target: "daemon_event", "fraudulent minisketch from {}", socket_addr);
                                     // TODO: Ban here
                                     // Stop reconciliation
                                     peer_ego_guard.update_status(PeerStatus::Idle);
@@ -193,7 +170,8 @@ pub fn server(
                             _ => {
                                 // TODO: Ban here
                                 // TODO: More matches
-                                daemon_error!(
+                                error!(
+                                    target: "daemon_event", 
                                     "received minisketch from {} while not pulling state",
                                     socket_addr
                                 );
@@ -207,7 +185,7 @@ pub fn server(
             }
             Message::GetTransactions { ids } => {
                 // TODO: Check if reconcilee?
-                daemon_info!("received transaction request from {}", socket_addr);
+                info!(target: "daemon_event", "received transaction request from {}", socket_addr);
 
                 // Lock peer ego
                 let mut peer_ego_guard = arc_peer_ego.lock().unwrap();
@@ -228,12 +206,12 @@ pub fn server(
                             tx_pool.insert(tx, Some(id.clone()), None);
                         }
                         Err(err) => {
-                            daemon_error!("database error {:?}", err);
+                            error!(target: "daemon_event", "database error {:?}", err);
                             peer_ego_guard.update_status(PeerStatus::Idle);
                             return None;
                         }
                         Ok(None) => {
-                            daemon_error!("transaction {:?} not found", id);
+                            error!(target: "daemon_event", "transaction {:?} not found", id);
                             peer_ego_guard.update_status(PeerStatus::Idle);
                             return None;
                         }
@@ -241,7 +219,8 @@ pub fn server(
                 }
                 let txs = tx_pool.into_sorted_txs();
                 // Send transactions
-                daemon_info!(
+                info!(
+                    target: "daemon_event", 
                     "replying to {} with {} transactions",
                     socket_addr,
                     txs.len()
@@ -250,7 +229,7 @@ pub fn server(
                 Some(Message::Transactions { txs })
             }
             Message::Transactions { txs } => {
-                daemon_info!("received transactions from {}", socket_addr);
+                info!(target: "daemon_event", "received transactions from {}", socket_addr);
 
                 // Lock peer ego
                 let peer_ego_guard = arc_peer_ego.lock().unwrap();
@@ -279,7 +258,8 @@ pub fn server(
                     }
                     PeerStatus::StatePush => {
                         // TODO: Ban here
-                        daemon_error!(
+                        error!(
+                            target: "daemon_event", 
                             "received transactions from {} while pushing state",
                             socket_addr
                         );
@@ -292,13 +272,13 @@ pub fn server(
                 None
             }
             Message::Reconcile => {
-                daemon_info!("received reconcile from {}", socket_addr);
+                info!(target: "daemon_event", "received reconcile from {}", socket_addr);
 
                 // Lock peer ego
                 let mut peer_ego_guard = arc_peer_ego.lock().unwrap();
 
                 if peer_ego_guard.get_status() == PeerStatus::Idle {
-                    daemon_info!("replying to {} with minisketch", socket_addr);
+                    info!(target: "daemon_event", "replying to {} with minisketch", socket_addr);
 
                     // Send minisketch
                     // Set status of peer push
@@ -307,12 +287,12 @@ pub fn server(
                         minisketch: peer_ego_guard.get_perceived_minisketch()?,
                     })
                 } else {
-                    daemon_info!("replying to {} with work negack", socket_addr);
+                    info!(target: "daemon_event", "replying to {} with work negack", socket_addr);
                     Some(Message::ReconcileNegAck)
                 }
             }
             Message::GetWork => {
-                daemon_info!("received get work from {}", socket_addr);
+                info!(target: "daemon_event", "received get work from {}", socket_addr);
                 let ego_guard = ego_inner.lock().unwrap();
                 let mut peer_ego_guard = arc_peer_ego.lock().unwrap();
                 let work_stack = ego_guard.get_work_stack();
@@ -320,13 +300,14 @@ pub fn server(
                 None
             }
             Message::ReconcileNegAck => {
-                daemon_info!("received reconcile negack from {}", socket_addr);
+                info!(target: "daemon_event", "received reconcile negack from {}", socket_addr);
                 let mut peer_ego_guard = arc_peer_ego.lock().unwrap();
                 match peer_ego_guard.get_status() {
                     PeerStatus::StatePull(_) => peer_ego_guard.update_status(PeerStatus::Idle),
                     _ => {
                         // TODO: Misbehaviour
-                        daemon_error!(
+                        error!(
+                            target: "daemon_event", 
                             "received negack from {} while not pulling state",
                             socket_addr
                         );
@@ -347,7 +328,7 @@ pub fn server(
             .send_all(out_stream)
             .map(|_| ())
             .or_else(move |e| {
-                daemon_error!("socket error {:?}", e);
+                error!(target: "daemon_event", "socket error {:?}", e);
                 arena_inner.lock().unwrap().remove_peer(&socket_addr);
                 Ok(())
             });

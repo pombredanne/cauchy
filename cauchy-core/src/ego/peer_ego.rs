@@ -25,14 +25,6 @@ use crate::{
     utils::constants::{CONFIG, HASH_LEN},
 };
 
-macro_rules! ego_info {
-    ($($arg:tt)*) => {
-        if CONFIG.debugging.ego_verbose {
-            info!(target: "peer_ego_event", $($arg)*);
-        }
-    };
-}
-
 pub struct Perception {
     work_stack: WorkStack,
     minisketch: DummySketch,
@@ -121,7 +113,7 @@ impl PeerEgo {
     }
 
     pub fn update_status(&mut self, status: PeerStatus) {
-        ego_info!("{} -> {}", self.status.to_str(), status.to_str());
+        info!("{} -> {}", self.status.to_str(), status.to_str());
         self.status = status;
     }
 

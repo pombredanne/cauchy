@@ -8,6 +8,7 @@ use futures::{
     sync::oneshot,
     Async,
 };
+use log::info;
 
 use super::performance::Performance;
 use crate::{
@@ -32,6 +33,7 @@ pub struct Session {
 impl Session {
     pub fn recv(&mut self) -> Option<Message> {
         // Wait while children still live and no messages
+        info!(target: "vm_event", "recv syscall");
         match self.mailbox.inbox.poll() {
             Ok(Async::Ready(msg)) => msg,
             Ok(Async::NotReady) => {
@@ -41,13 +43,14 @@ impl Session {
                 } else {
                     None
                 }
-            },
+            }
             _ => unreachable!(),
         }
     }
 
     pub fn send(&mut self, msg: Message) {
         // Wait while children still live
+        info!(target: "vm_event", "send syscall");
         if let Some(branch) = self.child_branch.take() {
             branch.wait().unwrap();
         }
