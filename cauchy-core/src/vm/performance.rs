@@ -5,12 +5,13 @@ use std::sync::{Arc, Mutex};
 
 use bson::{spec::BinarySubtype, *};
 use bytes::Bytes;
-use futures::future::{err, ok};
+use futures::future::{err, lazy, ok};
 use futures::sink::Sink;
 use futures::sync::mpsc::{Receiver, Sender};
 use futures::sync::{mpsc, oneshot};
 use futures::{Future, Stream};
 use log::info;
+use tokio_threadpool::ThreadPool;
 
 use crate::{
     crypto::hashes::Identifiable,
@@ -85,10 +86,6 @@ impl Performance {
 
         let (root_send, root_recv) = oneshot::channel();
 
-        // Initialize VM
-        info!(target: "vm_event", "initialising vm");
-        let vm = VM::new(db.clone());
-
         // Create mail system
         info!(target: "vm_event", "initialising mail system");
         let mut inboxes: HashMap<Bytes, Sender<Message>> = HashMap::new();
@@ -102,85 +99,107 @@ impl Performance {
         // Add originating transaction to the mailbox
         inboxes.insert(id.clone(), inbox_send);
 
+        let inboxes_inner = Arc::new(Mutex::new(inboxes));
+
         let arc_performance_outer = arc_performance.clone();
-        tokio::spawn(
+        let arc_performance_inner = arc_performance.clone();
+        let vm_inner = VM::new(db.clone());
+        let id_inner = id.clone();
+
+        let pool = ThreadPool::new();
+
+        pool.spawn(lazy(move || {
+            info!(target: "vm_event", "spawning root vm");
+            // Run
             ok({
-                info!(target: "vm_event", "spawning root vm");
-                // Run
-                vm.run(
-                    first_mailbox,
-                    tx,
-                    id.clone(),
-                    arc_performance.clone(),
-                    root_send,
-                )
-                .unwrap();
+                vm_inner
+                    .run(
+                        first_mailbox,
+                        tx,
+                        id_inner,
+                        arc_performance_inner,
+                        root_send,
+                    )
+                    .unwrap();
             })
-            .and_then(move |_| {
-                // For each new message
-                outbox_recv.for_each(move |(message, parent_branch)| {
-                    let receiver_id = message.get_receiver();
-                    info!(target: "vm_event", "new message to {:?}", receiver_id);
+        }));
 
-                    match inboxes.get(&receiver_id) {
-                        // If receiver already live
-                        Some(inbox_sender) => {
-                            info!("{:?} is live", receiver_id);
-                            // Relay message to receiver
-                            tokio::spawn(
-                                inbox_sender
-                                    .clone()
-                                    .send(message)
-                                    .map(|_| ())
-                                    .map_err(|_| ()),
-                            );
-                            ok(())
-                        }
-                        // If receiver sleeping
-                        None => {
-                            info!(target: "vm_event", "{:?} is not live", receiver_id);
+        tokio::spawn(lazy(move || {
+            // For each new message
+            info!(target: "vm_event", "watching outbox");
+            let inboxes_inner = inboxes_inner.clone();
+            outbox_recv.for_each(move |(message, parent_branch)| {
+                let receiver_id = message.get_receiver();
+                info!(target: "vm_event", "new message to {:?}", receiver_id);
 
-                            // Load binary
-                            let mut db = db.clone();
-                            let tx = match Transaction::from_db(&mut db, receiver_id.clone()) {
-                                Ok(Some(tx)) => tx,
-                                Ok(None) => {
-                                    info!("tx {:?} not found", receiver_id.clone());
-                                    return err(());
-                                }
-                                Err(_) => return err(()),
-                            };
+                match inboxes_inner.lock().unwrap().get(&receiver_id) {
+                    // If receiver already live
+                    Some(inbox_sender) => {
+                        info!("{:?} is live", receiver_id);
+                        // Relay message to receiver
+                        tokio::spawn(
+                            inbox_sender
+                                .clone()
+                                .send(message)
+                                .map(|_| ())
+                                .map_err(|_| ()),
+                        );
+                        ok(())
+                    }
+                    // If receiver sleeping
+                    None => {
+                        info!(target: "vm_event", "{:?} is not live", receiver_id);
 
-                            // Initialize receiver
-                            info!(target: "vm_event", "spawning {:?} mailbox", receiver_id.clone());
-                            let (new_mailbox, new_inbox_send) = Mailbox::new(outbox.clone());
+                        // Load binary
+                        let mut db = db.clone();
+                        let tx = match Transaction::from_db(&mut db, receiver_id.clone()) {
+                            Ok(Some(tx)) => tx,
+                            Ok(None) => {
+                                info!(target: "vm_event", "tx {:?} not found", receiver_id.clone());
+                                return err(());
+                            }
+                            Err(_) => return err(()),
+                        };
 
-                            // Add to list of live inboxes
-                            inboxes.insert(tx.get_id(), new_inbox_send);
+                        // Initialize receiver
+                        info!(target: "vm_event", "spawning {:?} mailbox", receiver_id.clone());
+                        let (new_mailbox, new_inbox_send) = Mailbox::new(outbox.clone());
 
-                            // Run receiver VM
-                            let arc_performance_inner = arc_performance.clone();
-                            tokio::spawn(ok({
-                                info!(target: "vm_event", "spawning {:?} vm", receiver_id.clone());
-                                vm.run(
+                        // Add to list of live inboxes
+                        let tx_id = tx.get_id();
+                        inboxes_inner.lock().unwrap().insert(tx_id, new_inbox_send);
+
+                        // Run receiver VM
+                        let arc_performance_inner = arc_performance.clone();
+                        let id_inner = id.clone();
+                        let receiver_id_inner = receiver_id.clone();
+                        let vm_inner = VM::new(db.clone());
+                        let inboxes_inner = inboxes_inner.clone();
+                        pool.spawn(lazy(move || {
+                            info!(target: "vm_event", "spawning {:?} vm", receiver_id_inner);
+                            vm_inner
+                                .run(
                                     new_mailbox,
                                     tx,
-                                    id.clone(),
+                                    id_inner,
                                     arc_performance_inner,
                                     parent_branch,
                                 )
                                 .unwrap();
-                                // Remove from live inboxes
-                                inboxes.remove(&receiver_id);
-                            }));
+                            // Remove from live inboxes
+                            inboxes_inner.lock().unwrap().remove(&receiver_id);
+
                             ok(())
-                        }
+                        }));
+                        ok(())
                     }
-                })
-            }),
-        );
+                }
+            })
+        }));
+
         root_recv.map_err(|_| ()).map(move |_| {
             // Pop the value out of Mutex
+            info!(target: "vm_event", "performance ended");
             match Arc::try_unwrap(arc_performance_outer) {
                 Ok(ok) => ok.into_inner().unwrap(),
                 _ => unreachable!(),

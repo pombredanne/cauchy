@@ -1,8 +1,8 @@
 pub mod performance;
 pub mod session;
 
-use std::sync::{Arc, Mutex};
 use bytes::*;
+use std::sync::{Arc, Mutex};
 
 use futures::sync::{
     mpsc::{channel, Receiver, Sender},
@@ -70,6 +70,7 @@ impl VM {
             .unwrap();
         let result = machine.interpret();
         drop(machine);
+        info!(target: "vm_event", "execution completed");
 
         // Send termination alert to parent
         parent_branch.send(());
