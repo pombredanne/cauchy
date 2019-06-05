@@ -11,6 +11,7 @@ use futures::sync::mpsc::{Receiver, Sender};
 use futures::sync::{mpsc, oneshot};
 use futures::{Future, Stream};
 use log::info;
+use stream_cancel::{StreamExt, Tripwire};
 use tokio_threadpool::ThreadPool;
 
 use crate::{
@@ -81,8 +82,8 @@ impl Performance {
         db: MongoDB,
         tx: Transaction,
     ) -> impl Future<Item = Performance, Error = ()> + Send {
-        // Performance to be mutated during run
-        let arc_performance = Arc::new(Mutex::new(Performance::default()));
+        // Initialize performance
+        let performance = Arc::new(Mutex::new(Performance::default()));
 
         let (root_send, root_recv) = oneshot::channel();
 
@@ -101,8 +102,8 @@ impl Performance {
 
         let inboxes_inner = Arc::new(Mutex::new(inboxes));
 
-        let arc_performance_outer = arc_performance.clone();
-        let arc_performance_inner = arc_performance.clone();
+        let performance_outer = performance.clone();
+        let performance_inner = performance.clone();
         let vm_inner = VM::new(db.clone());
         let id_inner = id.clone();
 
@@ -113,22 +114,18 @@ impl Performance {
             // Run
             ok({
                 vm_inner
-                    .run(
-                        first_mailbox,
-                        tx,
-                        id_inner,
-                        arc_performance_inner,
-                        root_send,
-                    )
+                    .run(first_mailbox, tx, id_inner, performance_inner, root_send)
                     .unwrap();
             })
         }));
 
-        tokio::spawn(lazy(move || {
-            // For each new message
-            info!(target: "vm_event", "watching outbox");
-            let inboxes_inner = inboxes_inner.clone();
-            outbox_recv.for_each(move |(message, parent_branch)| {
+        // For each new message
+        info!(target: "vm_event", "watching outbox");
+        let inboxes_inner = inboxes_inner.clone();
+        let (trigger, tripwrire) = Tripwire::new();
+        outbox_recv
+            .take_until(tripwrire)
+            .for_each(move |(message, parent_branch)| {
                 let receiver_id = message.get_receiver();
                 info!(target: "vm_event", "new message to {:?}", receiver_id);
 
@@ -170,7 +167,7 @@ impl Performance {
                         inboxes_inner.lock().unwrap().insert(tx_id, new_inbox_send);
 
                         // Run receiver VM
-                        let arc_performance_inner = arc_performance.clone();
+                        let performance_inner = performance.clone();
                         let id_inner = id.clone();
                         let receiver_id_inner = receiver_id.clone();
                         let vm_inner = VM::new(db.clone());
@@ -178,13 +175,7 @@ impl Performance {
                         pool.spawn(lazy(move || {
                             info!(target: "vm_event", "spawning {:?} vm", receiver_id_inner);
                             vm_inner
-                                .run(
-                                    new_mailbox,
-                                    tx,
-                                    id_inner,
-                                    arc_performance_inner,
-                                    parent_branch,
-                                )
+                                .run(new_mailbox, tx, id_inner, performance_inner, parent_branch)
                                 .unwrap();
                             // Remove from live inboxes
                             inboxes_inner.lock().unwrap().remove(&receiver_id);
@@ -195,16 +186,14 @@ impl Performance {
                     }
                 }
             })
-        }));
-
-        root_recv.map_err(|_| ()).map(move |_| {
-            // Pop the value out of Mutex
-            info!(target: "vm_event", "performance ended");
-            match Arc::try_unwrap(arc_performance_outer) {
-                Ok(ok) => ok.into_inner().unwrap(),
+            .join(root_recv.map(|_| drop(trigger)).map_err(|_| ()))
+            .map(move |_| match Arc::try_unwrap(performance_outer) {
+                Ok(some) => {
+                    info!(target: "vm_event", "performance complete");
+                    some.into_inner().unwrap()
+                }
                 _ => unreachable!(),
-            }
-        })
+            })
     }
 
     fn finalize(db: MongoDB, perfid: Bytes) {

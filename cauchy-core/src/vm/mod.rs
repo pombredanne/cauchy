@@ -281,12 +281,12 @@ impl<'a, Mac: SupportMachine> Syscalls<Mac> for Session {
                             // Store at maximum the specified numbytes
                             .store_bytes(buffer_addr as usize, &some.0[..buffer_sz])
                             .unwrap();
-                        machine.set_register(S1, Mac::REG::from_usize(0) );
-                    },
+                        machine.set_register(S1, Mac::REG::from_usize(0));
+                    }
                     Ok(None) => {
-                        machine.set_register(S1, Mac::REG::from_usize(1) );
+                        machine.set_register(S1, Mac::REG::from_usize(1));
                         (println!("Key not found"))
-                    },
+                    }
                     Err(e) => println!("{:?}", e),
                 }
                 Ok(true)
