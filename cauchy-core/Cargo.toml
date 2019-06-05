@@ -31,3 +31,6 @@ colored = "*"
 version = "*"
 default-features = false 
 features = ["rand", "serde"]
+
+[dev-dependencies]
+hex = "*"

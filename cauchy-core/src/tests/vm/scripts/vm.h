@@ -1,3 +1,6 @@
+#ifndef __VM_H
+#define  __VM_H
+
 #include "stdint.h"
 #include "stddef.h"
 #include "stdbool.h"
@@ -6,6 +9,10 @@
 
 #define BRK_MIN 0x00800000
 #define BRK_MAX 0x07800000
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 void*_sbrk(ptrdiff_t incr)
 {
@@ -66,18 +73,21 @@ void __vm_store(const void *const key, uint32_t key_size, const void *const valu
 
 }
 
-void __vm_lookup(const void *const key, uint32_t key_size, void *const buffer, uint32_t buffer_size)
+int __vm_lookup(const void *const key, uint32_t key_size, void *const buffer, uint32_t buffer_size)
 {
+    int err = -1;
     __asm__ volatile(
-        "mv a3, %0\n\t"
-        "mv a4, %1\n\t"
-        "mv a5, %2\n\t"
-        "mv a6, %3\n\t"
+        "mv a3, %1\n\t"
+        "mv a4, %2\n\t"
+        "mv a5, %3\n\t"
+        "mv a6, %4\n\t"
         "li a7, 0xCBFC\n\t"
         "ecall\n\t"
-        : /* no outputs */
+        "mv %0, s1\n\t"
+        : "=r"(err)
         : "r"(key), "r"(key_size), "r"(buffer), "r"(buffer_size)
         : "a3", "a4", "a5", "a6", "a7");
+    return err;
 }
 
 // Returns the total number of bytes available in the aux data
@@ -192,3 +202,9 @@ void __vm_gettime(int *time)
         : "a5", "a7");
 }
 #endif 
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif

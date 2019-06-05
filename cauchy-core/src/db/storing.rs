@@ -84,8 +84,9 @@ impl Storable for ValueStore {
         };
         let mut store_id = context.timestamp.to_be_bytes().to_vec();
         store_id.append(&mut context.id.to_vec());
+        store_id.append(&mut key.to_vec());
         let doc = doc! {
-            "_id" => Bson::Binary(BinarySubtype::Generic, store_id),
+            // "_id" => Bson::Binary(BinarySubtype::Generic, store_id),
             // The [t]xid this item belongs to
             "t" => Bson::Binary(BinarySubtype::Generic, context.id.to_vec()),
             // The [o]riginating txid
